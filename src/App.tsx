@@ -129,6 +129,8 @@ type CaseHistoryItem = {
 };
 
 const CASE_REEL_WINNER_INDEX = 34;
+const CASE_BOX_OPEN_DURATION_MS = 1200;
+const CASE_REEL_DURATION_MS = 3600;
 
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
@@ -216,6 +218,7 @@ function App() {
   const [caseMessage, setCaseMessage] = useState("Choisis une caisse et ouvre-la avec des credits virtuels.");
   const [caseOpening, setCaseOpening] = useState(false);
   const [caseModalVisible, setCaseModalVisible] = useState(false);
+  const [caseModalPhase, setCaseModalPhase] = useState<"box" | "reel">("box");
   const [caseReelItems, setCaseReelItems] = useState<ShopItem[]>([]);
   const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(null);
   const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>([]);
@@ -607,9 +610,14 @@ function App() {
 
     setLastCaseDrop(null);
     setCaseReelItems(buildCaseReel(selectedCase, outcome.item));
+    setCaseModalPhase("box");
     setCaseModalVisible(true);
     setCaseOpening(true);
     setCaseMessage(`${definition.title} en ouverture...`);
+
+    window.setTimeout(() => {
+      setCaseModalPhase("reel");
+    }, CASE_BOX_OPEN_DURATION_MS);
 
     window.setTimeout(() => {
       setBalance(outcome.balance);
@@ -627,7 +635,7 @@ function App() {
           : `${outcome.item.name} debloque et equipe.`,
       );
       setCaseOpening(false);
-    }, 3600);
+    }, CASE_BOX_OPEN_DURATION_MS + CASE_REEL_DURATION_MS);
   }
 
   function launchRocket() {
@@ -720,6 +728,7 @@ function App() {
     setCaseMessage("Choisis une caisse et ouvre-la avec des credits virtuels.");
     setCaseOpening(false);
     setCaseModalVisible(false);
+    setCaseModalPhase("box");
     setCaseReelItems([]);
     setLastCaseDrop(null);
     setCaseHistory([]);
@@ -837,6 +846,7 @@ function App() {
             history={caseHistory}
             lastDrop={lastCaseDrop}
             message={caseMessage}
+            modalPhase={caseModalPhase}
             modalVisible={caseModalVisible}
             opening={caseOpening}
             ownedSkinIds={ownedSkinIds}
@@ -1977,6 +1987,7 @@ function CaseOpeningGame({
   history,
   lastDrop,
   message,
+  modalPhase,
   modalVisible,
   opening,
   ownedSkinIds,
@@ -1991,6 +2002,7 @@ function CaseOpeningGame({
   history: CaseHistoryItem[];
   lastDrop: CaseHistoryItem | null;
   message: string;
+  modalPhase: "box" | "reel";
   modalVisible: boolean;
   opening: boolean;
   ownedSkinIds: string[];
@@ -2131,6 +2143,7 @@ function CaseOpeningGame({
       {modalVisible && (
         <CaseOpeningModal
           drop={lastDrop}
+          phase={modalPhase}
           opening={opening}
           reelItems={reelItems}
           title={selectedDefinition.title}
@@ -2143,12 +2156,14 @@ function CaseOpeningGame({
 
 function CaseOpeningModal({
   drop,
+  phase,
   opening,
   reelItems,
   title,
   onClose,
 }: {
   drop: CaseHistoryItem | null;
+  phase: "box" | "reel";
   opening: boolean;
   reelItems: ShopItem[];
   title: string;
@@ -2160,33 +2175,44 @@ function CaseOpeningModal({
         <header className={styles.caseModalHeader}>
           <div>
             <span>{title}</span>
-            <h2>{opening ? "Ouverture en cours" : "Skin gagne"}</h2>
+            <h2>{phase === "box" ? "La caisse s'ouvre" : opening ? "Les skins defilent" : "Skin gagne"}</h2>
           </div>
           <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={opening}>
             Fermer
           </button>
         </header>
 
-        <div className={styles.caseReelWindow}>
-          <div className={styles.caseReelMarker} />
-          <div
-            className={opening ? `${styles.caseReelTrack} ${styles.caseReelTrackRolling}` : styles.caseReelTrack}
-            style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
-          >
-            {reelItems.map((item, index) => (
-              <article
-                className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]} ${
-                  !opening && index === CASE_REEL_WINNER_INDEX ? styles.caseReelWinner : ""
-                }`}
-                key={`${item.id}-${index}`}
-              >
-                <SkinPreview item={item} />
-                <strong>{item.name}</strong>
-                <small>{rarityLabel(item.rarity)}</small>
-              </article>
-            ))}
+        {phase === "box" ? (
+          <div className={styles.caseModalBoxStage}>
+            <div className={`${styles.caseBox} ${styles.caseBoxOpening}`}>
+              <span className={styles.caseLid} />
+              <span className={styles.caseGlow} />
+              <span className={styles.caseBody} />
+            </div>
+            <p>La caisse s'ouvre avant le tirage des skins.</p>
           </div>
-        </div>
+        ) : (
+          <div className={styles.caseReelWindow}>
+            <div className={styles.caseReelMarker} />
+            <div
+              className={opening ? `${styles.caseReelTrack} ${styles.caseReelTrackRolling}` : styles.caseReelTrack}
+              style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
+            >
+              {reelItems.map((item, index) => (
+                <article
+                  className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]} ${
+                    !opening && index === CASE_REEL_WINNER_INDEX ? styles.caseReelWinner : ""
+                  }`}
+                  key={`${item.id}-${index}`}
+                >
+                  <SkinPreview item={item} />
+                  <strong>{item.name}</strong>
+                  <small>{rarityLabel(item.rarity)}</small>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
 
         {drop ? (
           <article className={`${styles.caseRewardPanel} ${styles[`rarity-${drop.item.rarity}`]}`}>
@@ -2202,7 +2228,9 @@ function CaseOpeningModal({
             </div>
           </article>
         ) : (
-          <p className={styles.caseModalHint}>La bande defile et s'arrete sur le skin gagne.</p>
+          <p className={styles.caseModalHint}>
+            {phase === "box" ? "Preparation du tirage..." : "La bande defile et s'arrete sur le skin gagne."}
+          </p>
         )}
       </div>
     </div>

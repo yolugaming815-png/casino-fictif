@@ -1161,6 +1161,30 @@
   font-weight: 900;
 }
 
+.caseModalBoxStage {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  min-height: 260px;
+  padding: 22px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 209, 102, 0.22), transparent 38%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.caseModalBoxStage .caseBox {
+  width: min(300px, 80vw);
+}
+
+.caseModalBoxStage p {
+  margin: 0;
+  color: #d5ddd9;
+  font-weight: 800;
+  text-align: center;
+}
+
 .caseReelWindow {
   position: relative;
   overflow: hidden;
