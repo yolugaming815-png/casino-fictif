@@ -71,7 +71,9 @@ import {
   type RocketTarget,
 } from "./rocketLogic";
 import {
+  answerFriendRequest,
   isFirebaseConfigured,
+  loadFriendRequests,
   loadLeaderboard,
   loadCloudSave,
   sendFriendRequest,
@@ -81,6 +83,7 @@ import {
   signOutGoogle,
   watchCasinoUser,
   type CasinoUser,
+  type FriendRequestEntry,
   type LeaderboardEntry,
 } from "./firebaseClient";
 
@@ -336,7 +339,7 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop" | "inventory">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop" | "inventory" | "friends">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [paused, setPaused] = useState(false);
 
@@ -400,6 +403,8 @@ function App() {
   const [leaderboardMessage, setLeaderboardMessage] = useState("Connecte-toi pour apparaitre dans le classement.");
   const [selectedProfile, setSelectedProfile] = useState<LeaderboardEntry | null>(null);
   const [friendRequestMessage, setFriendRequestMessage] = useState("");
+  const [friendRequests, setFriendRequests] = useState<FriendRequestEntry[]>([]);
+  const [friendsMessage, setFriendsMessage] = useState("Connecte-toi pour voir tes amis.");
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -469,6 +474,8 @@ function App() {
       cloudSaveReadyRef.current = false;
 
       if (!user) {
+        setFriendRequests([]);
+        setFriendsMessage("Connecte-toi pour voir tes amis.");
         setAccountMessage(
           isFirebaseConfigured()
             ? "Connecte-toi avec Google pour sauvegarder en ligne."
@@ -495,6 +502,7 @@ function App() {
         }
 
         await refreshLeaderboard();
+        await refreshFriendRequests(user.uid);
         cloudSaveReadyRef.current = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -544,6 +552,12 @@ function App() {
     refreshLeaderboard();
   }, []);
 
+  useEffect(() => {
+    if (accountUser) {
+      refreshFriendRequests(accountUser.uid);
+    }
+  }, [accountUser]);
+
   async function refreshLeaderboard() {
     if (!isFirebaseConfigured()) {
       setLeaderboard([]);
@@ -558,6 +572,22 @@ function App() {
       setLeaderboardMessage(entries.length ? "Classement des comptes connectes." : "Aucun joueur classe pour le moment.");
     } catch {
       setLeaderboardMessage("Classement indisponible pour le moment.");
+    }
+  }
+
+  async function refreshFriendRequests(userId: string) {
+    if (!isFirebaseConfigured()) {
+      setFriendRequests([]);
+      setFriendsMessage("Firebase doit etre configure pour afficher les amis.");
+      return;
+    }
+
+    try {
+      const requests = await loadFriendRequests(userId);
+      setFriendRequests(requests);
+      setFriendsMessage(requests.length ? "Demandes et amis synchronises." : "Aucune demande d'ami pour le moment.");
+    } catch {
+      setFriendsMessage("Impossible de charger les amis pour le moment.");
     }
   }
 
@@ -580,9 +610,26 @@ function App() {
     try {
       await sendFriendRequest(accountUser, entry);
       setFriendRequestMessage(`Demande envoyee a ${entry.displayName}.`);
+      await refreshFriendRequests(accountUser.uid);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setFriendRequestMessage(`Demande impossible : ${message}`);
+    }
+  }
+
+  async function handleAnswerFriendRequest(request: FriendRequestEntry, status: "accepted" | "rejected") {
+    if (!accountUser) {
+      setFriendsMessage("Connecte-toi pour gerer tes demandes.");
+      return;
+    }
+
+    try {
+      await answerFriendRequest(request.id, status);
+      setFriendsMessage(status === "accepted" ? "Demande acceptee." : "Demande refusee.");
+      await refreshFriendRequests(accountUser.uid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setFriendsMessage(`Action impossible : ${message}`);
     }
   }
 
@@ -1167,6 +1214,13 @@ function App() {
           >
             Inventaire
           </button>
+          <button
+            className={activeSection === "friends" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("friends")}
+          >
+            Amis
+          </button>
         </nav>
 
         {activeSection === "games" && (
@@ -1236,6 +1290,15 @@ function App() {
           />
         ) : activeSection === "inventory" ? (
           <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleShopAction} />
+        ) : activeSection === "friends" ? (
+          <FriendsGame
+            currentUser={accountUser}
+            friendRequests={friendRequests}
+            leaderboard={leaderboard}
+            message={friendsMessage}
+            onAnswer={handleAnswerFriendRequest}
+            onOpenProfile={handleOpenPlayerProfile}
+          />
         ) : activeGame === "slots" ? (
           <SlotGame
             bet={slotBet}
@@ -1448,6 +1511,168 @@ function LeaderboardPanel({
       </ol>
       {entries.length === 0 && <p className={styles.empty}>Connecte-toi avec Google pour entrer dans le classement.</p>}
     </section>
+  );
+}
+
+function FriendsGame({
+  currentUser,
+  friendRequests,
+  leaderboard,
+  message,
+  onAnswer,
+  onOpenProfile,
+}: {
+  currentUser: CasinoUser | null;
+  friendRequests: FriendRequestEntry[];
+  leaderboard: LeaderboardEntry[];
+  message: string;
+  onAnswer: (request: FriendRequestEntry, status: "accepted" | "rejected") => void;
+  onOpenProfile: (entry: LeaderboardEntry) => void;
+}) {
+  const currentUserId = currentUser?.uid ?? "";
+  const incoming = friendRequests.filter((request) => request.status === "pending" && request.toUid === currentUserId);
+  const outgoing = friendRequests.filter((request) => request.status === "pending" && request.fromUid === currentUserId);
+  const friends = friendRequests.filter(
+    (request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId),
+  );
+  const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
+
+  function getOtherPlayer(request: FriendRequestEntry) {
+    const isSender = request.fromUid === currentUserId;
+    const uid = isSender ? request.toUid : request.fromUid;
+    const displayName = isSender ? request.toDisplayName : request.fromDisplayName;
+    return { uid, displayName, profile: leaderboardById.get(uid) };
+  }
+
+  if (!currentUser) {
+    return (
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Amis</h2>
+            <p>Connecte-toi avec Google pour voir tes demandes et ta liste d'amis.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Amis</h2>
+            <p>{message}</p>
+          </div>
+          <strong>
+            {friends.length} ami{friends.length > 1 ? "s" : ""}
+          </strong>
+        </div>
+      </section>
+
+      <div className={styles.socialSections}>
+        <section className={styles.panel}>
+          <div className={styles.socialSectionHeader}>
+            <h2>Demandes recues</h2>
+            <span>{incoming.length}</span>
+          </div>
+          <div className={styles.socialList}>
+            {incoming.length === 0 ? (
+              <p className={styles.empty}>Aucune demande recue.</p>
+            ) : (
+              incoming.map((request) => {
+                const player = getOtherPlayer(request);
+
+                return (
+                  <article className={styles.socialItem} key={request.id}>
+                    <div>
+                      <strong>{player.displayName}</strong>
+                      <small>veut t'ajouter en ami</small>
+                    </div>
+                    <div className={styles.socialActions}>
+                      {player.profile && (
+                        <button className={styles.secondaryButton} type="button" onClick={() => onOpenProfile(player.profile!)}>
+                          Profil
+                        </button>
+                      )}
+                      <button className={styles.primaryButton} type="button" onClick={() => onAnswer(request, "accepted")}>
+                        Accepter
+                      </button>
+                      <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(request, "rejected")}>
+                        Refuser
+                      </button>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.socialSectionHeader}>
+            <h2>Demandes envoyees</h2>
+            <span>{outgoing.length}</span>
+          </div>
+          <div className={styles.socialList}>
+            {outgoing.length === 0 ? (
+              <p className={styles.empty}>Aucune demande envoyee.</p>
+            ) : (
+              outgoing.map((request) => {
+                const player = getOtherPlayer(request);
+
+                return (
+                  <article className={styles.socialItem} key={request.id}>
+                    <div>
+                      <strong>{player.displayName}</strong>
+                      <small>en attente de reponse</small>
+                    </div>
+                    {player.profile && (
+                      <button className={styles.secondaryButton} type="button" onClick={() => onOpenProfile(player.profile!)}>
+                        Profil
+                      </button>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.socialSectionHeader}>
+            <h2>Mes amis</h2>
+            <span>{friends.length}</span>
+          </div>
+          <div className={styles.socialList}>
+            {friends.length === 0 ? (
+              <p className={styles.empty}>Aucun ami ajoute pour le moment.</p>
+            ) : (
+              friends.map((request) => {
+                const player = getOtherPlayer(request);
+
+                return (
+                  <article className={styles.socialItem} key={request.id}>
+                    <div>
+                      <strong>{player.displayName}</strong>
+                      <small>Ami ajoute</small>
+                    </div>
+                    {player.profile ? (
+                      <button className={styles.primaryButton} type="button" onClick={() => onOpenProfile(player.profile!)}>
+                        Voir profil
+                      </button>
+                    ) : (
+                      <small>Profil public pas encore disponible</small>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </section>
+      </div>
+    </>
   );
 }
 

@@ -314,6 +314,66 @@
   margin-top: 6px;
 }
 
+.socialSections,
+.socialList {
+  display: grid;
+  gap: 14px;
+}
+
+.socialSections {
+  margin-top: 18px;
+}
+
+.socialSectionHeader,
+.socialItem,
+.socialActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.socialSectionHeader {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.socialSectionHeader h2 {
+  margin: 0;
+}
+
+.socialSectionHeader span {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.socialItem {
+  justify-content: space-between;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.socialItem div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.socialItem small {
+  color: #d5ddd9;
+}
+
+.socialActions {
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
 .positive {
   color: #79e29f;
 }
@@ -352,7 +412,7 @@
 
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
@@ -2845,8 +2905,13 @@
   .shopHeader,
   .shopFooter,
   .inventorySectionHeader,
-  .shopSectionHeader {
+  .shopSectionHeader,
+  .socialItem {
     display: grid;
+  }
+
+  .socialActions {
+    justify-content: start;
   }
 
   .shopGrid {
@@ -2941,6 +3006,10 @@
   .gameTabs {
     gap: 6px;
     padding: 6px;
+  }
+
+  .modeTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .modeTabs button,

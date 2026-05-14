@@ -9,7 +9,20 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 
 export type CasinoUser = {
   uid: string;
@@ -25,6 +38,19 @@ export type LeaderboardEntry = {
   inventory: Array<{ id: string; count: number }>;
   equippedSkins: Record<string, string>;
   updatedAt?: unknown;
+};
+
+export type FriendRequestStatus = "pending" | "accepted" | "rejected";
+
+export type FriendRequestEntry = {
+  id: string;
+  fromUid: string;
+  fromDisplayName: string;
+  toUid: string;
+  toDisplayName: string;
+  status: FriendRequestStatus;
+  createdAt?: unknown;
+  respondedAt?: unknown;
 };
 
 const firebaseConfig = {
@@ -197,6 +223,52 @@ export async function sendFriendRequest(from: CasinoUser, to: LeaderboardEntry) 
     },
     { merge: true },
   );
+}
+
+function parseFriendRequest(id: string, data: Record<string, unknown>): FriendRequestEntry {
+  const status = data.status === "accepted" || data.status === "rejected" ? data.status : "pending";
+
+  return {
+    id,
+    fromUid: typeof data.fromUid === "string" ? data.fromUid : "",
+    fromDisplayName: typeof data.fromDisplayName === "string" ? data.fromDisplayName : "Joueur anonyme",
+    toUid: typeof data.toUid === "string" ? data.toUid : "",
+    toDisplayName: typeof data.toDisplayName === "string" ? data.toDisplayName : "Joueur anonyme",
+    status,
+    createdAt: data.createdAt,
+    respondedAt: data.respondedAt,
+  };
+}
+
+export async function loadFriendRequests(userId: string): Promise<FriendRequestEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const db = getFirestore(app);
+  const sentQuery = query(collection(db, "friendRequests"), where("fromUid", "==", userId));
+  const receivedQuery = query(collection(db, "friendRequests"), where("toUid", "==", userId));
+  const [sentSnapshot, receivedSnapshot] = await Promise.all([getDocs(sentQuery), getDocs(receivedQuery)]);
+  const requests = new Map<string, FriendRequestEntry>();
+
+  [...sentSnapshot.docs, ...receivedSnapshot.docs].forEach((requestDoc) => {
+    requests.set(requestDoc.id, parseFriendRequest(requestDoc.id, requestDoc.data()));
+  });
+
+  return [...requests.values()].filter((request) => request.fromUid && request.toUid);
+}
+
+export async function answerFriendRequest(requestId: string, status: "accepted" | "rejected") {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  await updateDoc(doc(getFirestore(app), "friendRequests", requestId), {
+    status,
+    respondedAt: serverTimestamp(),
+  });
 }
 
 export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
