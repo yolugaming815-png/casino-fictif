@@ -61,6 +61,7 @@ import {
   openCase,
   type CaseDefinition,
 } from "./caseLogic";
+import { evaluatePokerHand } from "./pokerLogic";
 import {
   ROCKET_MAX_TARGET,
   ROCKET_MIN_TARGET,
@@ -429,6 +430,8 @@ function App() {
   const [duelHistory, setDuelHistory] = useState<OnlineRoomEntry[]>([]);
   const [selectedProfileStats, setSelectedProfileStats] = useState<DuelStats | null>(null);
   const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
+  const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
+  const paidPokerAnteRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-paid-poker-ante") ?? "[]") as string[]));
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -588,6 +591,58 @@ function App() {
       refreshDuelHistory(accountUser.uid);
     }
   }, [accountUser]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "poker" || room.status !== "finished" || !room.players.some((player) => player.uid === accountUser.uid)) {
+        return;
+      }
+
+      const settlementKey = `${room.id}:${room.pokerHandId}`;
+
+      if (settledPokerRoomsRef.current.has(settlementKey)) {
+        return;
+      }
+
+      const winnerUids = room.pokerWinnerUids.length ? room.pokerWinnerUids : room.pokerWinnerUid ? [room.pokerWinnerUid] : [];
+      const winnerCount = Math.max(1, winnerUids.length);
+
+      if (winnerUids.includes(accountUser.uid)) {
+        const share = Math.floor(room.pokerPot / winnerCount);
+        setBalance((current) => current + share);
+        setOnlineMessage(winnerCount > 1 ? `Egalite poker : tu recuperes ${share} credits.` : `Victoire poker : tu gagnes ${share} credits.`);
+      }
+
+      settledPokerRoomsRef.current.add(settlementKey);
+      localStorage.setItem("casino-fictif-settled-poker", JSON.stringify([...settledPokerRoomsRef.current]));
+    });
+  }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "poker" || room.status !== "playing" || !room.players.some((player) => player.uid === accountUser.uid)) {
+        return;
+      }
+
+      const anteKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
+
+      if (paidPokerAnteRoomsRef.current.has(anteKey)) {
+        return;
+      }
+
+      paidPokerAnteRoomsRef.current.add(anteKey);
+      localStorage.setItem("casino-fictif-paid-poker-ante", JSON.stringify([...paidPokerAnteRoomsRef.current]));
+      setBalance((current) => Math.max(0, current - 25));
+    });
+  }, [accountUser, onlineRooms]);
 
   async function refreshLeaderboard() {
     if (!isFirebaseConfigured()) {
@@ -801,6 +856,11 @@ function App() {
       return;
     }
 
+    if (balance < 25) {
+      setOnlineMessage("Il faut au moins 25 credits pour entrer dans une main de poker.");
+      return;
+    }
+
     try {
       setOnlineActionRoomId(room.id);
       await startPokerRoom(room, accountUser);
@@ -858,9 +918,17 @@ function App() {
       return;
     }
 
+    const amountToCall = Math.max(0, room.pokerCurrentBet - (room.pokerContributions[accountUser.uid] ?? 0));
+
+    if (balance < amountToCall) {
+      setOnlineMessage("Solde insuffisant pour suivre.");
+      return;
+    }
+
     try {
       setOnlineActionRoomId(room.id);
       await callPokerPlayer(room, accountUser);
+      setBalance((current) => current - amountToCall);
       setOnlineMessage("Mise suivie.");
       await refreshOnlineRooms();
     } catch (error) {
@@ -877,9 +945,18 @@ function App() {
       return;
     }
 
+    const newBet = room.pokerCurrentBet + 25;
+    const amountToPay = Math.max(0, newBet - (room.pokerContributions[accountUser.uid] ?? 0));
+
+    if (balance < amountToPay) {
+      setOnlineMessage("Solde insuffisant pour relancer.");
+      return;
+    }
+
     try {
       setOnlineActionRoomId(room.id);
       await raisePokerPlayer(room, accountUser);
+      setBalance((current) => current - amountToPay);
       setOnlineMessage("Relance de 25 credits enregistree.");
       await refreshOnlineRooms();
     } catch (error) {
@@ -2506,7 +2583,7 @@ function PokerRoomPanel({
   const isHost = room.hostUid === currentUserId;
   const inRoom = room.players.some((player) => player.uid === currentUserId);
   const folded = room.foldedPlayerIds.includes(currentUserId);
-  const canStart = room.status === "waiting" && isHost && room.players.length >= 2;
+  const canStart = (room.status === "waiting" || room.status === "finished") && isHost && room.players.length >= 2;
   const activePlayers = room.players.filter((player) => !room.foldedPlayerIds.includes(player.uid));
   const phaseDone =
     room.status === "playing" &&
@@ -2522,13 +2599,15 @@ function PokerRoomPanel({
   const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0;
   const canFold = room.status === "playing" && inRoom && !folded && isTurn;
   const canRaise = room.status === "playing" && inRoom && !folded && isTurn;
+  const winnerNames = room.pokerWinnerNames.length ? room.pokerWinnerNames : room.pokerWinnerName ? [room.pokerWinnerName] : [];
+  const winnerSummary = winnerNames.length > 1 ? `Egalite : ${winnerNames.join(", ")}` : `Gagnant : ${winnerNames[0] || "a determiner"}`;
   const phaseLabel =
     room.status === "waiting"
       ? room.players.length < 2
         ? "En attente d'un joueur."
         : "Table prete a lancer."
       : room.status === "finished"
-        ? `Gagnant : ${room.pokerWinnerName || "a determiner"}${room.pokerWinnerHandLabel ? ` avec ${room.pokerWinnerHandLabel}` : ""}`
+        ? `${winnerSummary}${room.pokerWinnerHandLabel ? ` avec ${room.pokerWinnerHandLabel}` : ""}`
         : phaseDone
           ? `Phase ${room.pokerPhase} terminee.`
           : isTurn && amountToCall > 0
@@ -2544,14 +2623,19 @@ function PokerRoomPanel({
         <span>Mise actuelle</span>
         <strong>{room.pokerCurrentBet.toLocaleString("fr-FR")} credits</strong>
       </div>
-      <div className={styles.pokerMiniBoard}>
-        <div>
+      <div className={styles.pokerTableView}>
+        <div className={styles.pokerTableCenter}>
+          <span>Pot</span>
+          <strong>{room.pokerPot.toLocaleString("fr-FR")}</strong>
+          <small>{room.pokerPhase}</small>
+        </div>
+        <div className={styles.pokerCommunity}>
           <strong>Tes cartes</strong>
           <div className={styles.pokerMiniCards}>
             {currentHand.length ? currentHand.map((card) => <span key={card}>{card}</span>) : <span>?</span>}
           </div>
         </div>
-        <div>
+        <div className={styles.pokerCommunity}>
           <strong>Cartes communes</strong>
           <div className={styles.pokerMiniCards}>
             {room.communityCards.length ? room.communityCards.map((card) => <span key={card}>{card}</span>) : <span>Vide</span>}
@@ -2561,7 +2645,7 @@ function PokerRoomPanel({
       {room.status === "finished" && room.pokerWinnerHandLabel && (
         <div className={styles.pokerWinnerBox}>
           <strong>
-            {room.pokerWinnerName || "Le gagnant"} gagne avec {room.pokerWinnerHandLabel}
+            {winnerNames.length > 1 ? `${winnerNames.join(", ")} se partagent le pot avec ${room.pokerWinnerHandLabel}` : `${room.pokerWinnerName || "Le gagnant"} gagne avec ${room.pokerWinnerHandLabel}`}
           </strong>
           {room.pokerWinnerHandCards.length > 0 && (
             <div className={styles.pokerMiniCards}>
@@ -2570,6 +2654,34 @@ function PokerRoomPanel({
               ))}
             </div>
           )}
+        </div>
+      )}
+      {room.status === "finished" && (
+        <div className={styles.pokerShowdownGrid}>
+          {room.players.map((player) => {
+            const savedResult = room.pokerShowdownResults.find((result) => result.uid === player.uid);
+            const foldedPlayer = room.foldedPlayerIds.includes(player.uid) || savedResult?.folded;
+            const handCards = room.pokerHands[player.uid] ?? [];
+            const evaluated = !foldedPlayer ? evaluatePokerHand([...handCards, ...room.communityCards]) : null;
+            const isWinner = savedResult?.isWinner || room.pokerWinnerUids.includes(player.uid) || room.pokerWinnerUid === player.uid;
+            const handLabel = savedResult?.handLabel || (foldedPlayer ? "Couche" : evaluated?.label ?? "");
+            const bestCards = savedResult?.handCards?.length ? savedResult.handCards : evaluated?.cards ?? [];
+
+            return (
+              <article className={isWinner ? styles.pokerShowdownWinner : styles.pokerShowdownCard} key={`showdown-${room.id}-${player.uid}`}>
+                <div>
+                  <strong>{player.displayName}</strong>
+                  <span>{handLabel}</span>
+                </div>
+                <div className={styles.pokerMiniCards}>
+                  {handCards.length ? handCards.map((card) => <span key={`${player.uid}-hand-${card}`}>{card}</span>) : <span>?</span>}
+                </div>
+                {!foldedPlayer && bestCards.length > 0 && (
+                  <small>Meilleure main : {bestCards.join(" ")}</small>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
       <div className={styles.onlineRoomPlayers}>
@@ -2597,7 +2709,7 @@ function PokerRoomPanel({
       </div>
       <div className={styles.socialActions}>
         <button className={styles.primaryButton} type="button" onClick={() => onStart(room)} disabled={busy || !canStart}>
-          Lancer la partie
+          {room.status === "finished" ? "Nouvelle main" : "Lancer la partie"}
         </button>
         <button className={styles.primaryButton} type="button" onClick={() => onCheck(room)} disabled={busy || !canCheck}>
           Check

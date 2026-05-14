@@ -63,6 +63,15 @@ export type OnlineRoomPlayer = {
   displayName: string;
 };
 
+export type PokerShowdownResult = {
+  uid: string;
+  displayName: string;
+  folded: boolean;
+  handLabel: string;
+  handCards: string[];
+  isWinner: boolean;
+};
+
 export type DuelPlayerScore = {
   rounds: number[];
   total: number;
@@ -94,12 +103,16 @@ export type OnlineRoomEntry = {
   pokerPot: number;
   pokerCurrentBet: number;
   pokerContributions: Record<string, number>;
+  pokerHandId: number;
   pokerTurnUid?: string;
   pokerTurnName?: string;
   pokerWinnerUid?: string;
   pokerWinnerName?: string;
+  pokerWinnerUids: string[];
+  pokerWinnerNames: string[];
   pokerWinnerHandLabel?: string;
   pokerWinnerHandCards: string[];
+  pokerShowdownResults: PokerShowdownResult[];
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -398,6 +411,21 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     data.pokerPhase === "preflop" || data.pokerPhase === "flop" || data.pokerPhase === "turn" || data.pokerPhase === "river" || data.pokerPhase === "showdown"
       ? data.pokerPhase
       : "waiting";
+  const pokerShowdownResults = Array.isArray(data.pokerShowdownResults)
+    ? data.pokerShowdownResults
+        .map((result) => {
+          const parsedResult = result && typeof result === "object" ? (result as Record<string, unknown>) : {};
+          return {
+            uid: typeof parsedResult.uid === "string" ? parsedResult.uid : "",
+            displayName: typeof parsedResult.displayName === "string" ? parsedResult.displayName : "Joueur anonyme",
+            folded: parsedResult.folded === true,
+            handLabel: typeof parsedResult.handLabel === "string" ? parsedResult.handLabel : "",
+            handCards: Array.isArray(parsedResult.handCards) ? parsedResult.handCards.filter((card): card is string => typeof card === "string") : [],
+            isWinner: parsedResult.isWinner === true,
+          };
+        })
+        .filter((result) => result.uid)
+    : [];
 
   return {
     id,
@@ -423,12 +451,16 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     pokerPot: typeof data.pokerPot === "number" && Number.isFinite(data.pokerPot) ? data.pokerPot : 0,
     pokerCurrentBet: typeof data.pokerCurrentBet === "number" && Number.isFinite(data.pokerCurrentBet) ? data.pokerCurrentBet : 0,
     pokerContributions,
+    pokerHandId: typeof data.pokerHandId === "number" && Number.isFinite(data.pokerHandId) ? data.pokerHandId : 0,
     pokerTurnUid: typeof data.pokerTurnUid === "string" ? data.pokerTurnUid : undefined,
     pokerTurnName: typeof data.pokerTurnName === "string" ? data.pokerTurnName : undefined,
     pokerWinnerUid: typeof data.pokerWinnerUid === "string" ? data.pokerWinnerUid : undefined,
     pokerWinnerName: typeof data.pokerWinnerName === "string" ? data.pokerWinnerName : undefined,
+    pokerWinnerUids: Array.isArray(data.pokerWinnerUids) ? data.pokerWinnerUids.filter((uid): uid is string => typeof uid === "string") : [],
+    pokerWinnerNames: Array.isArray(data.pokerWinnerNames) ? data.pokerWinnerNames.filter((name): name is string => typeof name === "string") : [],
     pokerWinnerHandLabel: typeof data.pokerWinnerHandLabel === "string" ? data.pokerWinnerHandLabel : undefined,
     pokerWinnerHandCards: Array.isArray(data.pokerWinnerHandCards) ? data.pokerWinnerHandCards.filter((card): card is string => typeof card === "string") : [],
+    pokerShowdownResults,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -463,12 +495,16 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     pokerPot: 0,
     pokerCurrentBet: 0,
     pokerContributions: {},
+    pokerHandId: 0,
     pokerTurnUid: "",
     pokerTurnName: "",
     pokerWinnerUid: "",
     pokerWinnerName: "",
+    pokerWinnerUids: [],
+    pokerWinnerNames: [],
     pokerWinnerHandLabel: "",
     pokerWinnerHandCards: [],
+    pokerShowdownResults: [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -607,14 +643,34 @@ function createPokerDeck() {
   return deck;
 }
 
-function pickShowdownPokerWinner(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
+function createShowdownResults(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
   const activePlayers = activePokerPlayers(room, foldedPlayerIds);
   const candidates = activePlayers.length ? activePlayers : room.players;
+  const scoredCandidates = candidates.map((player) => ({
+    player,
+    score: evaluatePokerHand([...(room.pokerHands[player.uid] ?? []), ...room.communityCards]),
+  }));
+  const bestScore = scoredCandidates.reduce<ReturnType<typeof evaluatePokerHand> | null>(
+    (best, candidate) => (!best || comparePokerHands(candidate.score, best) > 0 ? candidate.score : best),
+    null,
+  );
+  const winnerUids = new Set(
+    scoredCandidates.filter((candidate) => bestScore && comparePokerHands(candidate.score, bestScore) === 0).map((candidate) => candidate.player.uid),
+  );
 
-  return candidates.reduce<{ player: OnlineRoomPlayer; score: ReturnType<typeof evaluatePokerHand> } | null>((best, player) => {
-    const score = evaluatePokerHand([...(room.pokerHands[player.uid] ?? []), ...room.communityCards]);
-    return !best || comparePokerHands(score, best.score) > 0 ? { player, score } : best;
-  }, null);
+  return room.players.map((player) => {
+    const folded = foldedPlayerIds.includes(player.uid);
+    const score = folded ? null : evaluatePokerHand([...(room.pokerHands[player.uid] ?? []), ...room.communityCards]);
+
+    return {
+      uid: player.uid,
+      displayName: player.displayName,
+      folded,
+      handLabel: folded ? "Couche" : score?.label ?? "",
+      handCards: folded ? [] : score?.cards ?? [],
+      isWinner: winnerUids.has(player.uid),
+    };
+  });
 }
 
 function activePokerPlayers(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
@@ -660,7 +716,7 @@ export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
     return;
   }
 
-  if (room.type !== "poker" || room.hostUid !== user.uid || room.players.length < 2) {
+  if (room.type !== "poker" || room.hostUid !== user.uid || room.players.length < 2 || room.status === "playing") {
     throw new Error("La table ne peut pas encore etre lancee.");
   }
 
@@ -682,12 +738,16 @@ export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
     pokerPot: room.players.length * 25,
     pokerCurrentBet: 0,
     pokerContributions: Object.fromEntries(room.players.map((player) => [player.uid, 0])),
+    pokerHandId: room.pokerHandId + 1,
     pokerTurnUid: room.players[0]?.uid ?? "",
     pokerTurnName: room.players[0]?.displayName ?? "",
     pokerWinnerUid: "",
     pokerWinnerName: "",
+    pokerWinnerUids: [],
+    pokerWinnerNames: [],
     pokerWinnerHandLabel: "",
     pokerWinnerHandCards: [],
+    pokerShowdownResults: [],
     updatedAt: serverTimestamp(),
   });
 }
@@ -711,8 +771,11 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
   let nextPhase: PokerPhase = "flop";
   let nextStatus: OnlineRoomStatus = "playing";
   let winner = room.pokerWinnerUid ? { uid: room.pokerWinnerUid, displayName: room.pokerWinnerName || "Joueur anonyme" } : undefined;
+  let winnerUids = room.pokerWinnerUids;
+  let winnerNames = room.pokerWinnerNames;
   let winnerHandLabel = room.pokerWinnerHandLabel ?? "";
   let winnerHandCards = room.pokerWinnerHandCards;
+  let showdownResults = room.pokerShowdownResults;
 
   if (room.pokerPhase === "preflop") {
     communityCards.push(...deck.splice(0, 3));
@@ -726,10 +789,13 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
   } else {
     nextPhase = "showdown";
     nextStatus = "finished";
-    const showdownWinner = pickShowdownPokerWinner(room);
-    winner = showdownWinner?.player;
-    winnerHandLabel = showdownWinner?.score.label ?? "";
-    winnerHandCards = showdownWinner?.score.cards ?? [];
+    showdownResults = createShowdownResults(room);
+    const winners = showdownResults.filter((result) => result.isWinner);
+    winner = winners[0] ? { uid: winners[0].uid, displayName: winners[0].displayName } : undefined;
+    winnerUids = winners.map((result) => result.uid);
+    winnerNames = winners.map((result) => result.displayName);
+    winnerHandLabel = winners.length > 1 ? "Egalite" : winners[0]?.handLabel ?? "";
+    winnerHandCards = winners.length === 1 ? winners[0]?.handCards ?? [] : [];
   }
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
@@ -744,8 +810,11 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
     pokerTurnName: nextStatus === "playing" ? activePokerPlayers(room)[0]?.displayName ?? "" : "",
     pokerWinnerUid: winner?.uid ?? "",
     pokerWinnerName: winner?.displayName ?? "",
+    pokerWinnerUids: winnerUids,
+    pokerWinnerNames: winnerNames,
     pokerWinnerHandLabel: winnerHandLabel,
     pokerWinnerHandCards: winnerHandCards,
+    pokerShowdownResults: showdownResults,
     updatedAt: serverTimestamp(),
   });
 }
@@ -876,6 +945,16 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
   const foldedPlayerIds = Array.from(new Set([...room.foldedPlayerIds, user.uid]));
   const activePlayers = room.players.filter((player) => !foldedPlayerIds.includes(player.uid));
   const winner = activePlayers.length === 1 ? activePlayers[0] : undefined;
+  const showdownResults = winner
+    ? room.players.map((player) => ({
+        uid: player.uid,
+        displayName: player.displayName,
+        folded: foldedPlayerIds.includes(player.uid),
+        handLabel: player.uid === winner.uid ? "Adversaires couches" : "Couche",
+        handCards: [],
+        isWinner: player.uid === winner.uid,
+      }))
+    : room.pokerShowdownResults;
   const pokerActions = {
     ...room.pokerActions,
     [user.uid]: "folded",
@@ -892,8 +971,11 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
     pokerTurnName: winner || phaseDone ? "" : nextTurn?.displayName ?? "",
     pokerWinnerUid: winner?.uid ?? room.pokerWinnerUid ?? "",
     pokerWinnerName: winner?.displayName ?? room.pokerWinnerName ?? "",
+    pokerWinnerUids: winner ? [winner.uid] : room.pokerWinnerUids,
+    pokerWinnerNames: winner ? [winner.displayName] : room.pokerWinnerNames,
     pokerWinnerHandLabel: winner ? "Adversaires couches" : room.pokerWinnerHandLabel ?? "",
     pokerWinnerHandCards: winner ? [] : room.pokerWinnerHandCards,
+    pokerShowdownResults: showdownResults,
     updatedAt: serverTimestamp(),
   });
 }
