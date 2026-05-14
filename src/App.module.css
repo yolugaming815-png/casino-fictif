@@ -1916,13 +1916,13 @@
   }
 
   .plinkoBoard {
-    min-height: 390px;
+    min-height: 430px;
     padding: 12px 6px 10px;
   }
 
   .plinkoCanvas {
-    height: min(72vw, 360px);
-    min-height: 280px;
+    height: min(82vw, 390px);
+    min-height: 320px;
   }
 
   .plinkoSlots {

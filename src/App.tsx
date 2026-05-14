@@ -1439,22 +1439,23 @@ function PlinkoPhysicsBoard({
     engineRef.current = engine;
     engine.gravity.y = 1.05;
     const runner = Runner.create();
+    const dimensions = getPlinkoDimensions(width, height, rows);
     const pegs = getPegPositions(width, height, rows).map((peg) =>
-      Bodies.circle(peg.x, peg.y, 6, {
+      Bodies.circle(peg.x, peg.y, dimensions.pegRadius, {
         isStatic: true,
         restitution: 0.58,
         friction: 0,
         label: "peg",
       }),
     );
-    const slotTop = height - 68;
-    const slotWidth = width / (rows + 1);
+    const slotTop = dimensions.slotTop;
+    const slotWidth = dimensions.slotWidth;
     const walls = [
       Bodies.rectangle(-10, height / 2, 20, height, { isStatic: true }),
       Bodies.rectangle(width + 10, height / 2, 20, height, { isStatic: true }),
       Bodies.rectangle(width / 2, height + 18, width, 36, { isStatic: true }),
       ...Array.from({ length: rows }, (_, index) =>
-        Bodies.rectangle((index + 1) * slotWidth, slotTop + 30, 5, 70, {
+        Bodies.rectangle((index + 1) * slotWidth, slotTop + 30, dimensions.dividerWidth, 70, {
           isStatic: true,
           restitution: 0.2,
         }),
@@ -1467,7 +1468,7 @@ function PlinkoPhysicsBoard({
     const render = () => {
       context.clearRect(0, 0, width, height);
       context.fillStyle = "rgba(255, 255, 255, 0.92)";
-      pegs.forEach((peg) => drawCircle(context, peg.position.x, peg.position.y, 6));
+      pegs.forEach((peg) => drawCircle(context, peg.position.x, peg.position.y, dimensions.pegRadius));
       drawSlotDividers(context, width, height, rows);
 
       activeBodiesRef.current.forEach((entry, id) => {
@@ -1475,8 +1476,8 @@ function PlinkoPhysicsBoard({
 
         context.fillStyle = ballSkin.preview;
         context.shadowColor = ballGlow(ballSkin.id);
-        context.shadowBlur = 18;
-        drawCircle(context, body.position.x, body.position.y, 11);
+        context.shadowBlur = dimensions.ballRadius * 1.6;
+        drawCircle(context, body.position.x, body.position.y, dimensions.ballRadius);
         context.shadowBlur = 0;
 
         if (entry.path.length < rows && body.position.y >= entry.nextPathY) {
@@ -1521,6 +1522,7 @@ function PlinkoPhysicsBoard({
 
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
+    const dimensions = getPlinkoDimensions(width, height, rows);
     const firstPegY = getPegPositions(width, height, rows)[0]?.y ?? 70;
     const launchIds = new Set(launches.map((launch) => launch.id));
 
@@ -1536,7 +1538,7 @@ function PlinkoPhysicsBoard({
         return;
       }
 
-      const body = Bodies.circle(width / 2 + (Math.random() - 0.5) * 42, 22, 11, {
+      const body = Bodies.circle(width / 2 + (Math.random() - 0.5) * dimensions.launchSpread, 22, dimensions.ballRadius, {
         restitution: 0.48,
         friction: 0.001,
         frictionAir: 0.006,
@@ -1544,7 +1546,7 @@ function PlinkoPhysicsBoard({
         label: `ball-${launch.id}`,
       });
 
-      Body.setVelocity(body, { x: (Math.random() - 0.5) * 1.6, y: 0 });
+      Body.setVelocity(body, { x: (Math.random() - 0.5) * dimensions.launchVelocity, y: 0 });
       Composite.add(engine.world, body);
       activeBodiesRef.current.set(launch.id, {
         launch,
@@ -1560,10 +1562,9 @@ function PlinkoPhysicsBoard({
 }
 
 function getPegPositions(width: number, height: number, rows: PlinkoRows) {
-  const slotTop = height - 68;
+  const { slotTop, spacing } = getPlinkoDimensions(width, height, rows);
   const top = 24;
   const verticalGap = (slotTop - 64) / Math.max(rows - 1, 1);
-  const spacing = Math.min(84, (width - 48) / (rows + 1));
 
   return Array.from({ length: rows }).flatMap((_, row) => {
     const y = top + row * verticalGap + 42;
@@ -1574,6 +1575,24 @@ function getPegPositions(width: number, height: number, rows: PlinkoRows) {
   });
 }
 
+function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
+  const horizontalPadding = width < 430 ? 28 : 48;
+  const spacing = Math.min(84, Math.max(18, (width - horizontalPadding) / (rows + 1)));
+  const pegRadius = Math.max(3.6, Math.min(6, spacing * 0.18));
+  const ballRadius = Math.max(6.2, Math.min(11, spacing * 0.3));
+
+  return {
+    ballRadius,
+    dividerWidth: Math.max(2, Math.min(5, spacing * 0.12)),
+    launchSpread: Math.max(18, Math.min(42, spacing * 1.35)),
+    launchVelocity: Math.max(0.7, Math.min(1.6, spacing / 36)),
+    pegRadius,
+    slotTop: height - 68,
+    slotWidth: width / (rows + 1),
+    spacing,
+  };
+}
+
 function drawCircle(context: CanvasRenderingContext2D, x: number, y: number, radius: number) {
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
@@ -1581,11 +1600,10 @@ function drawCircle(context: CanvasRenderingContext2D, x: number, y: number, rad
 }
 
 function drawSlotDividers(context: CanvasRenderingContext2D, width: number, height: number, rows: PlinkoRows) {
-  const slotTop = height - 68;
-  const slotWidth = width / (rows + 1);
+  const { dividerWidth, slotTop, slotWidth } = getPlinkoDimensions(width, height, rows);
   context.fillStyle = "rgba(255, 255, 255, 0.14)";
   for (let index = 1; index <= rows; index += 1) {
-    context.fillRect(index * slotWidth - 1, slotTop, 2, 54);
+    context.fillRect(index * slotWidth - dividerWidth / 2, slotTop, dividerWidth, 54);
   }
 }
 
