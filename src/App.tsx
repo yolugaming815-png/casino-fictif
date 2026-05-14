@@ -124,6 +124,8 @@ type CaseHistoryItem = {
   balanceAfter: number;
 };
 
+const CASE_REEL_WINNER_INDEX = 34;
+
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
   { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %" },
@@ -209,6 +211,8 @@ function App() {
   const [selectedCase, setSelectedCase] = useState<SkinCategory>("plinkoBall");
   const [caseMessage, setCaseMessage] = useState("Choisis une caisse et ouvre-la avec des credits virtuels.");
   const [caseOpening, setCaseOpening] = useState(false);
+  const [caseModalVisible, setCaseModalVisible] = useState(false);
+  const [caseReelItems, setCaseReelItems] = useState<ShopItem[]>([]);
   const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(null);
   const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>([]);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
@@ -578,27 +582,29 @@ function App() {
       return;
     }
 
+    const outcome = openCase(balance, ownedSkinIds, SHOP_ITEMS, selectedCase);
+
+    if (!outcome) {
+      setCaseMessage("Solde insuffisant pour ouvrir cette caisse.");
+      return;
+    }
+
+    const historyItem: CaseHistoryItem = {
+      id: caseId.current++,
+      item: outcome.item,
+      caseTitle: definition.title,
+      duplicate: outcome.duplicate,
+      refund: outcome.refund,
+      balanceAfter: outcome.balance,
+    };
+
+    setLastCaseDrop(null);
+    setCaseReelItems(buildCaseReel(selectedCase, outcome.item));
+    setCaseModalVisible(true);
     setCaseOpening(true);
     setCaseMessage(`${definition.title} en ouverture...`);
 
     window.setTimeout(() => {
-      const outcome = openCase(balance, ownedSkinIds, SHOP_ITEMS, selectedCase);
-
-      if (!outcome) {
-        setCaseMessage("Solde insuffisant pour ouvrir cette caisse.");
-        setCaseOpening(false);
-        return;
-      }
-
-      const historyItem: CaseHistoryItem = {
-        id: caseId.current++,
-        item: outcome.item,
-        caseTitle: definition.title,
-        duplicate: outcome.duplicate,
-        refund: outcome.refund,
-        balanceAfter: outcome.balance,
-      };
-
       setBalance(outcome.balance);
       setOwnedSkinIds(outcome.ownedSkinIds);
       setLastCaseDrop(historyItem);
@@ -614,7 +620,7 @@ function App() {
           : `${outcome.item.name} debloque et equipe.`,
       );
       setCaseOpening(false);
-    }, 900);
+    }, 3600);
   }
 
   function launchRocket() {
@@ -706,6 +712,8 @@ function App() {
     setSelectedCase("plinkoBall");
     setCaseMessage("Choisis une caisse et ouvre-la avec des credits virtuels.");
     setCaseOpening(false);
+    setCaseModalVisible(false);
+    setCaseReelItems([]);
     setLastCaseDrop(null);
     setCaseHistory([]);
     setRocketBet(25);
@@ -822,10 +830,13 @@ function App() {
             history={caseHistory}
             lastDrop={lastCaseDrop}
             message={caseMessage}
+            modalVisible={caseModalVisible}
             opening={caseOpening}
             ownedSkinIds={ownedSkinIds}
             paused={paused}
+            reelItems={caseReelItems}
             selectedCase={selectedCase}
+            onCloseModal={() => setCaseModalVisible(false)}
             onOpen={handleOpenCase}
             onSelectCase={setSelectedCase}
           />
@@ -1912,10 +1923,13 @@ function CaseOpeningGame({
   history,
   lastDrop,
   message,
+  modalVisible,
   opening,
   ownedSkinIds,
   paused,
+  reelItems,
   selectedCase,
+  onCloseModal,
   onOpen,
   onSelectCase,
 }: {
@@ -1923,10 +1937,13 @@ function CaseOpeningGame({
   history: CaseHistoryItem[];
   lastDrop: CaseHistoryItem | null;
   message: string;
+  modalVisible: boolean;
   opening: boolean;
   ownedSkinIds: string[];
   paused: boolean;
+  reelItems: ShopItem[];
   selectedCase: SkinCategory;
+  onCloseModal: () => void;
   onOpen: () => void;
   onSelectCase: (category: SkinCategory) => void;
 }) {
@@ -2056,7 +2073,85 @@ function CaseOpeningGame({
         </ul>
         {history.length === 0 && <p className={styles.empty}>Aucune caisse ouverte pour le moment.</p>}
       </section>
+
+      {modalVisible && (
+        <CaseOpeningModal
+          drop={lastDrop}
+          opening={opening}
+          reelItems={reelItems}
+          title={selectedDefinition.title}
+          onClose={onCloseModal}
+        />
+      )}
     </>
+  );
+}
+
+function CaseOpeningModal({
+  drop,
+  opening,
+  reelItems,
+  title,
+  onClose,
+}: {
+  drop: CaseHistoryItem | null;
+  opening: boolean;
+  reelItems: ShopItem[];
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className={styles.caseModalBackdrop} role="dialog" aria-modal="true" aria-label="Ouverture de caisse">
+      <div className={styles.caseModal}>
+        <header className={styles.caseModalHeader}>
+          <div>
+            <span>{title}</span>
+            <h2>{opening ? "Ouverture en cours" : "Skin gagne"}</h2>
+          </div>
+          <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={opening}>
+            Fermer
+          </button>
+        </header>
+
+        <div className={styles.caseReelWindow}>
+          <div className={styles.caseReelMarker} />
+          <div
+            className={opening ? `${styles.caseReelTrack} ${styles.caseReelTrackRolling}` : styles.caseReelTrack}
+            style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
+          >
+            {reelItems.map((item, index) => (
+              <article
+                className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]} ${
+                  !opening && index === CASE_REEL_WINNER_INDEX ? styles.caseReelWinner : ""
+                }`}
+                key={`${item.id}-${index}`}
+              >
+                <SkinPreview item={item} />
+                <strong>{item.name}</strong>
+                <small>{rarityLabel(item.rarity)}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        {drop ? (
+          <article className={`${styles.caseRewardPanel} ${styles[`rarity-${drop.item.rarity}`]}`}>
+            <SkinPreview item={drop.item} large />
+            <div>
+              <small>{rarityLabel(drop.item.rarity)}</small>
+              <h3>{drop.item.name}</h3>
+              <p>
+                {drop.duplicate
+                  ? `Tu avais deja ce skin : +${drop.refund} credits virtuels.`
+                  : `Nouveau skin debloque et equipe depuis ${drop.caseTitle}.`}
+              </p>
+            </div>
+          </article>
+        ) : (
+          <p className={styles.caseModalHint}>La bande defile et s'arrete sur le skin gagne.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2497,6 +2592,18 @@ function rarityLabel(rarity: SkinRarity): string {
 
 function duplicateRefundLabel(rarity: SkinRarity): number {
   return DUPLICATE_REFUNDS[rarity];
+}
+
+function buildCaseReel(category: SkinCategory, winningItem: ShopItem): ShopItem[] {
+  const items = SHOP_ITEMS.filter((item) => item.category === category);
+
+  return Array.from({ length: 44 }, (_, index) => {
+    if (index === CASE_REEL_WINNER_INDEX) {
+      return winningItem;
+    }
+
+    return items[index % items.length];
+  });
 }
 
 function skinCategoryLabel(category: ShopItem["category"]): string {
