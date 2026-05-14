@@ -103,6 +103,7 @@ type PlinkoLaunch = {
   rows: PlinkoRows;
   path: PlinkoStep[];
   slot: number;
+  visualSeed: number;
 };
 
 type RouletteHistoryItem = RouletteOutcome & {
@@ -462,6 +463,7 @@ function App() {
       path,
       rows: plinkoRows,
       slot: getFinalSlot(path),
+      visualSeed: Math.random(),
     };
 
     setBalance((current) => current - plinkoBet);
@@ -1601,25 +1603,31 @@ function getPlinkoVisualPosition(
   const topY = 22;
   const firstPegY = 66;
   const finalY = dimensions.slotTop + 34;
-  const eased = smoothstep(progress);
+  const fallingProgress = Math.min(1, progress ** 1.32);
   const segmentCount = rows + 1;
-  const rawSegment = eased * segmentCount;
+  const rawSegment = fallingProgress * segmentCount;
   const segment = Math.min(rows, Math.floor(rawSegment));
   const localProgress = rawSegment - segment;
   const currentPoint = getPlinkoPathPoint(launch, width, dimensions, segment, firstPegY, finalY);
   const nextPoint = getPlinkoPathPoint(launch, width, dimensions, segment + 1, firstPegY, finalY);
-  const wobble = Math.sin(progress * Math.PI * rows * 2) * dimensions.pegRadius * 0.55 * (1 - progress);
+  const direction = launch.path[segment] === "R" ? 1 : -1;
+  const bounce = Math.sin(localProgress * Math.PI) * dimensions.pegRadius * 1.1 * direction;
+  const jitter =
+    Math.sin((progress * 28 + launch.visualSeed * 12) * Math.PI) *
+    dimensions.pegRadius *
+    0.32 *
+    (1 - progress);
 
   if (progress < 0.06) {
     return {
       x: width / 2,
-      y: topY + (firstPegY - topY) * smoothstep(progress / 0.06),
+      y: topY + (firstPegY - topY) * (progress / 0.06) ** 1.45,
     };
   }
 
   return {
-    x: currentPoint.x + (nextPoint.x - currentPoint.x) * smoothstep(localProgress) + wobble,
-    y: currentPoint.y + (nextPoint.y - currentPoint.y) * localProgress,
+    x: currentPoint.x + (nextPoint.x - currentPoint.x) * smoothstep(localProgress) + bounce + jitter,
+    y: currentPoint.y + (nextPoint.y - currentPoint.y) * localProgress ** 1.18,
   };
 }
 
