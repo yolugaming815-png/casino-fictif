@@ -2617,7 +2617,7 @@ function InventoryGame({
                     <article className={`${styles.inventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
                       <div className={styles.inventoryPreview}>
                         <SkinPreview item={item} large />
-                        <span>x{count}</span>
+                        <span className={styles.inventoryCount}>x{count}</span>
                       </div>
                       <div>
                         <small>{rarityLabel(item.rarity)}</small>
@@ -3050,13 +3050,63 @@ function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean 
     );
   }
 
+  if (item.category === "rocketShip") {
+    return (
+      <span
+        className={`${large ? styles.rocketPreviewLarge : styles.rocketPreviewSmall} ${rocketShipClass(item.id)}`}
+        style={{ "--rocket-accent": item.preview, "--rocket-glow": rocketGlow(item.id) } as CSSProperties}
+        aria-hidden="true"
+      >
+        <span className={styles.rocketNose} />
+        <span className={styles.rocketBody}>
+          <span className={styles.rocketWindow} />
+        </span>
+        <span className={styles.rocketFinLeft} />
+        <span className={styles.rocketFinRight} />
+        <span className={styles.rocketFlame} />
+      </span>
+    );
+  }
+
   return (
     <span
-      className={large ? styles.caseOrbPreview : styles.shopOrbPreview}
+      className={`${large ? styles.caseOrbPreview : styles.shopOrbPreview} ${ballSkinClass(item.id)}`}
       style={{ "--shop-preview-color": item.preview, "--shop-preview-glow": ballGlow(item.id) } as CSSProperties}
       aria-hidden="true"
     />
   );
+}
+
+function ballSkinClass(id: string): string {
+  if (id.includes("neon")) {
+    return styles.ballNeon;
+  }
+
+  if (id.includes("ruby")) {
+    return styles.ballRuby;
+  }
+
+  if (id.includes("ocean") || id.includes("sapphire")) {
+    return styles.ballOcean;
+  }
+
+  if (id.includes("lilac") || id.includes("violet")) {
+    return styles.ballLilac;
+  }
+
+  if (id.includes("mint") || id.includes("jade")) {
+    return styles.ballMint;
+  }
+
+  if (id.includes("rose")) {
+    return styles.ballRose;
+  }
+
+  if (id.includes("sun")) {
+    return styles.ballSun;
+  }
+
+  return styles.ballGold;
 }
 
 function rarityLabel(rarity: SkinRarity): string {

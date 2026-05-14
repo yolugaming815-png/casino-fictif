@@ -929,8 +929,63 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: var(--shop-preview-color);
+  background:
+    radial-gradient(circle at 32% 25%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    var(--shop-preview-color);
   box-shadow: 0 0 22px var(--shop-preview-glow);
+}
+
+.ballGold {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(135deg, #ffe49a, #ffc94f 56%, #d79724);
+}
+
+.ballNeon {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    repeating-linear-gradient(45deg, rgba(16, 18, 24, 0.2) 0 4px, transparent 4px 10px),
+    linear-gradient(135deg, #9effbe, #36d77d);
+}
+
+.ballRuby {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    radial-gradient(circle at 68% 72%, #77171f, transparent 35%),
+    linear-gradient(135deg, #ff8b8b, #cc243b);
+}
+
+.ballOcean {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(135deg, transparent 0 45%, rgba(255, 255, 255, 0.35) 46% 54%, transparent 55%),
+    linear-gradient(135deg, #9ee3ff, #2f8be6);
+}
+
+.ballLilac {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 40deg, #c58cff, #8b6cff, #f3b7ff, #c58cff);
+}
+
+.ballMint {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.32) 0 2px, transparent 2px 8px),
+    linear-gradient(135deg, #bcffe8, #45d7a0);
+}
+
+.ballRose {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 18%, transparent 18% 36%, rgba(255, 255, 255, 0.2) 36% 54%, transparent 54%),
+    linear-gradient(135deg, #ffb4ca, #ef4f87);
+}
+
+.ballSun {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 0deg, #fff0a8, #ffb83d, #fff0a8, #ff9e3d, #fff0a8);
 }
 
 .shopCardPreview {
@@ -1026,6 +1081,30 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.inventoryItem.rarity-common {
+  background:
+    linear-gradient(90deg, rgba(213, 221, 217, 0.08), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.inventoryItem.rarity-rare {
+  background:
+    linear-gradient(90deg, rgba(94, 184, 241, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.inventoryItem.rarity-epic {
+  background:
+    linear-gradient(90deg, rgba(197, 140, 255, 0.18), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.inventoryItem.rarity-legendary {
+  background:
+    linear-gradient(90deg, rgba(255, 209, 102, 0.2), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
 .inventoryItem small {
   color: #ffd166;
   font-weight: 900;
@@ -1040,10 +1119,31 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-.inventoryPreview span {
+.inventoryPreview::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 52%),
+    rgba(16, 18, 24, 0.2);
+}
+
+.inventoryPreview .shopOrbPreview,
+.inventoryPreview .caseOrbPreview,
+.inventoryPreview .shopCardPreview,
+.inventoryPreview .caseCardBackPreview,
+.inventoryPreview .rocketPreviewSmall,
+.inventoryPreview .rocketPreviewLarge {
+  position: relative;
+  z-index: 1;
+}
+
+.inventoryCount {
   position: absolute;
   right: 7px;
   bottom: 7px;
+  z-index: 2;
   min-width: 34px;
   padding: 4px 7px;
   border-radius: 999px;
@@ -1052,6 +1152,37 @@
   font-size: 0.8rem;
   font-weight: 900;
   text-align: center;
+}
+
+.rocketPreviewSmall,
+.rocketPreviewLarge {
+  position: relative;
+  display: block;
+  width: 58px;
+  height: 84px;
+  transform: rotate(18deg) scale(0.78);
+  filter: drop-shadow(0 0 16px var(--rocket-glow, rgba(124, 199, 255, 0.28)));
+}
+
+.rocketPreviewLarge {
+  width: 72px;
+  height: 108px;
+  transform: rotate(18deg) scale(0.86);
+}
+
+.rocketPreviewSmall .rocketNose,
+.rocketPreviewSmall .rocketBody,
+.rocketPreviewSmall .rocketFinLeft,
+.rocketPreviewSmall .rocketFinRight,
+.rocketPreviewSmall .rocketFlame,
+.rocketPreviewSmall .rocketWindow,
+.rocketPreviewLarge .rocketNose,
+.rocketPreviewLarge .rocketBody,
+.rocketPreviewLarge .rocketFinLeft,
+.rocketPreviewLarge .rocketFinRight,
+.rocketPreviewLarge .rocketFlame,
+.rocketPreviewLarge .rocketWindow {
+  position: absolute;
 }
 
 .caseLayout {
@@ -1203,7 +1334,9 @@
   width: 68px;
   height: 68px;
   border-radius: 50%;
-  background: var(--shop-preview-color);
+  background:
+    radial-gradient(circle at 32% 25%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    var(--shop-preview-color);
   box-shadow: 0 0 28px var(--shop-preview-glow);
 }
 
