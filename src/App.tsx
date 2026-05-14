@@ -1576,10 +1576,15 @@ function getPegPositions(width: number, height: number, rows: PlinkoRows) {
 }
 
 function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
-  const horizontalPadding = width < 430 ? 28 : 48;
+  const horizontalPadding = width < 430 ? 44 : 48;
   const spacing = Math.min(84, Math.max(18, (width - horizontalPadding) / (rows + 1)));
-  const pegRadius = Math.max(3.6, Math.min(6, spacing * 0.18));
-  const ballRadius = Math.max(6.2, Math.min(11, spacing * 0.3));
+  const compactBoard = width < 520;
+  const pegRadius = compactBoard
+    ? Math.max(2.8, Math.min(4.2, spacing * 0.13))
+    : Math.max(3.6, Math.min(6, spacing * 0.18));
+  const ballRadius = compactBoard
+    ? Math.max(4.4, Math.min(6.2, spacing * 0.19))
+    : Math.max(6.2, Math.min(11, spacing * 0.3));
 
   return {
     ballRadius,
