@@ -1530,16 +1530,37 @@ function FriendsGame({
   onOpenProfile: (entry: LeaderboardEntry) => void;
 }) {
   const currentUserId = currentUser?.uid ?? "";
-  const incoming = friendRequests.filter((request) => request.status === "pending" && request.toUid === currentUserId);
-  const outgoing = friendRequests.filter((request) => request.status === "pending" && request.fromUid === currentUserId);
-  const friends = friendRequests.filter(
+  const acceptedRequests = friendRequests.filter(
     (request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId),
   );
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
 
+  function getOtherUid(request: FriendRequestEntry) {
+    return request.fromUid === currentUserId ? request.toUid : request.fromUid;
+  }
+
+  const acceptedFriendIds = new Set(acceptedRequests.map(getOtherUid));
+  const incoming = friendRequests.filter(
+    (request) => request.status === "pending" && request.toUid === currentUserId && !acceptedFriendIds.has(request.fromUid),
+  );
+  const outgoing = friendRequests.filter(
+    (request) => request.status === "pending" && request.fromUid === currentUserId && !acceptedFriendIds.has(request.toUid),
+  );
+  const friends = Array.from(
+    acceptedRequests
+      .reduce((uniqueFriends, request) => {
+        const friendUid = getOtherUid(request);
+        if (!uniqueFriends.has(friendUid)) {
+          uniqueFriends.set(friendUid, request);
+        }
+        return uniqueFriends;
+      }, new Map<string, FriendRequestEntry>())
+      .values(),
+  );
+
   function getOtherPlayer(request: FriendRequestEntry) {
     const isSender = request.fromUid === currentUserId;
-    const uid = isSender ? request.toUid : request.fromUid;
+    const uid = getOtherUid(request);
     const displayName = isSender ? request.toDisplayName : request.fromDisplayName;
     return { uid, displayName, profile: leaderboardById.get(uid) };
   }

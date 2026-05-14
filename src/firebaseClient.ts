@@ -211,8 +211,25 @@ export async function sendFriendRequest(from: CasinoUser, to: LeaderboardEntry) 
     return;
   }
 
+  const db = getFirestore(app);
+  const directRef = doc(db, "friendRequests", `${from.uid}_${to.uid}`);
+  const reverseRef = doc(db, "friendRequests", `${to.uid}_${from.uid}`);
+  const [directSnapshot, reverseSnapshot] = await Promise.all([getDoc(directRef), getDoc(reverseRef)]);
+
+  if (directSnapshot.data()?.status === "accepted" || reverseSnapshot.data()?.status === "accepted") {
+    return;
+  }
+
+  if (reverseSnapshot.exists() && reverseSnapshot.data()?.status === "pending") {
+    await updateDoc(reverseRef, {
+      status: "accepted",
+      respondedAt: serverTimestamp(),
+    });
+    return;
+  }
+
   await setDoc(
-    doc(getFirestore(app), "friendRequests", `${from.uid}_${to.uid}`),
+    directRef,
     {
       fromUid: from.uid,
       fromDisplayName: from.displayName || "Joueur anonyme",
