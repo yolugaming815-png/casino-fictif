@@ -91,6 +91,8 @@ export type OnlineRoomEntry = {
   foldedPlayerIds: string[];
   pokerActions: Record<string, string>;
   pokerPot: number;
+  pokerCurrentBet: number;
+  pokerContributions: Record<string, number>;
   pokerTurnUid?: string;
   pokerTurnName?: string;
   pokerWinnerUid?: string;
@@ -383,6 +385,12 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
   const pokerActions = Object.fromEntries(
     Object.entries(rawPokerActions).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
+  const rawPokerContributions = data.pokerContributions && typeof data.pokerContributions === "object" ? (data.pokerContributions as Record<string, unknown>) : {};
+  const pokerContributions = Object.fromEntries(
+    Object.entries(rawPokerContributions)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
+      .map(([uid, contribution]) => [uid, contribution]),
+  );
   const pokerPhase =
     data.pokerPhase === "preflop" || data.pokerPhase === "flop" || data.pokerPhase === "turn" || data.pokerPhase === "river" || data.pokerPhase === "showdown"
       ? data.pokerPhase
@@ -410,6 +418,8 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     foldedPlayerIds: Array.isArray(data.foldedPlayerIds) ? data.foldedPlayerIds.filter((uid): uid is string => typeof uid === "string") : [],
     pokerActions,
     pokerPot: typeof data.pokerPot === "number" && Number.isFinite(data.pokerPot) ? data.pokerPot : 0,
+    pokerCurrentBet: typeof data.pokerCurrentBet === "number" && Number.isFinite(data.pokerCurrentBet) ? data.pokerCurrentBet : 0,
+    pokerContributions,
     pokerTurnUid: typeof data.pokerTurnUid === "string" ? data.pokerTurnUid : undefined,
     pokerTurnName: typeof data.pokerTurnName === "string" ? data.pokerTurnName : undefined,
     pokerWinnerUid: typeof data.pokerWinnerUid === "string" ? data.pokerWinnerUid : undefined,
@@ -446,6 +456,8 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     foldedPlayerIds: [],
     pokerActions: {},
     pokerPot: 0,
+    pokerCurrentBet: 0,
+    pokerContributions: {},
     pokerTurnUid: "",
     pokerTurnName: "",
     pokerWinnerUid: "",
@@ -608,8 +620,27 @@ function nextPokerTurn(room: OnlineRoomEntry, currentUid: string, foldedPlayerId
   return activePlayers[(currentIndex + 1) % activePlayers.length];
 }
 
-function allActivePokerPlayersActed(room: OnlineRoomEntry, actions: Record<string, string>, foldedPlayerIds = room.foldedPlayerIds) {
-  return activePokerPlayers(room, foldedPlayerIds).every((player) => actions[player.uid] === "checked" || actions[player.uid] === "folded");
+function pokerActionSettlesTurn(action: string | undefined) {
+  return action === "checked" || action === "called" || action === "raised" || action === "folded";
+}
+
+function allActivePokerPlayersSettled(
+  room: OnlineRoomEntry,
+  actions: Record<string, string>,
+  contributions = room.pokerContributions,
+  currentBet = room.pokerCurrentBet,
+  foldedPlayerIds = room.foldedPlayerIds,
+) {
+  const activePlayers = activePokerPlayers(room, foldedPlayerIds);
+
+  return (
+    activePlayers.length > 0 &&
+    activePlayers.every((player) => pokerActionSettlesTurn(actions[player.uid]) && (contributions[player.uid] ?? 0) >= currentBet)
+  );
+}
+
+function foldedPokerActions(foldedPlayerIds: string[]) {
+  return Object.fromEntries(foldedPlayerIds.map((uid) => [uid, "folded"]));
 }
 
 export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
@@ -638,6 +669,8 @@ export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
     foldedPlayerIds: [],
     pokerActions: {},
     pokerPot: room.players.length * 25,
+    pokerCurrentBet: 0,
+    pokerContributions: Object.fromEntries(room.players.map((player) => [player.uid, 0])),
     pokerTurnUid: room.players[0]?.uid ?? "",
     pokerTurnName: room.players[0]?.displayName ?? "",
     pokerWinnerUid: "",
@@ -656,8 +689,8 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
     throw new Error("Seul l'hote peut avancer la table.");
   }
 
-  if (!allActivePokerPlayersActed(room, room.pokerActions)) {
-    throw new Error("Tous les joueurs actifs doivent checker ou se coucher.");
+  if (!allActivePokerPlayersSettled(room, room.pokerActions)) {
+    throw new Error("Tous les joueurs actifs doivent suivre la mise, checker ou se coucher.");
   }
 
   const deck = [...room.pokerDeck];
@@ -687,6 +720,8 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
     pokerDeck: deck,
     communityCards,
     pokerActions: {},
+    pokerCurrentBet: 0,
+    pokerContributions: Object.fromEntries(activePokerPlayers(room).map((player) => [player.uid, 0])),
     pokerTurnUid: nextStatus === "playing" ? activePokerPlayers(room)[0]?.uid ?? "" : "",
     pokerTurnName: nextStatus === "playing" ? activePokerPlayers(room)[0]?.displayName ?? "" : "",
     pokerWinnerUid: winner?.uid ?? "",
@@ -709,16 +744,101 @@ export async function checkPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) 
     throw new Error("Tu es deja couche.");
   }
 
+  if ((room.pokerContributions[user.uid] ?? 0) < room.pokerCurrentBet) {
+    throw new Error("Tu dois suivre la mise ou te coucher.");
+  }
+
   const pokerActions = {
     ...room.pokerActions,
     [user.uid]: "checked",
   };
   const nextTurn = nextPokerTurn(room, user.uid);
+  const phaseDone = allActivePokerPlayersSettled(room, pokerActions);
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     pokerActions,
-    pokerTurnUid: allActivePokerPlayersActed(room, pokerActions) ? "" : nextTurn?.uid ?? "",
-    pokerTurnName: allActivePokerPlayersActed(room, pokerActions) ? "" : nextTurn?.displayName ?? "",
+    pokerTurnUid: phaseDone ? "" : nextTurn?.uid ?? "",
+    pokerTurnName: phaseDone ? "" : nextTurn?.displayName ?? "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function callPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.status !== "playing" || room.pokerTurnUid !== user.uid) {
+    throw new Error("Ce n'est pas ton tour.");
+  }
+
+  if (room.foldedPlayerIds.includes(user.uid)) {
+    throw new Error("Tu es deja couche.");
+  }
+
+  const currentContribution = room.pokerContributions[user.uid] ?? 0;
+  const amountToCall = Math.max(0, room.pokerCurrentBet - currentContribution);
+
+  if (amountToCall <= 0) {
+    throw new Error("Il n'y a rien a suivre, tu peux checker.");
+  }
+
+  const pokerContributions = {
+    ...room.pokerContributions,
+    [user.uid]: room.pokerCurrentBet,
+  };
+  const pokerActions = {
+    ...room.pokerActions,
+    [user.uid]: "called",
+  };
+  const nextTurn = nextPokerTurn(room, user.uid);
+  const phaseDone = allActivePokerPlayersSettled(room, pokerActions, pokerContributions);
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    pokerActions,
+    pokerContributions,
+    pokerPot: room.pokerPot + amountToCall,
+    pokerTurnUid: phaseDone ? "" : nextTurn?.uid ?? "",
+    pokerTurnName: phaseDone ? "" : nextTurn?.displayName ?? "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function raisePokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.status !== "playing" || room.pokerTurnUid !== user.uid) {
+    throw new Error("Ce n'est pas ton tour.");
+  }
+
+  if (room.foldedPlayerIds.includes(user.uid)) {
+    throw new Error("Tu es deja couche.");
+  }
+
+  const newBet = room.pokerCurrentBet + 25;
+  const currentContribution = room.pokerContributions[user.uid] ?? 0;
+  const amountToPay = Math.max(0, newBet - currentContribution);
+  const pokerContributions = {
+    ...room.pokerContributions,
+    [user.uid]: newBet,
+  };
+  const pokerActions = {
+    ...foldedPokerActions(room.foldedPlayerIds),
+    [user.uid]: "raised",
+  };
+  const nextTurn = nextPokerTurn(room, user.uid);
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    pokerActions,
+    pokerCurrentBet: newBet,
+    pokerContributions,
+    pokerPot: room.pokerPot + amountToPay,
+    pokerTurnUid: nextTurn?.uid ?? "",
+    pokerTurnName: nextTurn?.displayName ?? "",
     updatedAt: serverTimestamp(),
   });
 }
@@ -741,7 +861,7 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
     [user.uid]: "folded",
   };
   const nextTurn = nextPokerTurn(room, user.uid, foldedPlayerIds);
-  const phaseDone = allActivePokerPlayersActed(room, pokerActions, foldedPlayerIds);
+  const phaseDone = allActivePokerPlayersSettled(room, pokerActions, room.pokerContributions, room.pokerCurrentBet, foldedPlayerIds);
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     foldedPlayerIds,

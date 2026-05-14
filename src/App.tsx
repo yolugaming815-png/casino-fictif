@@ -73,6 +73,7 @@ import {
 import {
   advancePokerPhase,
   answerFriendRequest,
+  callPokerPlayer,
   checkPokerPlayer,
   createOnlineRoom,
   foldPokerPlayer,
@@ -86,6 +87,7 @@ import {
   loadCloudSave,
   loadOnlineRooms,
   playDuelRound,
+  raisePokerPlayer,
   sendFriendRequest,
   saveCloudSave,
   saveLeaderboardEntry,
@@ -850,6 +852,44 @@ function App() {
     }
   }
 
+  async function handleCallPoker(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour suivre la mise.");
+      return;
+    }
+
+    try {
+      setOnlineActionRoomId(room.id);
+      await callPokerPlayer(room, accountUser);
+      setOnlineMessage("Mise suivie.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Action poker impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
+    }
+  }
+
+  async function handleRaisePoker(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour relancer.");
+      return;
+    }
+
+    try {
+      setOnlineActionRoomId(room.id);
+      await raisePokerPlayer(room, accountUser);
+      setOnlineMessage("Relance de 25 credits enregistree.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Action poker impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
+    }
+  }
+
   async function handleFoldPoker(room: OnlineRoomEntry) {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour te coucher.");
@@ -1538,6 +1578,7 @@ function App() {
             rooms={onlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onAdvancePoker={handleAdvancePokerPhase}
+            onCallPoker={handleCallPoker}
             onCheckPoker={handleCheckPoker}
             onFoldPoker={handleFoldPoker}
             onJoinRoom={handleJoinOnlineRoom}
@@ -1545,6 +1586,7 @@ function App() {
             onOpenProfile={handleOpenPlayerProfile}
             onPlayDuelRound={handlePlayDuelRound}
             onRefreshRooms={refreshOnlineRooms}
+            onRaisePoker={handleRaisePoker}
             onStartDuel={handleStartDuelRoom}
             onStartPoker={handleStartPokerRoom}
           />
@@ -1992,6 +2034,7 @@ function OnlineGames({
   mode,
   rooms,
   onAdvancePoker,
+  onCallPoker,
   onCheckPoker,
   onCreateRoom,
   onFoldPoker,
@@ -2000,6 +2043,7 @@ function OnlineGames({
   onOpenProfile,
   onPlayDuelRound,
   onRefreshRooms,
+  onRaisePoker,
   onStartDuel,
   onStartPoker,
 }: {
@@ -2012,6 +2056,7 @@ function OnlineGames({
   mode: "duel" | "poker";
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
+  onCallPoker: (room: OnlineRoomEntry) => void;
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onCreateRoom: (type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
@@ -2020,6 +2065,7 @@ function OnlineGames({
   onOpenProfile: (entry: LeaderboardEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
+  onRaisePoker: (room: OnlineRoomEntry) => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
   onStartPoker: (room: OnlineRoomEntry) => void;
 }) {
@@ -2129,8 +2175,10 @@ function OnlineGames({
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
         onAdvancePoker={onAdvancePoker}
+        onCallPoker={onCallPoker}
         onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
+        onRaisePoker={onRaisePoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
       />
@@ -2191,8 +2239,10 @@ function OnlineGames({
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
         onAdvancePoker={onAdvancePoker}
+        onCallPoker={onCallPoker}
         onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
+        onRaisePoker={onRaisePoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
       />
@@ -2217,11 +2267,13 @@ function OnlineRoomsPanel({
   message,
   rooms,
   onAdvancePoker,
+  onCallPoker,
   onCheckPoker,
   onFoldPoker,
   onJoinRoom,
   onLeaveRoom,
   onPlayDuelRound,
+  onRaisePoker,
   onRefreshRooms,
   onStartDuel,
   onStartPoker,
@@ -2231,11 +2283,13 @@ function OnlineRoomsPanel({
   message: string;
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
+  onCallPoker: (room: OnlineRoomEntry) => void;
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry) => void;
+  onRaisePoker: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
   onStartPoker: (room: OnlineRoomEntry) => void;
@@ -2297,8 +2351,10 @@ function OnlineRoomsPanel({
                     currentUserId={currentUserId}
                     room={room}
                     onAdvance={onAdvancePoker}
+                    onCall={onCallPoker}
                     onCheck={onCheckPoker}
                     onFold={onFoldPoker}
+                    onRaise={onRaisePoker}
                     onStart={onStartPoker}
                   />
                 )}
@@ -2430,16 +2486,20 @@ function PokerRoomPanel({
   currentUserId,
   room,
   onAdvance,
+  onCall,
   onCheck,
   onFold,
+  onRaise,
   onStart,
 }: {
   busy: boolean;
   currentUserId: string;
   room: OnlineRoomEntry;
   onAdvance: (room: OnlineRoomEntry) => void;
+  onCall: (room: OnlineRoomEntry) => void;
   onCheck: (room: OnlineRoomEntry) => void;
   onFold: (room: OnlineRoomEntry) => void;
+  onRaise: (room: OnlineRoomEntry) => void;
   onStart: (room: OnlineRoomEntry) => void;
 }) {
   const currentHand = room.pokerHands[currentUserId] ?? [];
@@ -2448,11 +2508,20 @@ function PokerRoomPanel({
   const folded = room.foldedPlayerIds.includes(currentUserId);
   const canStart = room.status === "waiting" && isHost && room.players.length >= 2;
   const activePlayers = room.players.filter((player) => !room.foldedPlayerIds.includes(player.uid));
-  const phaseDone = room.status === "playing" && activePlayers.every((player) => room.pokerActions[player.uid] === "checked" || room.pokerActions[player.uid] === "folded");
+  const phaseDone =
+    room.status === "playing" &&
+    activePlayers.every((player) => {
+      const action = room.pokerActions[player.uid];
+      return (action === "checked" || action === "called" || action === "raised" || action === "folded") && (room.pokerContributions[player.uid] ?? 0) >= room.pokerCurrentBet;
+    });
   const isTurn = room.pokerTurnUid === currentUserId;
+  const currentContribution = room.pokerContributions[currentUserId] ?? 0;
+  const amountToCall = Math.max(0, room.pokerCurrentBet - currentContribution);
   const canAdvance = room.status === "playing" && isHost && phaseDone;
-  const canCheck = room.status === "playing" && inRoom && !folded && isTurn;
+  const canCheck = room.status === "playing" && inRoom && !folded && isTurn && amountToCall === 0;
+  const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0;
   const canFold = room.status === "playing" && inRoom && !folded && isTurn;
+  const canRaise = room.status === "playing" && inRoom && !folded && isTurn;
   const phaseLabel =
     room.status === "waiting"
       ? room.players.length < 2
@@ -2462,6 +2531,8 @@ function PokerRoomPanel({
         ? `Gagnant : ${room.pokerWinnerName || "a determiner"}`
         : phaseDone
           ? `Phase ${room.pokerPhase} terminee.`
+          : isTurn && amountToCall > 0
+            ? `A toi de jouer : tu dois suivre ${amountToCall} credits, relancer, ou te coucher.`
           : `Tour de ${room.pokerTurnName || "joueur"}.`;
 
   return (
@@ -2470,6 +2541,8 @@ function PokerRoomPanel({
       <div className={styles.pokerPotRow}>
         <span>Pot virtuel</span>
         <strong>{room.pokerPot.toLocaleString("fr-FR")} credits</strong>
+        <span>Mise actuelle</span>
+        <strong>{room.pokerCurrentBet.toLocaleString("fr-FR")} credits</strong>
       </div>
       <div className={styles.pokerMiniBoard}>
         <div>
@@ -2486,12 +2559,27 @@ function PokerRoomPanel({
         </div>
       </div>
       <div className={styles.onlineRoomPlayers}>
-        {room.players.map((player) => (
-          <span key={player.uid}>
-            {player.displayName}
-            {room.foldedPlayerIds.includes(player.uid) ? " couche" : room.pokerActions[player.uid] === "checked" ? " check" : room.pokerTurnUid === player.uid ? " joue" : ""}
-          </span>
-        ))}
+        {room.players.map((player) => {
+          const action = room.pokerActions[player.uid];
+          const actionLabel = room.foldedPlayerIds.includes(player.uid)
+            ? "couche"
+            : action === "checked"
+              ? "check"
+              : action === "called"
+                ? "suivi"
+                : action === "raised"
+                  ? "relance"
+                  : room.pokerTurnUid === player.uid
+                    ? "joue"
+                    : "attend";
+          const contribution = room.pokerContributions[player.uid] ?? 0;
+
+          return (
+            <span key={player.uid}>
+              {player.displayName} | {actionLabel} | {contribution.toLocaleString("fr-FR")}
+            </span>
+          );
+        })}
       </div>
       <div className={styles.socialActions}>
         <button className={styles.primaryButton} type="button" onClick={() => onStart(room)} disabled={busy || !canStart}>
@@ -2499,6 +2587,12 @@ function PokerRoomPanel({
         </button>
         <button className={styles.primaryButton} type="button" onClick={() => onCheck(room)} disabled={busy || !canCheck}>
           Check
+        </button>
+        <button className={styles.primaryButton} type="button" onClick={() => onCall(room)} disabled={busy || !canCall}>
+          Suivre{amountToCall > 0 ? ` ${amountToCall}` : ""}
+        </button>
+        <button className={styles.primaryButton} type="button" onClick={() => onRaise(room)} disabled={busy || !canRaise}>
+          Relancer +25
         </button>
         <button className={styles.secondaryButton} type="button" onClick={() => onFold(room)} disabled={busy || !canFold}>
           Se coucher
