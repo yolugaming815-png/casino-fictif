@@ -1447,9 +1447,9 @@ function PlinkoPhysicsBoard({
 
     const engine = Engine.create();
     engineRef.current = engine;
-    engine.gravity.y = 1.05;
     const runner = Runner.create();
     const dimensions = getPlinkoDimensions(width, height, rows);
+    engine.gravity.y = dimensions.gravity;
     const pegs = getPegPositions(width, height, rows).map((peg) =>
       Bodies.circle(peg.x, peg.y, dimensions.pegRadius, {
         isStatic: true,
@@ -1553,7 +1553,7 @@ function PlinkoPhysicsBoard({
         restitution: dimensions.ballRestitution,
         friction: 0.001,
         frictionAir: dimensions.frictionAir,
-        density: 0.004,
+        density: dimensions.ballDensity,
         label: `ball-${launch.id}`,
       });
 
@@ -1598,14 +1598,16 @@ function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
     : Math.max(6.2, Math.min(11, spacing * 0.3));
 
   return {
+    ballDensity: compactBoard ? 0.012 : 0.008,
     ballRestitution: compactBoard ? 0.32 : 0.48,
     ballRadius,
     compactBoard,
     dividerWidth: Math.max(2, Math.min(5, spacing * 0.12)),
-    frictionAir: compactBoard ? 0.018 : 0.006,
+    frictionAir: compactBoard ? 0.0035 : 0.004,
+    gravity: compactBoard ? 2.25 : 1.65,
     launchSpread: Math.max(18, Math.min(42, spacing * 1.35)),
-    launchVelocity: compactBoard ? Math.max(0.22, Math.min(0.55, spacing / 70)) : Math.max(0.7, Math.min(1.6, spacing / 36)),
-    pegRestitution: compactBoard ? 0.34 : 0.58,
+    launchVelocity: compactBoard ? Math.max(0.55, Math.min(1.1, spacing / 34)) : Math.max(0.7, Math.min(1.6, spacing / 36)),
+    pegRestitution: compactBoard ? 0.46 : 0.58,
     pegRadius,
     slotTop: height - 68,
     slotWidth: width / (rows + 1),
