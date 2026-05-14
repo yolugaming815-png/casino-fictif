@@ -5,3 +5,6 @@ dist/
 .codex-publish-temp/
 *.log
 npm-debug.log
+.env
+.env.local
+.env.*.local
