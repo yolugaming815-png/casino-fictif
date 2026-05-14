@@ -3,7 +3,7 @@ import {
   GoogleAuthProvider,
   getAuth,
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
   type User,
 } from "firebase/auth";
@@ -74,8 +74,7 @@ export async function signInWithGoogle() {
     throw new Error("Firebase n'est pas configure.");
   }
 
-  const result = await signInWithPopup(getAuth(app), new GoogleAuthProvider());
-  return toCasinoUser(result.user);
+  await signInWithRedirect(getAuth(app), new GoogleAuthProvider());
 }
 
 export async function signOutGoogle() {

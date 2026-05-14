@@ -521,8 +521,9 @@ function App() {
 
     try {
       await signInWithGoogle();
-    } catch {
-      setAccountMessage("Connexion Google annulee ou impossible.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setAccountMessage(`Connexion Google impossible : ${message}`);
       setAccountLoading(false);
     }
   }
