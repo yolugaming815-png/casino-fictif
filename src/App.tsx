@@ -339,8 +339,9 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop" | "inventory" | "friends">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
+  const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
@@ -1194,6 +1195,13 @@ function App() {
             Jeux
           </button>
           <button
+            className={activeSection === "online" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("online")}
+          >
+            Jeux en ligne
+          </button>
+          <button
             className={activeSection === "cases" ? styles.activeTab : ""}
             type="button"
             onClick={() => setActiveSection("cases")}
@@ -1263,7 +1271,34 @@ function App() {
           </nav>
         )}
 
-        {activeSection === "cases" ? (
+        {activeSection === "online" && (
+          <nav className={styles.gameTabs} aria-label="Choix du jeu en ligne">
+            <button
+              className={activeOnlineGame === "duel" ? styles.activeTab : ""}
+              type="button"
+              onClick={() => setActiveOnlineGame("duel")}
+            >
+              Duel
+            </button>
+            <button
+              className={activeOnlineGame === "poker" ? styles.activeTab : ""}
+              type="button"
+              onClick={() => setActiveOnlineGame("poker")}
+            >
+              Partie en ligne
+            </button>
+          </nav>
+        )}
+
+        {activeSection === "online" ? (
+          <OnlineGames
+            currentUser={accountUser}
+            friendRequests={friendRequests}
+            leaderboard={leaderboard}
+            mode={activeOnlineGame}
+            onOpenProfile={handleOpenPlayerProfile}
+          />
+        ) : activeSection === "cases" ? (
           <CaseOpeningGame
             balance={balance}
             history={caseHistory}
@@ -1693,6 +1728,169 @@ function FriendsGame({
           </div>
         </section>
       </div>
+    </>
+  );
+}
+
+function OnlineGames({
+  currentUser,
+  friendRequests,
+  leaderboard,
+  mode,
+  onOpenProfile,
+}: {
+  currentUser: CasinoUser | null;
+  friendRequests: FriendRequestEntry[];
+  leaderboard: LeaderboardEntry[];
+  mode: "duel" | "poker";
+  onOpenProfile: (entry: LeaderboardEntry) => void;
+}) {
+  const currentUserId = currentUser?.uid ?? "";
+  const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
+  const friends = friendRequests
+    .filter((request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId))
+    .reduce<Array<{ uid: string; displayName: string; profile?: LeaderboardEntry }>>((items, request) => {
+      const isSender = request.fromUid === currentUserId;
+      const uid = isSender ? request.toUid : request.fromUid;
+
+      if (items.some((item) => item.uid === uid)) {
+        return items;
+      }
+
+      items.push({
+        uid,
+        displayName: isSender ? request.toDisplayName : request.fromDisplayName,
+        profile: leaderboardById.get(uid),
+      });
+      return items;
+    }, []);
+  const visibleFriends = friends.slice(0, 4);
+
+  if (!currentUser) {
+    return (
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Jeux en ligne</h2>
+            <p>Connecte-toi avec Google pour creer des duels et rejoindre une table en ligne.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (mode === "duel") {
+    return (
+      <>
+        <section className={styles.machine}>
+          <div className={styles.shopHeader}>
+            <div>
+              <h2>Duel entre amis</h2>
+              <p>Choisis un ami, un mini-jeu, puis lance un duel en manches virtuelles.</p>
+            </div>
+            <strong>{friends.length} ami{friends.length > 1 ? "s" : ""} disponible{friends.length > 1 ? "s" : ""}</strong>
+          </div>
+
+          <div className={styles.onlineDuelGrid}>
+            {["Plinko", "Rocket Games", "Roulette"].map((gameName, index) => (
+              <article className={styles.onlineModeCard} key={gameName}>
+                <span>Mode {index + 1}</span>
+                <h3>Duel {gameName}</h3>
+                <p>3 manches chacun. Le meilleur bilan virtuel gagne le duel.</p>
+                <button className={styles.primaryButton} type="button" disabled={friends.length === 0}>
+                  Creer un duel
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.socialSectionHeader}>
+            <h2>Inviter un ami</h2>
+            <span>{friends.length}</span>
+          </div>
+          <div className={styles.socialList}>
+            {friends.length === 0 ? (
+              <p className={styles.empty}>Ajoute un ami avant de lancer un duel.</p>
+            ) : (
+              friends.map((friend) => (
+                <article className={styles.socialItem} key={friend.uid}>
+                  <div>
+                    <strong>{friend.displayName}</strong>
+                    <small>{friend.profile ? `${friend.profile.balance.toLocaleString("fr-FR")} credits` : "Profil public pas encore disponible"}</small>
+                  </div>
+                  <div className={styles.socialActions}>
+                    {friend.profile && (
+                      <button className={styles.secondaryButton} type="button" onClick={() => onOpenProfile(friend.profile!)}>
+                        Profil
+                      </button>
+                    )}
+                    <button className={styles.primaryButton} type="button">
+                      Inviter
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Partie en ligne</h2>
+            <p>Table de poker fictive pour jouer entre comptes connectes.</p>
+          </div>
+          <strong>Texas Hold'em</strong>
+        </div>
+
+        <div className={styles.pokerTable} aria-label="Table de poker en ligne">
+          <div className={styles.pokerSeats}>
+            <span>{currentUser.displayName || "Toi"}</span>
+            {visibleFriends.map((friend) => (
+              <span key={friend.uid}>{friend.displayName}</span>
+            ))}
+            {Array.from({ length: Math.max(0, 5 - visibleFriends.length) }).map((_, index) => (
+              <span key={`empty-${index}`}>Place libre</span>
+            ))}
+          </div>
+          <div className={styles.pokerBoard}>
+            <strong>Pot virtuel : 0 credit</strong>
+            <div className={styles.pokerCards} aria-hidden="true">
+              <span>A</span>
+              <span>K</span>
+              <span>Q</span>
+              <span>J</span>
+              <span>10</span>
+            </div>
+          </div>
+          <div className={styles.pokerActions}>
+            <button className={styles.primaryButton} type="button">
+              Creer une table
+            </button>
+            <button className={styles.secondaryButton} type="button">
+              Rejoindre une table
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.columns}>
+        <article className={styles.panel}>
+          <h2>Duel</h2>
+          <p>Le duel sera le mode le plus simple a rendre vraiment jouable en ligne : invitation, manches, score total, gagnant.</p>
+        </article>
+        <article className={styles.panel}>
+          <h2>Poker</h2>
+          <p>La table est prete visuellement. La prochaine etape sera de sauvegarder les salons dans Firebase pour que plusieurs joueurs rejoignent la meme partie.</p>
+        </article>
+      </section>
     </>
   );
 }

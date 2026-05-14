@@ -374,6 +374,106 @@
   justify-content: end;
 }
 
+.onlineDuelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.onlineModeCard {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 16px;
+  min-height: 190px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.13), transparent 46%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.onlineModeCard span {
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.onlineModeCard h3,
+.onlineModeCard p {
+  margin: 0;
+}
+
+.onlineModeCard p {
+  color: #d5ddd9;
+  line-height: 1.45;
+}
+
+.onlineModeCard button {
+  margin-top: auto;
+}
+
+.pokerTable {
+  display: grid;
+  gap: 18px;
+  min-height: 360px;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(ellipse at center, rgba(23, 91, 67, 0.9), rgba(14, 36, 31, 0.92) 58%, rgba(16, 18, 24, 0.92) 59%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.pokerSeats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pokerSeats span {
+  display: grid;
+  place-items: center;
+  min-height: 46px;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(16, 18, 24, 0.68);
+  color: #f9f7ef;
+  font-weight: 900;
+  text-align: center;
+}
+
+.pokerBoard {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  align-self: center;
+}
+
+.pokerBoard strong {
+  color: #ffd166;
+}
+
+.pokerCards,
+.pokerActions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pokerCards span {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 82px;
+  border-radius: 8px;
+  border: 1px solid rgba(16, 18, 24, 0.22);
+  background: #f9f7ef;
+  color: #101218;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
 .positive {
   color: #79e29f;
 }
@@ -412,7 +512,7 @@
 
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
@@ -2888,6 +2988,7 @@
   .statusBar,
   .leaderboardPanel,
   .modeTabs,
+  .onlineDuelGrid,
   .blackjackTable,
   .caseLayout,
   .inventoryGrid,
@@ -2899,6 +3000,10 @@
   }
 
   .gameTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pokerSeats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3069,6 +3174,17 @@
 
   .rocketMetrics {
     grid-template-columns: 1fr;
+  }
+
+  .pokerTable {
+    min-height: 320px;
+    padding: 14px;
+  }
+
+  .pokerCards span {
+    width: 46px;
+    height: 66px;
+    font-size: 1rem;
   }
 
   .caseModalBackdrop {
