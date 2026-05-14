@@ -966,64 +966,6 @@ function App() {
     }, ROCKET_FLIGHT_DURATION_MS);
   }
 
-  function handleReset() {
-    if (slotIntervalId.current !== null) {
-      window.clearInterval(slotIntervalId.current);
-      slotIntervalId.current = null;
-    }
-
-    if (slotTimeoutId.current !== null) {
-      window.clearTimeout(slotTimeoutId.current);
-      slotTimeoutId.current = null;
-    }
-
-    setBalance(INITIAL_BALANCE);
-    setSlotBet(25);
-    setSlotHistory([]);
-    setCurrentReels(SYMBOLS.slice(0, 3));
-    setSlotMessage("Partie reinitialisee avec 1 000 credits virtuels.");
-    setSlotSpinning(false);
-    setBlackjackBet(25);
-    setActiveBlackjackBet(25);
-    setDeck([]);
-    setPlayerHand([]);
-    setDealerHand([]);
-    setBlackjackPhase("betting");
-    setBlackjackMessage("Choisis une mise virtuelle pour commencer.");
-    setBlackjackHistory([]);
-    setHasPlayerAction(false);
-    setPlinkoBet(25);
-    setPlinkoRows(10);
-    setPlinkoHistory([]);
-    setPlinkoMessage("Choisis une mise virtuelle et lance la bille.");
-    setPlinkoBallSlots([]);
-    setActivePlinkoLaunches([]);
-    setRouletteBet(25);
-    setRouletteBetKind("red");
-    setRouletteNumber(17);
-    setRouletteHistory([]);
-    setRouletteMessage("Choisis une mise virtuelle et un pari.");
-    setRouletteResult(null);
-    setPendingRouletteResult(null);
-    setRouletteSpinning(false);
-    setRouletteRunId(0);
-    setSelectedCase("plinkoBall");
-    setCaseMessage("Choisis une caisse et ouvre-la avec des credits virtuels.");
-    setCaseOpening(false);
-    setCaseModalVisible(false);
-    setCaseModalPhase("box");
-    setCaseReelItems([]);
-    setLastCaseDrop(null);
-    setCaseHistory([]);
-    setRocketBet(25);
-    setRocketTarget(2);
-    setRocketMessage("Choisis une cible et lance la fusee.");
-    setRocketHistory([]);
-    setRocketAnimating(false);
-    setRocketFlight(null);
-    setPaused(false);
-  }
-
   return (
     <main className={styles.app}>
       <section className={styles.shell} aria-label="Casino fictif">
@@ -1185,7 +1127,6 @@ function App() {
             spinning={slotSpinning}
             canSpin={slotBetAvailable}
             onBetChange={setSlotBet}
-            onReset={handleReset}
             onSpin={handleSlotSpin}
           />
         ) : activeGame === "blackjack" ? (
@@ -1205,7 +1146,6 @@ function App() {
             onDeal={startBlackjackHand}
             onDouble={doubleBlackjack}
             onHit={hitBlackjack}
-            onReset={handleReset}
             onStand={standBlackjack}
           />
         ) : activeGame === "plinko" ? (
@@ -1222,7 +1162,6 @@ function App() {
             ballSkin={equippedItems.plinkoBall}
             onBetChange={setPlinkoBet}
             onLaunch={launchPlinko}
-            onReset={handleReset}
             onResolve={finishPlinko}
             onRowsChange={setPlinkoRows}
           />
@@ -1243,7 +1182,6 @@ function App() {
             onBetChange={setRouletteBet}
             onBetKindChange={setRouletteBetKind}
             onNumberChange={setRouletteNumber}
-            onReset={handleReset}
             onSpin={spinRoulette}
           />
         ) : (
@@ -1259,7 +1197,6 @@ function App() {
             target={rocketTarget}
             onBetChange={setRocketBet}
             onLaunch={launchRocket}
-            onReset={handleReset}
             onTargetChange={setRocketTarget}
           />
         )}
@@ -1277,7 +1214,6 @@ function SlotGame({
   spinning,
   canSpin,
   onBetChange,
-  onReset,
   onSpin,
 }: {
   bet: Bet;
@@ -1288,7 +1224,6 @@ function SlotGame({
   spinning: boolean;
   canSpin: boolean;
   onBetChange: (bet: Bet) => void;
-  onReset: () => void;
   onSpin: () => void;
 }) {
   return (
@@ -1319,9 +1254,6 @@ function SlotGame({
           </select>
           <button className={styles.primaryButton} type="button" onClick={onSpin} disabled={paused || !canSpin || spinning}>
             Lancer
-          </button>
-          <button className={styles.secondaryButton} type="button" onClick={onReset}>
-            Reset
           </button>
         </div>
 
@@ -1382,7 +1314,6 @@ function BlackjackGame({
   onDeal,
   onDouble,
   onHit,
-  onReset,
   onStand,
 }: {
   activeBet: number;
@@ -1400,7 +1331,6 @@ function BlackjackGame({
   onDeal: () => void;
   onDouble: () => void;
   onHit: () => void;
-  onReset: () => void;
   onStand: () => void;
 }) {
   const revealDealer = phase === "finished";
@@ -1457,9 +1387,6 @@ function BlackjackGame({
             <>
               <button className={styles.primaryButton} type="button" onClick={onDeal} disabled={paused || !canDeal}>
                 Distribuer
-              </button>
-              <button className={styles.secondaryButton} type="button" onClick={onReset}>
-                Reset
               </button>
             </>
           )}
@@ -1570,7 +1497,6 @@ function PlinkoGame({
   ballSkin,
   onBetChange,
   onLaunch,
-  onReset,
   onResolve,
   onRowsChange,
 }: {
@@ -1586,7 +1512,6 @@ function PlinkoGame({
   ballSkin: ShopItem;
   onBetChange: (bet: Bet) => void;
   onLaunch: () => void;
-  onReset: () => void;
   onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
   onRowsChange: (rows: PlinkoRows) => void;
 }) {
@@ -1638,9 +1563,6 @@ function PlinkoGame({
             disabled={paused || !canLaunch}
           >
             Lancer une bille
-          </button>
-          <button className={styles.secondaryButton} type="button" onClick={onReset}>
-            Reset
           </button>
         </div>
 
@@ -1977,7 +1899,6 @@ function RouletteGame({
   onBetChange,
   onBetKindChange,
   onNumberChange,
-  onReset,
   onSpin,
 }: {
   bet: Bet;
@@ -1995,7 +1916,6 @@ function RouletteGame({
   onBetChange: (bet: Bet) => void;
   onBetKindChange: (kind: RouletteBetKind) => void;
   onNumberChange: (number: number) => void;
-  onReset: () => void;
   onSpin: () => void;
 }) {
   const wheelRotation = useRouletteWheelRotation(spinning, runId);
@@ -2072,9 +1992,6 @@ function RouletteGame({
 
           <button className={styles.primaryButton} type="button" onClick={onSpin} disabled={paused || !canSpin || spinning}>
             Lancer
-          </button>
-          <button className={styles.secondaryButton} type="button" onClick={onReset}>
-            Reset
           </button>
         </div>
 
@@ -2754,7 +2671,6 @@ function RocketGame({
   target,
   onBetChange,
   onLaunch,
-  onReset,
   onTargetChange,
 }: {
   animating: boolean;
@@ -2768,7 +2684,6 @@ function RocketGame({
   target: RocketTarget;
   onBetChange: (bet: Bet) => void;
   onLaunch: () => void;
-  onReset: () => void;
   onTargetChange: (target: RocketTarget) => void;
 }) {
   const targetProbability = getRocketSuccessProbability(target);
@@ -2839,9 +2754,6 @@ function RocketGame({
           />
           <button className={styles.primaryButton} type="button" onClick={onLaunch} disabled={paused || !canLaunch || animating}>
             Lancer
-          </button>
-          <button className={styles.secondaryButton} type="button" onClick={onReset}>
-            Reset
           </button>
         </div>
 
