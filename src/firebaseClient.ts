@@ -24,6 +24,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { comparePokerHands, evaluatePokerHand } from "./pokerLogic";
 
 export type CasinoUser = {
   uid: string;
@@ -600,10 +601,14 @@ function createPokerDeck() {
   return deck;
 }
 
-function pickPokerWinner(players: OnlineRoomPlayer[], foldedPlayerIds: string[]) {
-  const activePlayers = players.filter((player) => !foldedPlayerIds.includes(player.uid));
-  const candidates = activePlayers.length ? activePlayers : players;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+function pickShowdownPokerWinner(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
+  const activePlayers = activePokerPlayers(room, foldedPlayerIds);
+  const candidates = activePlayers.length ? activePlayers : room.players;
+
+  return candidates.reduce<{ player: OnlineRoomPlayer; score: ReturnType<typeof evaluatePokerHand> } | null>((best, player) => {
+    const score = evaluatePokerHand([...(room.pokerHands[player.uid] ?? []), ...room.communityCards]);
+    return !best || comparePokerHands(score, best.score) > 0 ? { player, score } : best;
+  }, null)?.player;
 }
 
 function activePokerPlayers(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
@@ -711,7 +716,7 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
   } else {
     nextPhase = "showdown";
     nextStatus = "finished";
-    winner = pickPokerWinner(room.players, room.foldedPlayerIds);
+    winner = pickShowdownPokerWinner(room);
   }
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
