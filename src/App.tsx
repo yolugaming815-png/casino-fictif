@@ -2989,17 +2989,15 @@ function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean 
   if (item.category === "rocketShip") {
     return (
       <span
-        className={`${large ? styles.rocketPreviewLarge : styles.rocketPreviewSmall} ${rocketShipClass(item.id)}`}
+        className={`${large ? styles.vehiclePreviewLarge : styles.vehiclePreviewSmall} ${vehiclePreviewClass(item.id)}`}
         style={{ "--rocket-accent": item.preview, "--rocket-glow": rocketGlow(item.id) } as CSSProperties}
         aria-hidden="true"
       >
-        <span className={styles.rocketNose} />
-        <span className={styles.rocketBody}>
-          <span className={styles.rocketWindow} />
-        </span>
-        <span className={styles.rocketFinLeft} />
-        <span className={styles.rocketFinRight} />
-        <span className={styles.rocketFlame} />
+        <span className={styles.vehicleBody} />
+        <span className={styles.vehicleCockpit} />
+        <span className={styles.vehicleWingLeft} />
+        <span className={styles.vehicleWingRight} />
+        <span className={styles.vehicleFlame} />
       </span>
     );
   }
@@ -3043,6 +3041,22 @@ function ballSkinClass(id: string): string {
   }
 
   return styles.ballGold;
+}
+
+function vehiclePreviewClass(id: string): string {
+  if (id === "rocket-comet") {
+    return styles.vehicleSpaceship;
+  }
+
+  if (id === "rocket-solar") {
+    return styles.vehicleFighter;
+  }
+
+  if (id === "rocket-nebula") {
+    return styles.vehicleSpacex;
+  }
+
+  return styles.vehicleClassic;
 }
 
 function rarityLabel(rarity: SkinRarity): string {
