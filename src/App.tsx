@@ -49,7 +49,17 @@ import {
   getShopItem,
   type EquippedSkins,
   type ShopItem,
+  type SkinCategory,
+  type SkinRarity,
 } from "./shopLogic";
+import {
+  CASES,
+  DUPLICATE_REFUNDS,
+  RARITY_WEIGHTS,
+  getCaseDefinition,
+  openCase,
+  type CaseDefinition,
+} from "./caseLogic";
 import {
   ROCKET_MAX_TARGET,
   ROCKET_MIN_TARGET,
@@ -105,6 +115,15 @@ type RocketHistoryItem = RocketOutcome & {
   balanceAfter: number;
 };
 
+type CaseHistoryItem = {
+  id: number;
+  item: ShopItem;
+  caseTitle: string;
+  duplicate: boolean;
+  refund: number;
+  balanceAfter: number;
+};
+
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
   { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %" },
@@ -148,7 +167,7 @@ const ROCKET_FLIGHT_DURATION_MS = 2200;
 
 function App() {
   const [balance, setBalance] = useState(INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "shop">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [paused, setPaused] = useState(false);
 
@@ -187,6 +206,11 @@ function App() {
   const [ownedSkinIds, setOwnedSkinIds] = useState(Object.values(DEFAULT_EQUIPPED_SKINS));
   const [equippedSkins, setEquippedSkins] = useState<EquippedSkins>(DEFAULT_EQUIPPED_SKINS);
   const [shopMessage, setShopMessage] = useState("Les skins sont cosmetiques et ne changent pas les probabilites.");
+  const [selectedCase, setSelectedCase] = useState<SkinCategory>("plinkoBall");
+  const [caseMessage, setCaseMessage] = useState("Choisis une caisse et ouvre-la avec des credits virtuels.");
+  const [caseOpening, setCaseOpening] = useState(false);
+  const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(null);
+  const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>([]);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
@@ -201,6 +225,7 @@ function App() {
   const plinkoId = useRef(0);
   const rouletteId = useRef(0);
   const rocketId = useRef(0);
+  const caseId = useRef(0);
 
   const totalNet = useMemo(() => {
     const slotNet = slotHistory.reduce((sum, item) => sum + item.net, 0);
@@ -536,6 +561,62 @@ function App() {
     setShopMessage(`${item.name} achete et equipe. Skin purement cosmetique.`);
   }
 
+  function handleOpenCase() {
+    if (paused) {
+      setCaseMessage("La pause est active. Reprends quand tu veux ouvrir une caisse.");
+      return;
+    }
+
+    if (caseOpening) {
+      return;
+    }
+
+    const definition = getCaseDefinition(selectedCase);
+
+    if (balance < definition.cost) {
+      setCaseMessage(`Solde insuffisant pour ouvrir ${definition.title}.`);
+      return;
+    }
+
+    setCaseOpening(true);
+    setCaseMessage(`${definition.title} en ouverture...`);
+
+    window.setTimeout(() => {
+      const outcome = openCase(balance, ownedSkinIds, SHOP_ITEMS, selectedCase);
+
+      if (!outcome) {
+        setCaseMessage("Solde insuffisant pour ouvrir cette caisse.");
+        setCaseOpening(false);
+        return;
+      }
+
+      const historyItem: CaseHistoryItem = {
+        id: caseId.current++,
+        item: outcome.item,
+        caseTitle: definition.title,
+        duplicate: outcome.duplicate,
+        refund: outcome.refund,
+        balanceAfter: outcome.balance,
+      };
+
+      setBalance(outcome.balance);
+      setOwnedSkinIds(outcome.ownedSkinIds);
+      setLastCaseDrop(historyItem);
+      setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
+
+      if (!outcome.duplicate) {
+        setEquippedSkins((current) => equipSkin(current, outcome.item));
+      }
+
+      setCaseMessage(
+        outcome.duplicate
+          ? `Doublon : ${outcome.item.name}. Remboursement de ${outcome.refund} credits virtuels.`
+          : `${outcome.item.name} debloque et equipe.`,
+      );
+      setCaseOpening(false);
+    }, 900);
+  }
+
   function launchRocket() {
     if (paused) {
       setRocketMessage("La pause responsable est active.");
@@ -622,6 +703,11 @@ function App() {
     setPendingRouletteResult(null);
     setRouletteSpinning(false);
     setRouletteRunId(0);
+    setSelectedCase("plinkoBall");
+    setCaseMessage("Choisis une caisse et ouvre-la avec des credits virtuels.");
+    setCaseOpening(false);
+    setLastCaseDrop(null);
+    setCaseHistory([]);
     setRocketBet(25);
     setRocketTarget(2);
     setRocketMessage("Choisis une cible et lance la fusee.");
@@ -675,6 +761,13 @@ function App() {
             Jeux
           </button>
           <button
+            className={activeSection === "cases" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("cases")}
+          >
+            Cases
+          </button>
+          <button
             className={activeSection === "shop" ? styles.activeTab : ""}
             type="button"
             onClick={() => setActiveSection("shop")}
@@ -723,7 +816,20 @@ function App() {
           </nav>
         )}
 
-        {activeSection === "shop" ? (
+        {activeSection === "cases" ? (
+          <CaseOpeningGame
+            balance={balance}
+            history={caseHistory}
+            lastDrop={lastCaseDrop}
+            message={caseMessage}
+            opening={caseOpening}
+            ownedSkinIds={ownedSkinIds}
+            paused={paused}
+            selectedCase={selectedCase}
+            onOpen={handleOpenCase}
+            onSelectCase={setSelectedCase}
+          />
+        ) : activeSection === "shop" ? (
           <ShopGame
             balance={balance}
             equippedSkins={equippedSkins}
@@ -1801,6 +1907,159 @@ function smoothstep(progress: number): number {
   return clamped * clamped * (3 - 2 * clamped);
 }
 
+function CaseOpeningGame({
+  balance,
+  history,
+  lastDrop,
+  message,
+  opening,
+  ownedSkinIds,
+  paused,
+  selectedCase,
+  onOpen,
+  onSelectCase,
+}: {
+  balance: number;
+  history: CaseHistoryItem[];
+  lastDrop: CaseHistoryItem | null;
+  message: string;
+  opening: boolean;
+  ownedSkinIds: string[];
+  paused: boolean;
+  selectedCase: SkinCategory;
+  onOpen: () => void;
+  onSelectCase: (category: SkinCategory) => void;
+}) {
+  const selectedDefinition = getCaseDefinition(selectedCase);
+  const selectedItems = SHOP_ITEMS.filter((item) => item.category === selectedCase);
+  const canOpen = balance >= selectedDefinition.cost && !opening && !paused;
+
+  return (
+    <>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Cases Opening</h2>
+            <p>{message}</p>
+          </div>
+          <strong>{balance.toLocaleString("fr-FR")} credits disponibles</strong>
+        </div>
+
+        <div className={styles.caseLayout}>
+          <div className={styles.caseList} aria-label="Choix de la caisse">
+            {CASES.map((caseDefinition: CaseDefinition) => {
+              const active = selectedCase === caseDefinition.id;
+              const ownedCount = SHOP_ITEMS.filter(
+                (item) => item.category === caseDefinition.id && ownedSkinIds.includes(item.id),
+              ).length;
+              const totalCount = SHOP_ITEMS.filter((item) => item.category === caseDefinition.id).length;
+
+              return (
+                <button
+                  className={active ? `${styles.caseCard} ${styles.caseCardActive}` : styles.caseCard}
+                  type="button"
+                  key={caseDefinition.id}
+                  onClick={() => onSelectCase(caseDefinition.id)}
+                  disabled={opening}
+                >
+                  <span>{caseDefinition.title}</span>
+                  <small>{caseDefinition.subtitle}</small>
+                  <strong>{caseDefinition.cost} credits</strong>
+                  <em>
+                    {ownedCount}/{totalCount} obtenus
+                  </em>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={styles.caseOpeningPanel}>
+            <div className={opening ? `${styles.caseBox} ${styles.caseBoxOpening}` : styles.caseBox}>
+              <span className={styles.caseLid} />
+              <span className={styles.caseGlow} />
+              <span className={styles.caseBody} />
+            </div>
+
+            {lastDrop ? (
+              <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
+                <SkinPreview item={lastDrop.item} large />
+                <div>
+                  <small>{rarityLabel(lastDrop.item.rarity)}</small>
+                  <h3>{lastDrop.item.name}</h3>
+                  <p>{lastDrop.duplicate ? `Doublon, +${lastDrop.refund} credits` : "Nouveau skin debloque"}</p>
+                </div>
+              </article>
+            ) : (
+              <div className={styles.caseEmptyDrop}>
+                <strong>{selectedDefinition.title}</strong>
+                <span>Ouvre une caisse pour reveler un skin.</span>
+              </div>
+            )}
+
+            <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
+              {opening ? "Ouverture..." : `Ouvrir pour ${selectedDefinition.cost} credits`}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.columns}>
+        <article className={styles.panel}>
+          <h2>Contenu de la caisse</h2>
+          <div className={styles.caseItemGrid}>
+            {selectedItems.map((item) => {
+              const owned = ownedSkinIds.includes(item.id);
+
+              return (
+                <article className={`${styles.caseItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
+                  <SkinPreview item={item} />
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>{rarityLabel(item.rarity)}</small>
+                  </div>
+                  <em>{owned ? "Possede" : "A debloquer"}</em>
+                </article>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className={styles.panel}>
+          <h2>Raretes</h2>
+          <div className={styles.rulesTable}>
+            {(["common", "rare", "epic", "legendary"] as SkinRarity[]).map((rarity) => (
+              <div className={styles.ruleRow} key={rarity}>
+                <span>{rarityLabel(rarity)}</span>
+                <strong>{RARITY_WEIGHTS[rarity]} parts</strong>
+                <small>Doublon : +{duplicateRefundLabel(rarity)} credits</small>
+              </div>
+            ))}
+          </div>
+          <p>Les skins restent cosmetiques. Ils ne modifient pas les chances de jeu.</p>
+        </article>
+      </section>
+
+      <section className={styles.panel}>
+        <h2>10 dernieres ouvertures</h2>
+        <ul className={styles.history}>
+          {history.map((item) => (
+            <li key={item.id}>
+              <span>
+                {item.caseTitle} | {item.item.name}
+              </span>
+              <small>
+                {rarityLabel(item.item.rarity)} | {item.duplicate ? `doublon +${item.refund}` : "nouveau"} | solde{" "}
+                {item.balanceAfter}
+              </small>
+            </li>
+          ))}
+        </ul>
+        {history.length === 0 && <p className={styles.empty}>Aucune caisse ouverte pour le moment.</p>}
+      </section>
+    </>
+  );
+}
+
 function ShopGame({
   balance,
   equippedSkins,
@@ -2199,6 +2458,45 @@ function formatMultiplier(value: number): string {
 
 function formatCredits(value: number): string {
   return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+}
+
+function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean }) {
+  if (item.category === "cardBack") {
+    return (
+      <span
+        className={`${large ? styles.caseCardBackPreview : styles.shopCardPreview} ${cardBackClass(item.id)}`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <span
+      className={large ? styles.caseOrbPreview : styles.shopOrbPreview}
+      style={{ "--shop-preview-color": item.preview, "--shop-preview-glow": ballGlow(item.id) } as CSSProperties}
+      aria-hidden="true"
+    />
+  );
+}
+
+function rarityLabel(rarity: SkinRarity): string {
+  if (rarity === "legendary") {
+    return "Legendaire";
+  }
+
+  if (rarity === "epic") {
+    return "Epique";
+  }
+
+  if (rarity === "rare") {
+    return "Rare";
+  }
+
+  return "Commun";
+}
+
+function duplicateRefundLabel(rarity: SkinRarity): number {
+  return DUPLICATE_REFUNDS[rarity];
 }
 
 function skinCategoryLabel(category: ShopItem["category"]): string {

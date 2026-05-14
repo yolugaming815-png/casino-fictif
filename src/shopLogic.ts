@@ -1,5 +1,7 @@
 export type SkinCategory = "plinkoBall" | "cardBack" | "rouletteBall" | "rocketShip";
 
+export type SkinRarity = "common" | "rare" | "epic" | "legendary";
+
 export type ShopItem = {
   id: string;
   category: SkinCategory;
@@ -7,6 +9,7 @@ export type ShopItem = {
   description: string;
   price: number;
   preview: string;
+  rarity: SkinRarity;
 };
 
 export type EquippedSkins = Record<SkinCategory, string>;
@@ -26,6 +29,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Classique lumineuse pour le Plinko.",
     price: 0,
     preview: "#ffd166",
+    rarity: "common",
   },
   {
     id: "plinko-neon",
@@ -34,6 +38,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Vert arcade, tres visible dans la grille.",
     price: 120,
     preview: "#79e29f",
+    rarity: "common",
   },
   {
     id: "plinko-ruby",
@@ -42,6 +47,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Rouge profond avec halo chaud.",
     price: 180,
     preview: "#ff6b6b",
+    rarity: "rare",
   },
   {
     id: "plinko-ocean",
@@ -50,6 +56,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Bleu vif, lisible meme sur les collisions rapides.",
     price: 210,
     preview: "#5eb8f1",
+    rarity: "rare",
   },
   {
     id: "plinko-lilac",
@@ -58,6 +65,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Teinte douce avec un halo plus froid.",
     price: 240,
     preview: "#c58cff",
+    rarity: "epic",
   },
   {
     id: "plinko-mint",
@@ -66,6 +74,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Vert clair satine pour varier du neon.",
     price: 260,
     preview: "#9cf3d3",
+    rarity: "legendary",
   },
   {
     id: "cards-emerald",
@@ -74,6 +83,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Motif casino sobre pour le blackjack.",
     price: 0,
     preview: "#2f5f53",
+    rarity: "common",
   },
   {
     id: "cards-midnight",
@@ -82,6 +92,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Bleu nuit avec grille fine.",
     price: 150,
     preview: "#263a80",
+    rarity: "common",
   },
   {
     id: "cards-royal",
@@ -90,6 +101,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Violet sombre et accents dores.",
     price: 220,
     preview: "#6541a5",
+    rarity: "rare",
   },
   {
     id: "cards-sunset",
@@ -98,6 +110,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Rouge ambre avec des lignes plus chaudes.",
     price: 250,
     preview: "#d86642",
+    rarity: "epic",
   },
   {
     id: "cards-obsidian",
@@ -106,6 +119,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Noir profond avec reflets acier.",
     price: 280,
     preview: "#222936",
+    rarity: "epic",
   },
   {
     id: "cards-aqua",
@@ -114,6 +128,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Cyan mineral au rendu plus lumineux.",
     price: 300,
     preview: "#2a9db7",
+    rarity: "legendary",
   },
   {
     id: "roulette-ivory",
@@ -122,6 +137,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "La bille standard de roulette.",
     price: 0,
     preview: "#f9f7ef",
+    rarity: "common",
   },
   {
     id: "roulette-sapphire",
@@ -130,6 +146,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Bleu clair avec reflet froid.",
     price: 160,
     preview: "#7cc7ff",
+    rarity: "common",
   },
   {
     id: "roulette-sun",
@@ -138,6 +155,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Jaune vif pour suivre la trajectoire.",
     price: 200,
     preview: "#ffd166",
+    rarity: "rare",
   },
   {
     id: "roulette-rose",
@@ -146,6 +164,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Rose framboise tres visible sur la roue.",
     price: 220,
     preview: "#ff8fb1",
+    rarity: "rare",
   },
   {
     id: "roulette-jade",
@@ -154,6 +173,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Vert profond avec une lueur nette.",
     price: 250,
     preview: "#56d39a",
+    rarity: "epic",
   },
   {
     id: "roulette-violet",
@@ -162,6 +182,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Violet clair pour un contraste plus original.",
     price: 280,
     preview: "#b58cff",
+    rarity: "legendary",
   },
   {
     id: "rocket-classic",
@@ -170,6 +191,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Coque claire et flamme ambree.",
     price: 0,
     preview: "#f9f7ef",
+    rarity: "common",
   },
   {
     id: "rocket-comet",
@@ -178,6 +200,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Bleu glacial et propulsion cyan.",
     price: 260,
     preview: "#7cc7ff",
+    rarity: "rare",
   },
   {
     id: "rocket-solar",
@@ -186,6 +209,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Jaune chaud avec accents rouges.",
     price: 320,
     preview: "#ffd166",
+    rarity: "epic",
   },
   {
     id: "rocket-nebula",
@@ -194,6 +218,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     description: "Violet profond avec halo rose.",
     price: 380,
     preview: "#b58cff",
+    rarity: "legendary",
   },
 ];
 
