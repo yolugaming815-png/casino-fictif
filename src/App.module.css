@@ -256,6 +256,26 @@
   min-width: 168px;
 }
 
+.profileStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profileStats span {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d5ddd9;
+}
+
+.profileStats strong {
+  color: #ffd166;
+  font-size: 1.35rem;
+}
+
 .profileInventory,
 .profileInventorySection,
 .profileInventoryGrid {
@@ -468,6 +488,12 @@
   gap: 12px;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.duelStatus {
+  margin: 0;
+  color: #ffd166;
+  font-weight: 900;
 }
 
 .duelScoreGrid {
@@ -3082,6 +3108,7 @@
   .caseLayout,
   .inventoryGrid,
   .inventoryStats,
+  .profileStats,
   .rouletteLayout,
   .rocketStage,
   .columns {

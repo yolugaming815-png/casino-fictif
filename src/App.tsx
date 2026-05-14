@@ -76,6 +76,8 @@ import {
   isFirebaseConfigured,
   joinOnlineRoom,
   leaveOnlineRoom,
+  loadDuelHistory,
+  loadDuelStats,
   loadFriendRequests,
   loadLeaderboard,
   loadCloudSave,
@@ -91,7 +93,9 @@ import {
   type CasinoUser,
   type FriendRequestEntry,
   type LeaderboardEntry,
+  type DuelStats,
   type OnlineRoomEntry,
+  type OnlineRoomPlayer,
   type OnlineRoomType,
 } from "./firebaseClient";
 
@@ -416,6 +420,9 @@ function App() {
   const [friendsMessage, setFriendsMessage] = useState("Connecte-toi pour voir tes amis.");
   const [onlineRooms, setOnlineRooms] = useState<OnlineRoomEntry[]>([]);
   const [onlineMessage, setOnlineMessage] = useState("Connecte-toi pour creer ou rejoindre un salon.");
+  const [duelHistory, setDuelHistory] = useState<OnlineRoomEntry[]>([]);
+  const [selectedProfileStats, setSelectedProfileStats] = useState<DuelStats | null>(null);
+  const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -488,6 +495,7 @@ function App() {
         setFriendRequests([]);
         setFriendsMessage("Connecte-toi pour voir tes amis.");
         setOnlineRooms([]);
+        setDuelHistory([]);
         setOnlineMessage("Connecte-toi pour creer ou rejoindre un salon.");
         setAccountMessage(
           isFirebaseConfigured()
@@ -517,6 +525,7 @@ function App() {
         await refreshLeaderboard();
         await refreshFriendRequests(user.uid);
         await refreshOnlineRooms();
+        await refreshDuelHistory(user.uid);
         cloudSaveReadyRef.current = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -570,6 +579,7 @@ function App() {
     if (accountUser) {
       refreshFriendRequests(accountUser.uid);
       refreshOnlineRooms();
+      refreshDuelHistory(accountUser.uid);
     }
   }, [accountUser]);
 
@@ -622,9 +632,31 @@ function App() {
     }
   }
 
-  function handleOpenPlayerProfile(entry: LeaderboardEntry) {
+  async function refreshDuelHistory(userId: string) {
+    if (!isFirebaseConfigured()) {
+      setDuelHistory([]);
+      return;
+    }
+
+    try {
+      const history = await loadDuelHistory(userId);
+      setDuelHistory(history);
+    } catch {
+      setDuelHistory([]);
+    }
+  }
+
+  async function handleOpenPlayerProfile(entry: LeaderboardEntry) {
     setFriendRequestMessage("");
     setSelectedProfile(entry);
+    setSelectedProfileStats(null);
+
+    try {
+      const stats = await loadDuelStats(entry.uid);
+      setSelectedProfileStats(stats);
+    } catch {
+      setSelectedProfileStats(null);
+    }
   }
 
   async function handleSendFriendRequest(entry: LeaderboardEntry) {
@@ -664,15 +696,15 @@ function App() {
     }
   }
 
-  async function handleCreateOnlineRoom(type: OnlineRoomType, game: string) {
+  async function handleCreateOnlineRoom(type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour creer un salon.");
       return;
     }
 
     try {
-      await createOnlineRoom(accountUser, type, game);
-      setOnlineMessage(type === "poker" ? "Table de poker creee." : "Salon de duel cree.");
+      await createOnlineRoom(accountUser, type, game, invitedPlayer);
+      setOnlineMessage(invitedPlayer ? `Invitation envoyee a ${invitedPlayer.displayName}.` : type === "poker" ? "Table de poker creee." : "Salon de duel cree.");
       await refreshOnlineRooms();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -687,12 +719,15 @@ function App() {
     }
 
     try {
+      setOnlineActionRoomId(room.id);
       await joinOnlineRoom(room, accountUser);
       setOnlineMessage(`Tu as rejoint ${room.game}.`);
       await refreshOnlineRooms();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setOnlineMessage(`Impossible de rejoindre : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
     }
   }
 
@@ -703,12 +738,15 @@ function App() {
     }
 
     try {
+      setOnlineActionRoomId(room.id);
       await leaveOnlineRoom(room, accountUser);
       setOnlineMessage(`Tu as quitte ${room.game}.`);
       await refreshOnlineRooms();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setOnlineMessage(`Impossible de quitter : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
     }
   }
 
@@ -719,12 +757,15 @@ function App() {
     }
 
     try {
+      setOnlineActionRoomId(room.id);
       await startDuelRoom(room, accountUser);
       setOnlineMessage("Duel lance. Chaque joueur doit jouer 3 manches.");
       await refreshOnlineRooms();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setOnlineMessage(`Lancement impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
     }
   }
 
@@ -735,12 +776,16 @@ function App() {
     }
 
     try {
+      setOnlineActionRoomId(room.id);
       await playDuelRound(room, accountUser);
       setOnlineMessage("Manche jouee et score sauvegarde.");
       await refreshOnlineRooms();
+      await refreshDuelHistory(accountUser.uid);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setOnlineMessage(`Manche impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
     }
   }
 
@@ -1289,6 +1334,7 @@ function App() {
         {selectedProfile && (
           <PlayerProfileModal
             currentUserId={accountUser?.uid ?? null}
+            duelStats={selectedProfileStats}
             friendRequestMessage={friendRequestMessage}
             player={selectedProfile}
             onClose={() => setSelectedProfile(null)}
@@ -1403,10 +1449,12 @@ function App() {
         {activeSection === "online" ? (
           <OnlineGames
             currentUser={accountUser}
+            duelHistory={duelHistory}
             friendRequests={friendRequests}
             leaderboard={leaderboard}
             message={onlineMessage}
             mode={activeOnlineGame}
+            actionRoomId={onlineActionRoomId}
             rooms={onlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onJoinRoom={handleJoinOnlineRoom}
@@ -1851,7 +1899,9 @@ function FriendsGame({
 }
 
 function OnlineGames({
+  actionRoomId,
   currentUser,
+  duelHistory,
   friendRequests,
   leaderboard,
   message,
@@ -1865,13 +1915,15 @@ function OnlineGames({
   onRefreshRooms,
   onStartDuel,
 }: {
+  actionRoomId: string | null;
   currentUser: CasinoUser | null;
+  duelHistory: OnlineRoomEntry[];
   friendRequests: FriendRequestEntry[];
   leaderboard: LeaderboardEntry[];
   message: string;
   mode: "duel" | "poker";
   rooms: OnlineRoomEntry[];
-  onCreateRoom: (type: OnlineRoomType, game: string) => void;
+  onCreateRoom: (type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
@@ -1899,7 +1951,11 @@ function OnlineGames({
       return items;
     }, []);
   const visibleFriends = friends.slice(0, 4);
-  const visibleRooms = rooms.filter((room) => room.type === mode);
+  const visibleRooms = rooms.filter(
+    (room) =>
+      room.type === mode &&
+      (!room.invitedUid || room.hostUid === currentUserId || room.invitedUid === currentUserId || room.players.some((player) => player.uid === currentUserId)),
+  );
 
   if (!currentUser) {
     return (
@@ -1961,7 +2017,7 @@ function OnlineGames({
                         Profil
                       </button>
                     )}
-                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel avec ${friend.displayName}`)}>
+                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel avec ${friend.displayName}`, friend)}>
                       Inviter
                     </button>
                   </div>
@@ -1980,7 +2036,9 @@ function OnlineGames({
           onPlayDuelRound={onPlayDuelRound}
           onRefreshRooms={onRefreshRooms}
           onStartDuel={onStartDuel}
+          actionRoomId={actionRoomId}
         />
+        <DuelHistoryPanel currentUserId={currentUser.uid} history={duelHistory} />
       </>
     );
   }
@@ -2036,6 +2094,7 @@ function OnlineGames({
         onPlayDuelRound={onPlayDuelRound}
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
+        actionRoomId={actionRoomId}
       />
 
       <section className={styles.columns}>
@@ -2053,6 +2112,7 @@ function OnlineGames({
 }
 
 function OnlineRoomsPanel({
+  actionRoomId,
   currentUserId,
   message,
   rooms,
@@ -2062,6 +2122,7 @@ function OnlineRoomsPanel({
   onRefreshRooms,
   onStartDuel,
 }: {
+  actionRoomId: string | null;
   currentUserId: string;
   message: string;
   rooms: OnlineRoomEntry[];
@@ -2090,6 +2151,8 @@ function OnlineRoomsPanel({
           rooms.map((room) => {
             const alreadyJoined = room.players.some((player) => player.uid === currentUserId);
             const full = room.players.length >= room.maxPlayers;
+            const busy = actionRoomId === room.id;
+            const invitedLabel = room.invitedName ? ` | Invite : ${room.invitedName}` : "";
 
             return (
               <article className={styles.onlineRoomCard} key={room.id}>
@@ -2097,7 +2160,8 @@ function OnlineRoomsPanel({
                   <span>{room.type === "poker" ? "Table poker" : "Duel"}</span>
                   <h3>{room.game}</h3>
                   <p>
-                    Hote : {room.hostName} | {room.status === "waiting" ? "En attente" : room.status === "playing" ? "En cours" : "Termine"}
+                    Hote : {room.hostName}
+                    {invitedLabel} | {room.status === "waiting" ? "En attente" : room.status === "playing" ? "En cours" : "Termine"}
                   </p>
                 </div>
                 <div className={styles.onlineRoomPlayers}>
@@ -2112,12 +2176,12 @@ function OnlineRoomsPanel({
                   className={alreadyJoined ? styles.secondaryButton : styles.primaryButton}
                   type="button"
                   onClick={() => (alreadyJoined ? onLeaveRoom(room) : onJoinRoom(room))}
-                  disabled={room.status !== "waiting" || (!alreadyJoined && full)}
+                  disabled={busy || room.status !== "waiting" || (!alreadyJoined && full)}
                 >
-                  {room.status !== "waiting" ? "Partie lancee" : alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
+                  {busy ? "..." : room.status !== "waiting" ? "Partie lancee" : alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
                 </button>
                 {room.type === "duel" && (
-                  <DuelRoomPanel currentUserId={currentUserId} room={room} onPlayRound={onPlayDuelRound} onStartDuel={onStartDuel} />
+                  <DuelRoomPanel busy={busy} currentUserId={currentUserId} room={room} onPlayRound={onPlayDuelRound} onStartDuel={onStartDuel} />
                 )}
               </article>
             );
@@ -2129,11 +2193,13 @@ function OnlineRoomsPanel({
 }
 
 function DuelRoomPanel({
+  busy,
   currentUserId,
   room,
   onPlayRound,
   onStartDuel,
 }: {
+  busy: boolean;
   currentUserId: string;
   room: OnlineRoomEntry;
   onPlayRound: (room: OnlineRoomEntry) => void;
@@ -2142,9 +2208,26 @@ function DuelRoomPanel({
   const currentPlayerScore = room.duelScores[currentUserId] ?? { rounds: [], total: 0 };
   const canStart = room.status === "waiting" && room.hostUid === currentUserId && room.players.length >= 2;
   const canPlay = room.status === "playing" && room.players.some((player) => player.uid === currentUserId) && currentPlayerScore.rounds.length < 3;
+  const opponent = room.players.find((player) => player.uid !== currentUserId);
+  const opponentScore = opponent ? room.duelScores[opponent.uid] ?? { rounds: [], total: 0 } : null;
+  const statusText =
+    room.status === "waiting"
+      ? room.players.length < 2
+        ? room.invitedName
+          ? `En attente de ${room.invitedName}.`
+          : "En attente du joueur 2."
+        : room.hostUid === currentUserId
+          ? "Deux joueurs sont prets, tu peux lancer."
+          : "En attente du lancement par l'hote."
+      : room.status === "playing"
+        ? canPlay
+          ? "A toi de jouer."
+          : `Tu as joue ${currentPlayerScore.rounds.length}/3 manches.`
+        : `Duel termine.`;
 
   return (
     <div className={styles.duelRoomPanel}>
+      <p className={styles.duelStatus}>{statusText}</p>
       <div className={styles.duelScoreGrid}>
         {room.players.map((player) => {
           const score = room.duelScores[player.uid] ?? { rounds: [], total: 0 };
@@ -2165,10 +2248,11 @@ function DuelRoomPanel({
         <p className={styles.duelWinner}>Gagnant : {room.winnerName || "egalite"}</p>
       ) : (
         <div className={styles.socialActions}>
-          <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={!canStart}>
+          {opponentScore && <small>L'adversaire a joue {opponentScore.rounds.length}/3 manches.</small>}
+          <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={busy || !canStart}>
             Lancer le duel
           </button>
-          <button className={styles.primaryButton} type="button" onClick={() => onPlayRound(room)} disabled={!canPlay}>
+          <button className={styles.primaryButton} type="button" onClick={() => onPlayRound(room)} disabled={busy || !canPlay}>
             Jouer une manche
           </button>
         </div>
@@ -2177,14 +2261,61 @@ function DuelRoomPanel({
   );
 }
 
+function DuelHistoryPanel({ currentUserId, history }: { currentUserId: string; history: OnlineRoomEntry[] }) {
+  const wins = history.filter((room) => room.winnerUid === currentUserId).length;
+  const losses = history.filter((room) => room.winnerUid && room.winnerUid !== currentUserId).length;
+  const ratio = losses === 0 ? wins : wins / losses;
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.socialSectionHeader}>
+        <div>
+          <h2>Historique des duels</h2>
+          <p>
+            {wins} victoire{wins > 1 ? "s" : ""}, {losses} defaite{losses > 1 ? "s" : ""}, ratio {ratio.toFixed(2)}
+          </p>
+        </div>
+        <span>{history.length}</span>
+      </div>
+
+      <div className={styles.socialList}>
+        {history.length === 0 ? (
+          <p className={styles.empty}>Aucun duel termine pour le moment.</p>
+        ) : (
+          history.slice(0, 8).map((room) => {
+            const playerScore = room.duelScores[currentUserId] ?? { rounds: [], total: 0 };
+            const opponent = room.players.find((player) => player.uid !== currentUserId);
+            const opponentScore = opponent ? room.duelScores[opponent.uid] ?? { rounds: [], total: 0 } : { rounds: [], total: 0 };
+            const won = room.winnerUid === currentUserId;
+
+            return (
+              <article className={styles.socialItem} key={room.id}>
+                <div>
+                  <strong>{room.game}</strong>
+                  <small>
+                    {won ? "Victoire" : "Defaite"} contre {opponent?.displayName ?? "adversaire"} | {playerScore.total} - {opponentScore.total}
+                  </small>
+                </div>
+                <span className={won ? styles.positive : styles.negative}>{won ? "Gagne" : "Perdu"}</span>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
 function PlayerProfileModal({
   currentUserId,
+  duelStats,
   friendRequestMessage,
   player,
   onClose,
   onSendFriendRequest,
 }: {
   currentUserId: string | null;
+  duelStats: DuelStats | null;
   friendRequestMessage: string;
   player: LeaderboardEntry;
   onClose: () => void;
@@ -2221,6 +2352,21 @@ function PlayerProfileModal({
             {isCurrentUser ? "Ton profil" : "Demander en ami"}
           </button>
           <small>{friendRequestMessage || (currentUserId ? "Clique pour envoyer une demande d'ami." : "Connecte-toi pour envoyer une demande.")}</small>
+        </div>
+
+        <div className={styles.profileStats}>
+          <span>
+            <strong>{duelStats?.wins ?? 0}</strong>
+            victoires
+          </span>
+          <span>
+            <strong>{duelStats?.losses ?? 0}</strong>
+            defaites
+          </span>
+          <span>
+            <strong>{(duelStats?.ratio ?? 0).toFixed(2)}</strong>
+            ratio
+          </span>
         </div>
 
         <div className={styles.profileInventory}>

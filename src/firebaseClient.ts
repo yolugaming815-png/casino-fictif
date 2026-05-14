@@ -75,12 +75,21 @@ export type OnlineRoomEntry = {
   hostUid: string;
   hostName: string;
   players: OnlineRoomPlayer[];
+  playerIds: string[];
   maxPlayers: number;
+  invitedUid?: string;
+  invitedName?: string;
   duelScores: Record<string, DuelPlayerScore>;
   winnerUid?: string;
   winnerName?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
+};
+
+export type DuelStats = {
+  wins: number;
+  losses: number;
+  ratio: number;
 };
 
 const firebaseConfig = {
@@ -362,7 +371,10 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     hostUid: typeof data.hostUid === "string" ? data.hostUid : "",
     hostName: typeof data.hostName === "string" ? data.hostName : "Joueur anonyme",
     players,
+    playerIds: Array.isArray(data.playerIds) ? data.playerIds.filter((id): id is string => typeof id === "string") : players.map((player) => player.uid),
     maxPlayers: typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers) ? data.maxPlayers : type === "poker" ? 6 : 2,
+    invitedUid: typeof data.invitedUid === "string" ? data.invitedUid : undefined,
+    invitedName: typeof data.invitedName === "string" ? data.invitedName : undefined,
     duelScores,
     winnerUid: typeof data.winnerUid === "string" ? data.winnerUid : undefined,
     winnerName: typeof data.winnerName === "string" ? data.winnerName : undefined,
@@ -371,13 +383,14 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
   };
 }
 
-export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, game: string) {
+export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) {
   const app = getFirebaseApp();
   if (!app) {
     return null;
   }
 
   const player = casinoPlayer(user);
+  const playerIds = invitedPlayer ? [user.uid, invitedPlayer.uid] : [user.uid];
   const room = await addDoc(collection(getFirestore(app), "onlineRooms"), {
     type,
     game,
@@ -385,7 +398,10 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     hostUid: user.uid,
     hostName: player.displayName,
     players: [player],
+    playerIds,
     maxPlayers: type === "poker" ? 6 : 2,
+    invitedUid: invitedPlayer?.uid ?? "",
+    invitedName: invitedPlayer?.displayName ?? "",
     duelScores: {},
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -408,6 +424,32 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
     .filter((room) => room.hostUid && room.players.length > 0 && room.status !== "finished");
 }
 
+export async function loadDuelHistory(userId: string): Promise<OnlineRoomEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), where("type", "==", "duel"), limit(50));
+  const snapshot = await getDocs(roomsQuery);
+
+  return snapshot.docs
+    .map((room) => parseOnlineRoom(room.id, room.data()))
+    .filter((room) => room.status === "finished" && room.playerIds.includes(userId));
+}
+
+export async function loadDuelStats(userId: string): Promise<DuelStats> {
+  const history = await loadDuelHistory(userId);
+  const wins = history.filter((room) => room.winnerUid === userId).length;
+  const losses = history.filter((room) => room.winnerUid && room.winnerUid !== userId).length;
+
+  return {
+    wins,
+    losses,
+    ratio: losses === 0 ? wins : wins / losses,
+  };
+}
+
 export async function joinOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
   const app = getFirebaseApp();
   if (!app) {
@@ -418,12 +460,17 @@ export async function joinOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
     return;
   }
 
+  if (room.invitedUid && room.invitedUid !== user.uid && room.hostUid !== user.uid) {
+    throw new Error("Ce duel est prive.");
+  }
+
   if (room.players.length >= room.maxPlayers) {
     throw new Error("Ce salon est deja complet.");
   }
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     players: [...room.players, casinoPlayer(user)],
+    playerIds: Array.from(new Set([...room.playerIds, user.uid])),
     updatedAt: serverTimestamp(),
   });
 }
@@ -440,6 +487,7 @@ export async function leaveOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     players: room.players.filter((player) => player.uid !== user.uid),
+    playerIds: room.playerIds.filter((uid) => uid !== user.uid || room.invitedUid === uid),
     updatedAt: serverTimestamp(),
   });
 }
