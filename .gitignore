@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.npm-cache/
+.tools/
+.codex-publish-temp/
+*.log
+npm-debug.log
