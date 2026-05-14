@@ -51,8 +51,10 @@ import {
   type ShopItem,
 } from "./shopLogic";
 import {
-  ROCKET_TARGETS,
+  ROCKET_MAX_TARGET,
+  ROCKET_MIN_TARGET,
   getRocketSuccessProbability,
+  normalizeRocketTarget,
   playRocketRound,
   type RocketOutcome,
   type RocketTarget,
@@ -549,7 +551,10 @@ function App() {
       return;
     }
 
-    const outcome = playRocketRound(rocketBet, rocketTarget);
+    const target = normalizeRocketTarget(rocketTarget);
+    setRocketTarget(target);
+
+    const outcome = playRocketRound(rocketBet, target);
     setRocketFlight(outcome);
     setRocketAnimating(true);
     setRocketMessage("La fusee monte...");
@@ -560,8 +565,8 @@ function App() {
       setBalance(nextBalance);
       setRocketMessage(
         outcome.success
-          ? `Cible x${outcome.target} atteinte avant x${outcome.crashMultiplier} : +${outcome.net} credits virtuels.`
-          : `Retombee a x${outcome.crashMultiplier} avant x${outcome.target} : perte de la mise virtuelle.`,
+          ? `Cible ${formatMultiplier(outcome.target)} atteinte avant ${formatMultiplier(outcome.crashMultiplier)} : +${formatCredits(outcome.net)} credits virtuels.`
+          : `Retombee a ${formatMultiplier(outcome.crashMultiplier)} avant ${formatMultiplier(outcome.target)} : perte de la mise virtuelle.`,
       );
       setRocketHistory((items) => [
         {
@@ -1962,9 +1967,9 @@ function RocketGame({
           </div>
           <div className={styles.rocketMetrics}>
             <span>Cible</span>
-            <strong>x{target}</strong>
+            <strong>{formatMultiplier(target)}</strong>
             <span>Retombee simulée</span>
-            <strong>x{displayedMultiplier}</strong>
+            <strong>{formatMultiplier(displayedMultiplier)}</strong>
           </div>
         </div>
 
@@ -1980,18 +1985,19 @@ function RocketGame({
             ))}
           </select>
           <label htmlFor="rocketTarget">Cible</label>
-          <select
+          <input
             id="rocketTarget"
+            type="number"
             value={target}
-            onChange={(event) => onTargetChange(Number(event.target.value) as RocketTarget)}
+            min={ROCKET_MIN_TARGET}
+            max={ROCKET_MAX_TARGET}
+            step="0.1"
+            onChange={(event) =>
+              onTargetChange((event.target.value === "" ? ROCKET_MIN_TARGET : Number(event.target.value)) as RocketTarget)
+            }
+            onBlur={() => onTargetChange(normalizeRocketTarget(target))}
             disabled={animating}
-          >
-            {ROCKET_TARGETS.map((option) => (
-              <option key={option} value={option}>
-                x{option}
-              </option>
-            ))}
-          </select>
+          />
           <button className={styles.primaryButton} type="button" onClick={onLaunch} disabled={paused || !canLaunch || animating}>
             Lancer
           </button>
@@ -2011,20 +2017,11 @@ function RocketGame({
         <article className={styles.panel}>
           <h2>Regles Rocket Games</h2>
           <p>
-            Tu choisis une cible. La fusee recoit une retombee theorique entre x1.0 et x5.0.
+            Tu choisis une cible entre x2.0 et x5.0. La fusee recoit une retombee theorique entre x1.0 et x5.0.
             Si elle atteint la cible, le paiement vaut mise × cible.
           </p>
-          <div className={styles.rulesTable}>
-            {ROCKET_TARGETS.map((option) => (
-              <div className={styles.ruleRow} key={option}>
-                <span>Cible x{option}</span>
-                <strong>x{option}</strong>
-                <small>{(getRocketSuccessProbability(option) * 100).toFixed(0)} % theorique</small>
-              </div>
-            ))}
-          </div>
           <p>
-            Pour la cible active x{target}, la probabilite theorique de succes est de
+            Pour la cible active {formatMultiplier(target)}, la probabilite theorique de succes est de
             {" "}{(targetProbability * 100).toFixed(0)} %. Aucun gain reel n'est possible.
           </p>
         </article>
@@ -2033,11 +2030,11 @@ function RocketGame({
           {history.map((item) => (
             <li key={item.id}>
               <span>
-                cible x{item.target} | retombee x{item.crashMultiplier}
+                cible {formatMultiplier(item.target)} | retombee {formatMultiplier(item.crashMultiplier)}
               </span>
               <small>
                 mise {item.bet} | {item.net >= 0 ? "+" : ""}
-                {item.net} | solde {item.balanceAfter}
+                {formatCredits(item.net)} | solde {formatCredits(item.balanceAfter)}
               </small>
             </li>
           ))}
@@ -2194,6 +2191,14 @@ function rocketGlow(id: string): string {
   }
 
   return "rgba(249, 247, 239, 0.72)";
+}
+
+function formatMultiplier(value: number): string {
+  return `x${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}`;
+}
+
+function formatCredits(value: number): string {
+  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
 }
 
 function skinCategoryLabel(category: ShopItem["category"]): string {

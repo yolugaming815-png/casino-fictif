@@ -1,6 +1,7 @@
-export const ROCKET_TARGETS = [2, 3, 4, 5] as const;
+export const ROCKET_MIN_TARGET = 2;
+export const ROCKET_MAX_TARGET = 5;
 
-export type RocketTarget = (typeof ROCKET_TARGETS)[number];
+export type RocketTarget = number;
 
 export type RocketOutcome = {
   crashMultiplier: number;
@@ -44,4 +45,9 @@ export function playRocketRound(
 export function getRocketSuccessProbability(target: RocketTarget): number {
   const threshold = Math.max(0, Math.min(1, (target - 1) / 4));
   return Math.max(0, Math.min(1, 1 - threshold ** (1 / 2.2)));
+}
+
+export function normalizeRocketTarget(target: number): RocketTarget {
+  const clamped = Math.min(Math.max(target, ROCKET_MIN_TARGET), ROCKET_MAX_TARGET);
+  return Math.round(clamped * 10) / 10;
 }

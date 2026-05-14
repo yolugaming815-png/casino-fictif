@@ -97,6 +97,7 @@
 .primaryButton,
 .secondaryButton,
 .controls select,
+.controls input,
 .gameTabs button {
   min-height: 44px;
   border-radius: 8px;
@@ -231,7 +232,8 @@
   font-weight: 700;
 }
 
-.controls select {
+.controls select,
+.controls input {
   width: min(180px, 100%);
   padding: 0 12px;
   color: #101218;
@@ -1297,6 +1299,7 @@
   }
 
   .controls select,
+  .controls input,
   .controls button {
     width: 100%;
   }

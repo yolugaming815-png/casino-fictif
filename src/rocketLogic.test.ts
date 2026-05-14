@@ -4,6 +4,7 @@ import {
   evaluateRocketRound,
   generateRocketCrashMultiplier,
   getRocketSuccessProbability,
+  normalizeRocketTarget,
   playRocketRound,
 } from "./rocketLogic.ts";
 
@@ -39,4 +40,10 @@ test("calcule les probabilites theoriques", () => {
   assert.ok(getRocketSuccessProbability(2) > getRocketSuccessProbability(3));
   assert.ok(getRocketSuccessProbability(3) > getRocketSuccessProbability(5));
   assert.equal(getRocketSuccessProbability(5), 0);
+});
+
+test("normalise une cible saisie librement", () => {
+  assert.equal(normalizeRocketTarget(1.6), 2);
+  assert.equal(normalizeRocketTarget(2.84), 2.8);
+  assert.equal(normalizeRocketTarget(5.4), 5);
 });
