@@ -18,10 +18,18 @@ export type PlinkoProbability = {
   probability: number;
 };
 
+export type PlinkoLayout = "desktop" | "mobile";
+
 const PLINKO_MULTIPLIERS: Record<PlinkoRows, readonly number[]> = {
   8: [10, 5, 0.5, 0.2, 0.2, 0.2, 0.5, 5, 10],
   10: [10, 5, 2, 0.5, 0.2, 0.2, 0.2, 0.5, 2, 5, 10],
   12: [10, 5, 0.5, 0.5, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5, 0.5, 5, 10],
+};
+
+const MOBILE_PLINKO_MULTIPLIERS: Record<PlinkoRows, readonly number[]> = {
+  8: [0.2, 0.2, 0.5, 2, 10, 2, 0.5, 0.2, 0.2],
+  10: [0.2, 0.2, 0.5, 1, 2, 10, 2, 1, 0.5, 0.2, 0.2],
+  12: [0.2, 0.2, 0.5, 1, 2, 5, 10, 5, 2, 1, 0.5, 0.2, 0.2],
 };
 
 export function generatePlinkoPath(rows: PlinkoRows, rng: () => number = Math.random): PlinkoStep[] {
@@ -32,12 +40,16 @@ export function getFinalSlot(path: readonly PlinkoStep[]): number {
   return path.filter((step) => step === "R").length;
 }
 
-export function getPlinkoMultiplier(slot: number, rows: PlinkoRows): number {
+export function getPlinkoMultiplier(slot: number, rows: PlinkoRows, layout: PlinkoLayout = "desktop"): number {
   if (slot < 0 || slot > rows) {
     throw new Error("Case Plinko invalide.");
   }
 
-  return PLINKO_MULTIPLIERS[rows][slot];
+  return getPlinkoMultipliers(rows, layout)[slot];
+}
+
+export function getPlinkoMultipliers(rows: PlinkoRows, layout: PlinkoLayout = "desktop"): readonly number[] {
+  return layout === "mobile" ? MOBILE_PLINKO_MULTIPLIERS[rows] : PLINKO_MULTIPLIERS[rows];
 }
 
 export function calculatePlinkoPayout(bet: number, multiplier: number): { payout: number; net: number } {
@@ -66,7 +78,7 @@ export function updatePlinkoBalance(balance: number, bet: number, multiplier: nu
   return balance + calculatePlinkoPayout(bet, multiplier).net;
 }
 
-export function getPlinkoProbabilities(rows: PlinkoRows): PlinkoProbability[] {
+export function getPlinkoProbabilities(rows: PlinkoRows, layout: PlinkoLayout = "desktop"): PlinkoProbability[] {
   const totalPaths = 2 ** rows;
 
   return Array.from({ length: rows + 1 }, (_, slot) => {
@@ -74,7 +86,7 @@ export function getPlinkoProbabilities(rows: PlinkoRows): PlinkoProbability[] {
 
     return {
       slot,
-      multiplier: getPlinkoMultiplier(slot, rows),
+      multiplier: getPlinkoMultiplier(slot, rows, layout),
       combinations,
       probability: combinations / totalPaths,
     };

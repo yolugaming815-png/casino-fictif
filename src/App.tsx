@@ -27,9 +27,11 @@ import {
 import {
   PLINKO_ROWS,
   calculatePlinkoPayout,
+  getPlinkoMultipliers,
   getPlinkoProbabilities,
   getPlinkoMultiplier,
   type PlinkoOutcome,
+  type PlinkoLayout,
   type PlinkoRows,
   type PlinkoStep,
 } from "./plinkoLogic";
@@ -195,6 +197,26 @@ function readArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => (typeof window === "undefined" ? false : window.matchMedia(query).matches));
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(query);
+    const update = () => setMatches(mediaQuery.matches);
+
+    update();
+    mediaQuery.addEventListener("change", update);
+
+    return () => mediaQuery.removeEventListener("change", update);
+  }, [query]);
+
+  return matches;
+}
+
 function sanitizeOwnedSkinIds(value: unknown) {
   const knownIds = new Set(SHOP_ITEMS.map((item) => item.id));
   const ids = readArray<string>(value).filter((id) => knownIds.has(id));
@@ -295,6 +317,7 @@ function getNextHistoryId(items: Array<{ id: number }> | undefined) {
 
 function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
+  const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
   const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop" | "inventory">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
@@ -757,7 +780,7 @@ function App() {
   }
 
   function finishPlinko(launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) {
-    const multiplier = getPlinkoMultiplier(slot, launch.rows);
+    const multiplier = getPlinkoMultiplier(slot, launch.rows, plinkoLayout);
     const payout = calculatePlinkoPayout(launch.bet, multiplier);
     const nextBalance = balance + payout.payout;
     const outcome: PlinkoOutcome = {
@@ -1160,6 +1183,7 @@ function App() {
             paused={paused}
             rows={plinkoRows}
             ballSkin={equippedItems.plinkoBall}
+            layout={plinkoLayout}
             onBetChange={setPlinkoBet}
             onLaunch={launchPlinko}
             onResolve={finishPlinko}
@@ -1491,6 +1515,7 @@ function PlinkoGame({
   canLaunch,
   history,
   launches,
+  layout,
   message,
   paused,
   rows,
@@ -1506,6 +1531,7 @@ function PlinkoGame({
   canLaunch: boolean;
   history: PlinkoHistoryItem[];
   launches: PlinkoLaunch[];
+  layout: PlinkoLayout;
   message: string;
   paused: boolean;
   rows: PlinkoRows;
@@ -1515,8 +1541,8 @@ function PlinkoGame({
   onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
   onRowsChange: (rows: PlinkoRows) => void;
 }) {
-  const probabilities = getPlinkoProbabilities(rows);
-  const slots = probabilities.map((item) => item.multiplier);
+  const probabilities = getPlinkoProbabilities(rows, layout);
+  const slots = getPlinkoMultipliers(rows, layout);
 
   return (
     <>
@@ -1580,6 +1606,11 @@ function PlinkoGame({
             A chaque rangee, la bille part a gauche ou a droite avec une probabilite theorique de
             50 %. La case finale depend du nombre de pas a droite.
           </p>
+          {layout === "mobile" && (
+            <p>
+              Sur telephone, les multiplicateurs sont reorganises pour eviter que les bords soient trop faciles.
+            </p>
+          )}
           <div className={styles.rulesTable}>
             {probabilities.map((item) => (
               <div className={styles.ruleRow} key={item.slot}>

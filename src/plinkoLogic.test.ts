@@ -28,6 +28,12 @@ test("attribue les multiplicateurs selon la position", () => {
   assert.equal(getPlinkoMultiplier(5, 8), 0.2);
 });
 
+test("inverse les multiplicateurs extremes sur telephone", () => {
+  const values = Array.from({ length: 9 }, (_, slot) => getPlinkoMultiplier(slot, 8, "mobile"));
+
+  assert.deepEqual(values, [0.2, 0.2, 0.5, 2, 10, 2, 0.5, 0.2, 0.2]);
+});
+
 test("respecte la repartition cible sur 8 rangees", () => {
   const values = Array.from({ length: 9 }, (_, slot) => getPlinkoMultiplier(slot, 8));
   const count = (multiplier: number) => values.filter((value) => value === multiplier).length;
