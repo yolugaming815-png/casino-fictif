@@ -225,6 +225,13 @@ function sanitizeOwnedSkinIds(value: unknown) {
   return [...missingDefaults, ...ids];
 }
 
+function ensureEquippedSkinsAreOwned(ownedSkinIds: readonly string[], equippedSkins: EquippedSkins) {
+  const ownedSet = new Set(ownedSkinIds);
+  const missingEquipped = Object.values(equippedSkins).filter((id) => !ownedSet.has(id));
+
+  return [...missingEquipped, ...ownedSkinIds];
+}
+
 function countOwnedSkins(ownedSkinIds: readonly string[]) {
   return ownedSkinIds.reduce<Record<string, number>>((counts, id) => {
     counts[id] = (counts[id] ?? 0) + 1;
@@ -264,10 +271,7 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
   }
 
   const equippedSkins = sanitizeEquippedSkins(parsed.equippedSkins);
-  const ownedSkinIds = sanitizeOwnedSkinIds([
-    ...sanitizeOwnedSkinIds(parsed.ownedSkinIds),
-    ...Object.values(equippedSkins),
-  ]);
+  const ownedSkinIds = ensureEquippedSkinsAreOwned(sanitizeOwnedSkinIds(parsed.ownedSkinIds), equippedSkins);
 
   return {
     version: 1,
