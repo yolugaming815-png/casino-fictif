@@ -225,6 +225,10 @@ function sanitizeCaseHistory(value: unknown) {
 }
 
 function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | null {
+  if (!parsed) {
+    return null;
+  }
+
   if (parsed.version !== 1) {
     return null;
   }
