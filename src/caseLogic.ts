@@ -50,10 +50,10 @@ export const RARITY_WEIGHTS: Record<SkinRarity, number> = {
 };
 
 export const DUPLICATE_REFUNDS: Record<SkinRarity, number> = {
-  common: 25,
-  rare: 55,
-  epic: 95,
-  legendary: 150,
+  common: 0,
+  rare: 0,
+  epic: 0,
+  legendary: 0,
 };
 
 export function openCase(
@@ -72,14 +72,14 @@ export function openCase(
   const caseItems = items.filter((item) => item.category === category);
   const item = pickCaseItem(caseItems, rng);
   const duplicate = ownedSkinIds.includes(item.id);
-  const refund = duplicate ? DUPLICATE_REFUNDS[item.rarity] : 0;
+  const refund = 0;
 
   return {
     item,
     duplicate,
     refund,
-    balance: balance - definition.cost + refund,
-    ownedSkinIds: duplicate ? [...ownedSkinIds] : [...ownedSkinIds, item.id],
+    balance: balance - definition.cost,
+    ownedSkinIds: [...ownedSkinIds, item.id],
   };
 }
 

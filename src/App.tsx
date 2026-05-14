@@ -54,7 +54,6 @@ import {
 } from "./shopLogic";
 import {
   CASES,
-  DUPLICATE_REFUNDS,
   RARITY_WEIGHTS,
   getCaseDefinition,
   openCase,
@@ -199,7 +198,16 @@ function readArray<T>(value: unknown): T[] {
 function sanitizeOwnedSkinIds(value: unknown) {
   const knownIds = new Set(SHOP_ITEMS.map((item) => item.id));
   const ids = readArray<string>(value).filter((id) => knownIds.has(id));
-  return Array.from(new Set([...Object.values(DEFAULT_EQUIPPED_SKINS), ...ids]));
+  const counts = new Map(ids.map((id) => [id, true]));
+  const missingDefaults = Object.values(DEFAULT_EQUIPPED_SKINS).filter((id) => !counts.has(id));
+  return [...missingDefaults, ...ids];
+}
+
+function countOwnedSkins(ownedSkinIds: readonly string[]) {
+  return ownedSkinIds.reduce<Record<string, number>>((counts, id) => {
+    counts[id] = (counts[id] ?? 0) + 1;
+    return counts;
+  }, {});
 }
 
 function sanitizeEquippedSkins(value: unknown): EquippedSkins {
@@ -288,7 +296,7 @@ function getNextHistoryId(items: Array<{ id: number }> | undefined) {
 function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop" | "inventory">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [paused, setPaused] = useState(false);
 
@@ -906,7 +914,7 @@ function App() {
 
       setCaseMessage(
         outcome.duplicate
-          ? `Doublon : ${outcome.item.name}. Remboursement de ${outcome.refund} credits virtuels.`
+          ? `Doublon : ${outcome.item.name} ajoute a ton inventaire.`
           : `${outcome.item.name} debloque et equipe.`,
       );
       setCaseOpening(false);
@@ -1091,6 +1099,13 @@ function App() {
           >
             Boutique
           </button>
+          <button
+            className={activeSection === "inventory" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("inventory")}
+          >
+            Inventaire
+          </button>
         </nav>
 
         {activeSection === "games" && (
@@ -1158,6 +1173,8 @@ function App() {
             ownedSkinIds={ownedSkinIds}
             onAction={handleShopAction}
           />
+        ) : activeSection === "inventory" ? (
+          <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleShopAction} />
         ) : activeGame === "slots" ? (
           <SlotGame
             bet={slotBet}
@@ -2341,9 +2358,7 @@ function CaseOpeningGame({
                   <span>{caseDefinition.title}</span>
                   <small>{caseDefinition.subtitle}</small>
                   <strong>{caseDefinition.cost} credits</strong>
-                  <em>
-                    {ownedCount}/{totalCount} obtenus
-                  </em>
+                  <em>{ownedCount}/{totalCount} modeles</em>
                 </button>
               );
             })}
@@ -2362,7 +2377,7 @@ function CaseOpeningGame({
                 <div>
                   <small>{rarityLabel(lastDrop.item.rarity)}</small>
                   <h3>{lastDrop.item.name}</h3>
-                  <p>{lastDrop.duplicate ? `Doublon, +${lastDrop.refund} credits` : "Nouveau skin debloque"}</p>
+          <p>{lastDrop.duplicate ? "Doublon ajoute a l'inventaire" : "Nouveau skin debloque"}</p>
                 </div>
               </article>
             ) : (
@@ -2407,7 +2422,7 @@ function CaseOpeningGame({
               <div className={styles.ruleRow} key={rarity}>
                 <span>{rarityLabel(rarity)}</span>
                 <strong>{RARITY_WEIGHTS[rarity]} parts</strong>
-                <small>Doublon : +{duplicateRefundLabel(rarity)} credits</small>
+                <small>Doublon : garde dans l'inventaire</small>
               </div>
             ))}
           </div>
@@ -2424,7 +2439,7 @@ function CaseOpeningGame({
                 {item.caseTitle} | {item.item.name}
               </span>
               <small>
-                {rarityLabel(item.item.rarity)} | {item.duplicate ? `doublon +${item.refund}` : "nouveau"} | solde{" "}
+                {rarityLabel(item.item.rarity)} | {item.duplicate ? "doublon garde" : "nouveau"} | solde{" "}
                 {item.balanceAfter}
               </small>
             </li>
@@ -2515,7 +2530,7 @@ function CaseOpeningModal({
               <h3>{drop.item.name}</h3>
               <p>
                 {drop.duplicate
-                  ? `Tu avais deja ce skin : +${drop.refund} credits virtuels.`
+                  ? "Tu avais deja ce skin : il est ajoute en double dans ton inventaire."
                   : `Nouveau skin debloque et equipe depuis ${drop.caseTitle}.`}
               </p>
             </div>
@@ -2527,6 +2542,100 @@ function CaseOpeningModal({
         )}
       </div>
     </div>
+  );
+}
+
+function InventoryGame({
+  equippedSkins,
+  ownedSkinIds,
+  onEquip,
+}: {
+  equippedSkins: EquippedSkins;
+  ownedSkinIds: string[];
+  onEquip: (item: ShopItem) => void;
+}) {
+  const ownedCounts = countOwnedSkins(ownedSkinIds);
+  const ownedItems = SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0);
+  const totalCopies = ownedSkinIds.length;
+  const inventorySections: Array<{ title: string; category: SkinCategory }> = [
+    { title: "Plinko", category: "plinkoBall" },
+    { title: "Blackjack", category: "cardBack" },
+    { title: "Roulette", category: "rouletteBall" },
+    { title: "Rocket Games", category: "rocketShip" },
+  ];
+
+  return (
+    <>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Inventaire</h2>
+            <p>Tous tes skins obtenus, avec les doublons accumules par les ouvertures de caisses.</p>
+          </div>
+          <strong>
+            {totalCopies.toLocaleString("fr-FR")} skin{totalCopies > 1 ? "s" : ""} au total
+          </strong>
+        </div>
+
+        <div className={styles.inventoryStats}>
+          <span>
+            <strong>{ownedItems.length}</strong>
+            modeles differents
+          </span>
+          <span>
+            <strong>{Math.max(0, totalCopies - ownedItems.length)}</strong>
+            doublons gardes
+          </span>
+          <span>
+            <strong>{SHOP_ITEMS.length}</strong>
+            skins disponibles
+          </span>
+        </div>
+      </section>
+
+      <div className={styles.inventorySections}>
+        {inventorySections.map((section) => {
+          const sectionItems = SHOP_ITEMS.filter((item) => item.category === section.category && ownedCounts[item.id] > 0);
+          const sectionCopies = sectionItems.reduce((sum, item) => sum + ownedCounts[item.id], 0);
+
+          return (
+            <section className={styles.panel} key={section.category}>
+              <div className={styles.inventorySectionHeader}>
+                <div>
+                  <h2>{section.title}</h2>
+                  <p>{sectionCopies} exemplaire{sectionCopies > 1 ? "s" : ""}</p>
+                </div>
+                <small>{skinCategoryLabel(section.category)}</small>
+              </div>
+
+              <div className={styles.inventoryGrid}>
+                {sectionItems.map((item) => {
+                  const equipped = equippedSkins[item.category] === item.id;
+                  const count = ownedCounts[item.id];
+
+                  return (
+                    <article className={`${styles.inventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
+                      <div className={styles.inventoryPreview}>
+                        <SkinPreview item={item} large />
+                        <span>x{count}</span>
+                      </div>
+                      <div>
+                        <small>{rarityLabel(item.rarity)}</small>
+                        <h3>{item.name}</h3>
+                        <p>{item.description}</p>
+                      </div>
+                      <button className={equipped ? styles.secondaryButton : styles.primaryButton} type="button" onClick={() => onEquip(item)} disabled={equipped}>
+                        {equipped ? "Equipe" : "Equiper"}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -2964,10 +3073,6 @@ function rarityLabel(rarity: SkinRarity): string {
   }
 
   return "Commun";
-}
-
-function duplicateRefundLabel(rarity: SkinRarity): number {
-  return DUPLICATE_REFUNDS[rarity];
 }
 
 function buildCaseReel(category: SkinCategory, winningItem: ShopItem): ShopItem[] {

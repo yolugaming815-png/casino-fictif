@@ -13,15 +13,16 @@ test("ouvre une caisse et ajoute un nouveau skin", () => {
   assert.ok(outcome.ownedSkinIds.includes("plinko-mint"));
 });
 
-test("rembourse partiellement un doublon", () => {
+test("garde un doublon dans l'inventaire sans remboursement", () => {
   const owned = ["plinko-gold", "plinko-neon"];
   const outcome = openCase(500, owned, SHOP_ITEMS, "plinkoBall", () => 0);
 
   assert.ok(outcome);
   assert.equal(outcome.item.id, "plinko-gold");
   assert.equal(outcome.duplicate, true);
-  assert.equal(outcome.refund, 25);
-  assert.deepEqual(outcome.ownedSkinIds, owned);
+  assert.equal(outcome.refund, 0);
+  assert.equal(outcome.balance, 410);
+  assert.deepEqual(outcome.ownedSkinIds, [...owned, "plinko-gold"]);
 });
 
 test("refuse une ouverture sans solde suffisant", () => {
