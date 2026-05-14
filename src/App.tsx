@@ -2427,12 +2427,13 @@ function CaseOpeningGame({
 
               return (
                 <button
-                  className={active ? `${styles.caseCard} ${styles.caseCardActive}` : styles.caseCard}
+                  className={`${styles.caseCard} ${caseThemeClass(caseDefinition.id)} ${active ? styles.caseCardActive : ""}`}
                   type="button"
                   key={caseDefinition.id}
                   onClick={() => onSelectCase(caseDefinition.id)}
                   disabled={opening}
                 >
+                  <CaseThemePreview category={caseDefinition.id} />
                   <span>{caseDefinition.title}</span>
                   <small>{caseDefinition.subtitle}</small>
                   <strong>{caseDefinition.cost} credits</strong>
@@ -2442,8 +2443,9 @@ function CaseOpeningGame({
             })}
           </div>
 
-          <div className={styles.caseOpeningPanel}>
-            <div className={opening ? `${styles.caseBox} ${styles.caseBoxOpening}` : styles.caseBox}>
+          <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
+            <div className={`${opening ? `${styles.caseBox} ${styles.caseBoxOpening}` : styles.caseBox} ${caseThemeClass(selectedCase)}`}>
+              <span className={styles.caseMark} />
               <span className={styles.caseLid} />
               <span className={styles.caseGlow} />
               <span className={styles.caseBody} />
@@ -2528,6 +2530,7 @@ function CaseOpeningGame({
 
       {modalVisible && (
         <CaseOpeningModal
+          category={selectedCase}
           drop={lastDrop}
           phase={modalPhase}
           opening={opening}
@@ -2541,6 +2544,7 @@ function CaseOpeningGame({
 }
 
 function CaseOpeningModal({
+  category,
   drop,
   phase,
   opening,
@@ -2548,6 +2552,7 @@ function CaseOpeningModal({
   title,
   onClose,
 }: {
+  category: SkinCategory;
   drop: CaseHistoryItem | null;
   phase: "box" | "reel";
   opening: boolean;
@@ -2570,7 +2575,8 @@ function CaseOpeningModal({
 
         {phase === "box" ? (
           <div className={styles.caseModalBoxStage}>
-            <div className={`${styles.caseBox} ${styles.caseBoxOpening}`}>
+            <div className={`${styles.caseBox} ${styles.caseBoxOpening} ${caseThemeClass(category)}`}>
+              <span className={styles.caseMark} />
               <span className={styles.caseLid} />
               <span className={styles.caseGlow} />
               <span className={styles.caseBody} />
@@ -2620,6 +2626,16 @@ function CaseOpeningModal({
         )}
       </div>
     </div>
+  );
+}
+
+function CaseThemePreview({ category }: { category: SkinCategory }) {
+  return (
+    <span className={`${styles.caseMiniPreview} ${caseThemeClass(category)}`} aria-hidden="true">
+      <span className={styles.caseMiniLid} />
+      <span className={styles.caseMiniBody} />
+      <span className={styles.caseMiniMark} />
+    </span>
   );
 }
 
@@ -3266,6 +3282,22 @@ function skinCategoryLabel(category: ShopItem["category"]): string {
   }
 
   return "Dos blackjack";
+}
+
+function caseThemeClass(category: SkinCategory): string {
+  if (category === "cardBack") {
+    return styles.caseThemeBlackjack;
+  }
+
+  if (category === "rouletteBall") {
+    return styles.caseThemeRoulette;
+  }
+
+  if (category === "rocketShip") {
+    return styles.caseThemeRocket;
+  }
+
+  return styles.caseThemePlinko;
 }
 
 export default App;
