@@ -1684,12 +1684,11 @@
   height: 24px;
   border-radius: 3px;
   background:
-    radial-gradient(circle at 42% 34%, #cf3d3d 0 3px, transparent 3.4px),
-    radial-gradient(circle at 58% 34%, #cf3d3d 0 3px, transparent 3.4px),
-    linear-gradient(135deg, transparent 0 42%, #cf3d3d 43% 56%, transparent 57%),
-    radial-gradient(circle at 38% 75%, #101218 0 2px, transparent 2.4px),
-    radial-gradient(circle at 62% 75%, #101218 0 2px, transparent 2.4px),
-    linear-gradient(135deg, transparent 0 44%, rgba(16, 18, 24, 0.9) 45% 51%, transparent 52%),
+    radial-gradient(circle at 30% 30%, #cf3d3d 0 2px, transparent 2.4px),
+    radial-gradient(circle at 50% 22%, #ffd166 0 2px, transparent 2.4px),
+    radial-gradient(circle at 70% 30%, #2f6d58 0 2px, transparent 2.4px),
+    linear-gradient(135deg, transparent 0 35%, #101218 36% 41%, transparent 42% 58%, #101218 59% 64%, transparent 65%),
+    linear-gradient(180deg, transparent 0 58%, rgba(207, 61, 61, 0.88) 59% 66%, transparent 67%),
     #f9f7ef;
   border: 1px solid rgba(16, 18, 24, 0.28);
 }
@@ -1825,12 +1824,13 @@
   height: 38px;
   border-radius: 4px;
   background:
-    radial-gradient(circle at 42% 30%, #cf3d3d 0 4px, transparent 4.5px),
-    radial-gradient(circle at 58% 30%, #cf3d3d 0 4px, transparent 4.5px),
-    linear-gradient(135deg, transparent 0 42%, #cf3d3d 43% 56%, transparent 57%),
-    radial-gradient(circle at 38% 73%, #101218 0 3px, transparent 3.5px),
-    radial-gradient(circle at 62% 73%, #101218 0 3px, transparent 3.5px),
-    linear-gradient(135deg, transparent 0 44%, rgba(16, 18, 24, 0.9) 45% 51%, transparent 52%),
+    radial-gradient(circle at 30% 28%, #cf3d3d 0 3px, transparent 3.5px),
+    radial-gradient(circle at 50% 18%, #ffd166 0 3px, transparent 3.5px),
+    radial-gradient(circle at 70% 28%, #2f6d58 0 3px, transparent 3.5px),
+    linear-gradient(135deg, transparent 0 35%, #101218 36% 41%, transparent 42% 58%, #101218 59% 64%, transparent 65%),
+    linear-gradient(180deg, transparent 0 58%, rgba(207, 61, 61, 0.9) 59% 66%, transparent 67%),
+    radial-gradient(circle at 42% 76%, #101218 0 2px, transparent 2.5px),
+    radial-gradient(circle at 58% 76%, #101218 0 2px, transparent 2.5px),
     #f9f7ef;
   border: 1px solid rgba(16, 18, 24, 0.28);
 }
