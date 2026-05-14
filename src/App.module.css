@@ -1353,7 +1353,7 @@
 
 .caseItem {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -1369,6 +1369,17 @@
 .caseItem em {
   color: #b8c2bd;
   font-style: normal;
+}
+
+.caseItem em {
+  grid-column: 2;
+}
+
+.caseItem .rocketPreviewSmall {
+  width: 58px;
+  height: 78px;
+  transform: rotate(14deg) scale(0.62);
+  transform-origin: center;
 }
 
 .caseModalBackdrop {
@@ -2275,5 +2286,9 @@
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
+  }
+
+  .caseItem em {
+    grid-column: 1;
   }
 }
