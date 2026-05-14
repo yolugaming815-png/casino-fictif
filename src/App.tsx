@@ -80,11 +80,13 @@ import {
   loadLeaderboard,
   loadCloudSave,
   loadOnlineRooms,
+  playDuelRound,
   sendFriendRequest,
   saveCloudSave,
   saveLeaderboardEntry,
   signInWithGoogle,
   signOutGoogle,
+  startDuelRoom,
   watchCasinoUser,
   type CasinoUser,
   type FriendRequestEntry,
@@ -707,6 +709,38 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setOnlineMessage(`Impossible de quitter : ${message}`);
+    }
+  }
+
+  async function handleStartDuelRoom(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour lancer un duel.");
+      return;
+    }
+
+    try {
+      await startDuelRoom(room, accountUser);
+      setOnlineMessage("Duel lance. Chaque joueur doit jouer 3 manches.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Lancement impossible : ${message}`);
+    }
+  }
+
+  async function handlePlayDuelRound(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour jouer une manche.");
+      return;
+    }
+
+    try {
+      await playDuelRound(room, accountUser);
+      setOnlineMessage("Manche jouee et score sauvegarde.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Manche impossible : ${message}`);
     }
   }
 
@@ -1378,7 +1412,9 @@ function App() {
             onJoinRoom={handleJoinOnlineRoom}
             onLeaveRoom={handleLeaveOnlineRoom}
             onOpenProfile={handleOpenPlayerProfile}
+            onPlayDuelRound={handlePlayDuelRound}
             onRefreshRooms={refreshOnlineRooms}
+            onStartDuel={handleStartDuelRoom}
           />
         ) : activeSection === "cases" ? (
           <CaseOpeningGame
@@ -1825,7 +1861,9 @@ function OnlineGames({
   onJoinRoom,
   onLeaveRoom,
   onOpenProfile,
+  onPlayDuelRound,
   onRefreshRooms,
+  onStartDuel,
 }: {
   currentUser: CasinoUser | null;
   friendRequests: FriendRequestEntry[];
@@ -1837,7 +1875,9 @@ function OnlineGames({
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
+  onPlayDuelRound: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
+  onStartDuel: (room: OnlineRoomEntry) => void;
 }) {
   const currentUserId = currentUser?.uid ?? "";
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
@@ -1931,7 +1971,16 @@ function OnlineGames({
           </div>
         </section>
 
-        <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onLeaveRoom={onLeaveRoom} onRefreshRooms={onRefreshRooms} />
+        <OnlineRoomsPanel
+          currentUserId={currentUser.uid}
+          message={message}
+          rooms={visibleRooms}
+          onJoinRoom={onJoinRoom}
+          onLeaveRoom={onLeaveRoom}
+          onPlayDuelRound={onPlayDuelRound}
+          onRefreshRooms={onRefreshRooms}
+          onStartDuel={onStartDuel}
+        />
       </>
     );
   }
@@ -1978,7 +2027,16 @@ function OnlineGames({
         </div>
       </section>
 
-      <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onLeaveRoom={onLeaveRoom} onRefreshRooms={onRefreshRooms} />
+      <OnlineRoomsPanel
+        currentUserId={currentUser.uid}
+        message={message}
+        rooms={visibleRooms}
+        onJoinRoom={onJoinRoom}
+        onLeaveRoom={onLeaveRoom}
+        onPlayDuelRound={onPlayDuelRound}
+        onRefreshRooms={onRefreshRooms}
+        onStartDuel={onStartDuel}
+      />
 
       <section className={styles.columns}>
         <article className={styles.panel}>
@@ -2000,14 +2058,18 @@ function OnlineRoomsPanel({
   rooms,
   onJoinRoom,
   onLeaveRoom,
+  onPlayDuelRound,
   onRefreshRooms,
+  onStartDuel,
 }: {
   currentUserId: string;
   message: string;
   rooms: OnlineRoomEntry[];
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
+  onPlayDuelRound: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
+  onStartDuel: (room: OnlineRoomEntry) => void;
 }) {
   return (
     <section className={styles.panel}>
@@ -2034,7 +2096,9 @@ function OnlineRoomsPanel({
                 <div>
                   <span>{room.type === "poker" ? "Table poker" : "Duel"}</span>
                   <h3>{room.game}</h3>
-                  <p>Hote : {room.hostName}</p>
+                  <p>
+                    Hote : {room.hostName} | {room.status === "waiting" ? "En attente" : room.status === "playing" ? "En cours" : "Termine"}
+                  </p>
                 </div>
                 <div className={styles.onlineRoomPlayers}>
                   {room.players.map((player) => (
@@ -2048,16 +2112,68 @@ function OnlineRoomsPanel({
                   className={alreadyJoined ? styles.secondaryButton : styles.primaryButton}
                   type="button"
                   onClick={() => (alreadyJoined ? onLeaveRoom(room) : onJoinRoom(room))}
-                  disabled={!alreadyJoined && full}
+                  disabled={room.status !== "waiting" || (!alreadyJoined && full)}
                 >
-                  {alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
+                  {room.status !== "waiting" ? "Partie lancee" : alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
                 </button>
+                {room.type === "duel" && (
+                  <DuelRoomPanel currentUserId={currentUserId} room={room} onPlayRound={onPlayDuelRound} onStartDuel={onStartDuel} />
+                )}
               </article>
             );
           })
         )}
       </div>
     </section>
+  );
+}
+
+function DuelRoomPanel({
+  currentUserId,
+  room,
+  onPlayRound,
+  onStartDuel,
+}: {
+  currentUserId: string;
+  room: OnlineRoomEntry;
+  onPlayRound: (room: OnlineRoomEntry) => void;
+  onStartDuel: (room: OnlineRoomEntry) => void;
+}) {
+  const currentPlayerScore = room.duelScores[currentUserId] ?? { rounds: [], total: 0 };
+  const canStart = room.status === "waiting" && room.hostUid === currentUserId && room.players.length >= 2;
+  const canPlay = room.status === "playing" && room.players.some((player) => player.uid === currentUserId) && currentPlayerScore.rounds.length < 3;
+
+  return (
+    <div className={styles.duelRoomPanel}>
+      <div className={styles.duelScoreGrid}>
+        {room.players.map((player) => {
+          const score = room.duelScores[player.uid] ?? { rounds: [], total: 0 };
+
+          return (
+            <div className={styles.duelScoreCard} key={player.uid}>
+              <strong>{player.displayName}</strong>
+              <span>{score.total >= 0 ? "+" : ""}{score.total} credits</span>
+              <small>
+                Manches : {score.rounds.length ? score.rounds.map((round) => `${round >= 0 ? "+" : ""}${round}`).join(" / ") : "aucune"}
+              </small>
+            </div>
+          );
+        })}
+      </div>
+
+      {room.status === "finished" ? (
+        <p className={styles.duelWinner}>Gagnant : {room.winnerName || "egalite"}</p>
+      ) : (
+        <div className={styles.socialActions}>
+          <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={!canStart}>
+            Lancer le duel
+          </button>
+          <button className={styles.primaryButton} type="button" onClick={() => onPlayRound(room)} disabled={!canPlay}>
+            Jouer une manche
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -62,6 +62,11 @@ export type OnlineRoomPlayer = {
   displayName: string;
 };
 
+export type DuelPlayerScore = {
+  rounds: number[];
+  total: number;
+};
+
 export type OnlineRoomEntry = {
   id: string;
   type: OnlineRoomType;
@@ -71,6 +76,9 @@ export type OnlineRoomEntry = {
   hostName: string;
   players: OnlineRoomPlayer[];
   maxPlayers: number;
+  duelScores: Record<string, DuelPlayerScore>;
+  winnerUid?: string;
+  winnerName?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -328,6 +336,23 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
         }))
         .filter((player) => player.uid)
     : [];
+  const rawScores = data.duelScores && typeof data.duelScores === "object" ? (data.duelScores as Record<string, unknown>) : {};
+  const duelScores = Object.fromEntries(
+    Object.entries(rawScores).map(([uid, score]) => {
+      const parsedScore = score && typeof score === "object" ? (score as Record<string, unknown>) : {};
+      const rounds = Array.isArray(parsedScore.rounds)
+        ? parsedScore.rounds.filter((round): round is number => typeof round === "number" && Number.isFinite(round))
+        : [];
+
+      return [
+        uid,
+        {
+          rounds,
+          total: typeof parsedScore.total === "number" && Number.isFinite(parsedScore.total) ? parsedScore.total : rounds.reduce((sum, round) => sum + round, 0),
+        },
+      ];
+    }),
+  );
 
   return {
     id,
@@ -338,6 +363,9 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     hostName: typeof data.hostName === "string" ? data.hostName : "Joueur anonyme",
     players,
     maxPlayers: typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers) ? data.maxPlayers : type === "poker" ? 6 : 2,
+    duelScores,
+    winnerUid: typeof data.winnerUid === "string" ? data.winnerUid : undefined,
+    winnerName: typeof data.winnerName === "string" ? data.winnerName : undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -358,6 +386,7 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     hostName: player.displayName,
     players: [player],
     maxPlayers: type === "poker" ? 6 : 2,
+    duelScores: {},
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -371,10 +400,12 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
     return [];
   }
 
-  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), where("status", "==", "waiting"), limit(20));
+  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), limit(20));
   const snapshot = await getDocs(roomsQuery);
 
-  return snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data())).filter((room) => room.hostUid && room.players.length > 0);
+  return snapshot.docs
+    .map((room) => parseOnlineRoom(room.id, room.data()))
+    .filter((room) => room.hostUid && room.players.length > 0 && room.status !== "finished");
 }
 
 export async function joinOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
@@ -409,6 +440,83 @@ export async function leaveOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     players: room.players.filter((player) => player.uid !== user.uid),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function startDuelRoom(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "duel" || room.hostUid !== user.uid || room.players.length < 2) {
+    throw new Error("Le duel ne peut pas encore etre lance.");
+  }
+
+  const duelScores = Object.fromEntries(room.players.map((player) => [player.uid, { rounds: [], total: 0 }]));
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    status: "playing",
+    duelScores,
+    winnerUid: "",
+    winnerName: "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+function createDuelRoundScore(game: string) {
+  const roll = Math.random();
+  const gameBoost = game.toLowerCase().includes("rocket") ? 35 : game.toLowerCase().includes("roulette") ? 20 : 28;
+
+  if (roll < 0.18) {
+    return -25;
+  }
+
+  if (roll > 0.9) {
+    return 160 + Math.floor(Math.random() * (gameBoost + 90));
+  }
+
+  return Math.floor(Math.random() * 120) + gameBoost;
+}
+
+export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "duel" || room.status !== "playing") {
+    throw new Error("Ce duel n'est pas lance.");
+  }
+
+  if (!room.players.some((player) => player.uid === user.uid)) {
+    throw new Error("Tu n'es pas dans ce duel.");
+  }
+
+  const currentScore = room.duelScores[user.uid] ?? { rounds: [], total: 0 };
+  if (currentScore.rounds.length >= 3) {
+    throw new Error("Tu as deja joue tes 3 manches.");
+  }
+
+  const roundScore = createDuelRoundScore(room.game);
+  const nextScores = {
+    ...room.duelScores,
+    [user.uid]: {
+      rounds: [...currentScore.rounds, roundScore],
+      total: currentScore.total + roundScore,
+    },
+  };
+  const finished = room.players.every((player) => (nextScores[player.uid]?.rounds.length ?? 0) >= 3);
+  const winner = finished
+    ? [...room.players].sort((left, right) => (nextScores[right.uid]?.total ?? 0) - (nextScores[left.uid]?.total ?? 0))[0]
+    : undefined;
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    duelScores: nextScores,
+    status: finished ? "finished" : "playing",
+    winnerUid: winner?.uid ?? "",
+    winnerName: winner?.displayName ?? "",
     updatedAt: serverTimestamp(),
   });
 }

@@ -46,14 +46,15 @@ service cloud.firestore {
         && request.resource.data.type in ["duel", "poker"]
         && request.resource.data.status == "waiting"
         && request.resource.data.players is list
-        && request.resource.data.maxPlayers is number;
+        && request.resource.data.maxPlayers is number
+        && request.resource.data.duelScores is map;
       allow update: if request.auth != null
-        && resource.data.status == "waiting"
         && request.resource.data.type == resource.data.type
         && request.resource.data.hostUid == resource.data.hostUid
-        && request.resource.data.status == "waiting"
+        && request.resource.data.status in ["waiting", "playing", "finished"]
         && request.resource.data.players is list
-        && request.resource.data.players.size() <= resource.data.maxPlayers;
+        && request.resource.data.players.size() <= resource.data.maxPlayers
+        && request.resource.data.duelScores is map;
     }
   }
 }

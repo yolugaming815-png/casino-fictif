@@ -428,6 +428,10 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.onlineRoomCard:has(.duelRoomPanel) {
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr) auto;
+}
+
 .onlineRoomCard span {
   color: #ffd166;
   font-weight: 900;
@@ -456,6 +460,45 @@
   background: rgba(16, 18, 24, 0.68);
   color: #f9f7ef;
   font-size: 0.9rem;
+}
+
+.duelRoomPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.duelScoreGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.duelScoreCard {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(16, 18, 24, 0.54);
+}
+
+.duelScoreCard span {
+  color: #79e29f;
+}
+
+.duelScoreCard small {
+  color: #d5ddd9;
+}
+
+.duelWinner {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffd166;
+  font-weight: 900;
 }
 
 .pokerTable {
