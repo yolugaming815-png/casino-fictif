@@ -2154,7 +2154,7 @@ function RouletteBall({
     const start = performance.now();
     const startAngle = -Math.PI / 2 + Math.random() * Math.PI * 0.4;
     const targetAngle = result === null ? startAngle + Math.PI * 7 : getRouletteAngle(result);
-    const extraTurns = Math.PI * (9.5 + Math.random() * 0.8);
+    const extraTurns = Math.PI * 2 * (5 + Math.floor(Math.random() * 2));
 
     const animate = (time: number) => {
       const elapsed = time - start;
