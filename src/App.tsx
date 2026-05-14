@@ -657,7 +657,7 @@ function App() {
             onClick={() => setPaused((value) => !value)}
             aria-pressed={paused}
           >
-            {paused ? "Reprendre" : "Pause / jouer responsable"}
+            {paused ? "Reprendre" : "Faire une pause"}
           </button>
         </section>
 
