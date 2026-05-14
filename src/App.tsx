@@ -27,8 +27,6 @@ import {
 import {
   PLINKO_ROWS,
   calculatePlinkoPayout,
-  generatePlinkoPath,
-  getFinalSlot,
   getPlinkoProbabilities,
   getPlinkoMultiplier,
   type PlinkoOutcome,
@@ -101,9 +99,6 @@ type PlinkoLaunch = {
   id: number;
   bet: Bet;
   rows: PlinkoRows;
-  path: PlinkoStep[];
-  slot: number;
-  visualSeed: number;
 };
 
 type RouletteHistoryItem = RouletteOutcome & {
@@ -456,14 +451,10 @@ function App() {
       return;
     }
 
-    const path = generatePlinkoPath(plinkoRows);
     const launch: PlinkoLaunch = {
       id: plinkoId.current++,
       bet: plinkoBet,
-      path,
       rows: plinkoRows,
-      slot: getFinalSlot(path),
-      visualSeed: Math.random(),
     };
 
     setBalance((current) => current - plinkoBet);
@@ -475,19 +466,19 @@ function App() {
     );
   }
 
-  function finishPlinko(launch: PlinkoLaunch) {
-    const multiplier = getPlinkoMultiplier(launch.slot, launch.rows);
+  function finishPlinko(launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) {
+    const multiplier = getPlinkoMultiplier(slot, launch.rows);
     const payout = calculatePlinkoPayout(launch.bet, multiplier);
     const nextBalance = balance + payout.payout;
     const outcome: PlinkoOutcome = {
-      path: launch.path,
-      slot: launch.slot,
+      path,
+      slot,
       multiplier,
       ...payout,
     };
 
     setBalance((current) => current + payout.payout);
-    setPlinkoBallSlots((items) => [launch.slot, ...items].slice(0, 4));
+    setPlinkoBallSlots((items) => [slot, ...items].slice(0, 4));
     setPlinkoMessage(
       outcome.net >= 0
         ? `Case ${outcome.slot} : x${outcome.multiplier}, +${outcome.net} credits virtuels.`
@@ -1279,7 +1270,7 @@ function PlinkoGame({
   onBetChange: (bet: Bet) => void;
   onLaunch: () => void;
   onReset: () => void;
-  onResolve: (launch: PlinkoLaunch) => void;
+  onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
   onRowsChange: (rows: PlinkoRows) => void;
 }) {
   const probabilities = getPlinkoProbabilities(rows);
@@ -1394,7 +1385,7 @@ function PlinkoPhysicsBoard({
   ballSkin: ShopItem;
   launches: PlinkoLaunch[];
   rows: PlinkoRows;
-  onResolve: (launch: PlinkoLaunch) => void;
+  onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -1407,9 +1398,9 @@ function PlinkoPhysicsBoard({
       {
         launch: PlinkoLaunch;
         body: ReturnType<typeof Bodies.circle>;
-        duration: number;
+        nextPathY: number;
+        path: PlinkoStep[];
         resolved: boolean;
-        startTime: number;
       }
     >(),
   );
@@ -1492,12 +1483,6 @@ function PlinkoPhysicsBoard({
 
       activeBodiesRef.current.forEach((entry, id) => {
         const { body } = entry;
-        const elapsed = performance.now() - entry.startTime;
-        const progress = Math.max(0, Math.min(1, elapsed / entry.duration));
-        const visualPosition = getPlinkoVisualPosition(entry.launch, width, height, rows, progress);
-
-        Body.setPosition(body, visualPosition);
-        Body.setVelocity(body, { x: 0, y: 0 });
 
         context.fillStyle = ballSkin.preview;
         context.shadowColor = ballGlow(ballSkin.id);
@@ -1505,10 +1490,18 @@ function PlinkoPhysicsBoard({
         drawCircle(context, body.position.x, body.position.y, dimensions.ballRadius);
         context.shadowBlur = 0;
 
-        if (!entry.resolved && progress >= 1) {
+        if (entry.path.length < rows && body.position.y >= entry.nextPathY) {
+          entry.path.push(body.velocity.x < 0 ? "L" : "R");
+          entry.nextPathY += (slotTop - 70) / Math.max(rows - 1, 1);
+        }
+
+        if (!entry.resolved && body.position.y >= slotTop + 34) {
           entry.resolved = true;
 
-          window.setTimeout(() => onResolveRef.current(entry.launch), 180);
+          const slot = Math.max(0, Math.min(rows, Math.floor(body.position.x / slotWidth)));
+          const path = normalizePath(entry.path, rows, slot);
+
+          window.setTimeout(() => onResolveRef.current(entry.launch, slot, path), 180);
           Composite.remove(engine.world, body);
           activeBodiesRef.current.delete(id);
         }
@@ -1541,6 +1534,7 @@ function PlinkoPhysicsBoard({
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const dimensions = getPlinkoDimensions(width, height, rows);
+    const firstPegY = getPegPositions(width, height, rows)[0]?.y ?? 70;
     const launchIds = new Set(launches.map((launch) => launch.id));
 
     activeBodiesRef.current.forEach((entry, id) => {
@@ -1568,9 +1562,9 @@ function PlinkoPhysicsBoard({
       activeBodiesRef.current.set(launch.id, {
         launch,
         body,
-        duration: 1550 + launch.rows * 70,
+        nextPathY: firstPegY,
+        path: [],
         resolved: false,
-        startTime: performance.now(),
       });
     });
   }, [launches, rows]);
@@ -1590,69 +1584,6 @@ function getPegPositions(width: number, height: number, rows: PlinkoRows) {
       y,
     }));
   });
-}
-
-function getPlinkoVisualPosition(
-  launch: PlinkoLaunch,
-  width: number,
-  height: number,
-  rows: PlinkoRows,
-  progress: number,
-) {
-  const dimensions = getPlinkoDimensions(width, height, rows);
-  const topY = 22;
-  const firstPegY = 66;
-  const finalY = dimensions.slotTop + 34;
-  const fallingProgress = Math.min(1, progress ** 1.32);
-  const segmentCount = rows + 1;
-  const rawSegment = fallingProgress * segmentCount;
-  const segment = Math.min(rows, Math.floor(rawSegment));
-  const localProgress = rawSegment - segment;
-  const currentPoint = getPlinkoPathPoint(launch, width, dimensions, segment, firstPegY, finalY);
-  const nextPoint = getPlinkoPathPoint(launch, width, dimensions, segment + 1, firstPegY, finalY);
-  const direction = launch.path[segment] === "R" ? 1 : -1;
-  const bounce = Math.sin(localProgress * Math.PI) * dimensions.pegRadius * 1.1 * direction;
-  const jitter =
-    Math.sin((progress * 28 + launch.visualSeed * 12) * Math.PI) *
-    dimensions.pegRadius *
-    0.32 *
-    (1 - progress);
-
-  if (progress < 0.06) {
-    return {
-      x: width / 2,
-      y: topY + (firstPegY - topY) * (progress / 0.06) ** 1.45,
-    };
-  }
-
-  return {
-    x: currentPoint.x + (nextPoint.x - currentPoint.x) * smoothstep(localProgress) + bounce + jitter,
-    y: currentPoint.y + (nextPoint.y - currentPoint.y) * localProgress ** 1.18,
-  };
-}
-
-function getPlinkoPathPoint(
-  launch: PlinkoLaunch,
-  width: number,
-  dimensions: ReturnType<typeof getPlinkoDimensions>,
-  segment: number,
-  firstPegY: number,
-  finalY: number,
-) {
-  if (segment <= 0) {
-    return { x: width / 2, y: firstPegY };
-  }
-
-  if (segment > launch.rows) {
-    return { x: (launch.slot + 0.5) * dimensions.slotWidth, y: finalY };
-  }
-
-  const row = segment - 1;
-  const rightCount = launch.path.slice(0, segment).filter((step) => step === "R").length;
-  const x = width / 2 + (rightCount - segment / 2) * dimensions.spacing;
-  const y = firstPegY + row * ((dimensions.slotTop - 64) / Math.max(launch.rows - 1, 1));
-
-  return { x, y };
 }
 
 function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
