@@ -12,7 +12,7 @@ import {
 test("genere le chemin de la bille avec une source aleatoire injectable", () => {
   const values = [0.1, 0.8, 0.2, 0.9];
 
-  assert.deepEqual(generatePlinkoPath(8, () => values.shift() ?? 0.1).slice(0, 4), ["L", "R", "L", "R"]);
+  assert.deepEqual(generatePlinkoPath(10, () => values.shift() ?? 0.1).slice(0, 4), ["L", "R", "L", "R"]);
 });
 
 test("calcule la case finale avec le nombre de pas a droite", () => {
@@ -20,28 +20,18 @@ test("calcule la case finale avec le nombre de pas a droite", () => {
 });
 
 test("attribue les multiplicateurs selon la position", () => {
-  assert.equal(getPlinkoMultiplier(0, 8), 10);
-  assert.equal(getPlinkoMultiplier(1, 8), 5);
-  assert.equal(getPlinkoMultiplier(2, 8), 0.5);
-  assert.equal(getPlinkoMultiplier(3, 8), 0.2);
-  assert.equal(getPlinkoMultiplier(4, 8), 0.2);
-  assert.equal(getPlinkoMultiplier(5, 8), 0.2);
+  assert.equal(getPlinkoMultiplier(0, 10), 10);
+  assert.equal(getPlinkoMultiplier(1, 10), 5);
+  assert.equal(getPlinkoMultiplier(2, 10), 2);
+  assert.equal(getPlinkoMultiplier(3, 10), 0.5);
+  assert.equal(getPlinkoMultiplier(4, 10), 0.2);
+  assert.equal(getPlinkoMultiplier(5, 10), 0.2);
 });
 
 test("inverse les multiplicateurs extremes sur telephone", () => {
-  const values = Array.from({ length: 9 }, (_, slot) => getPlinkoMultiplier(slot, 8, "mobile"));
+  const values = Array.from({ length: 11 }, (_, slot) => getPlinkoMultiplier(slot, 10, "mobile"));
 
-  assert.deepEqual(values, [0.2, 0.2, 0.5, 2, 10, 2, 0.5, 0.2, 0.2]);
-});
-
-test("respecte la repartition cible sur 8 rangees", () => {
-  const values = Array.from({ length: 9 }, (_, slot) => getPlinkoMultiplier(slot, 8));
-  const count = (multiplier: number) => values.filter((value) => value === multiplier).length;
-
-  assert.equal(count(0.2), 3);
-  assert.equal(count(0.5), 2);
-  assert.equal(count(5), 2);
-  assert.equal(count(10), 2);
+  assert.deepEqual(values, [0.2, 0.2, 0.5, 1, 2, 10, 2, 1, 0.5, 0.2, 0.2]);
 });
 
 test("donne davantage de cases faibles sur 10 rangees", () => {
@@ -65,10 +55,10 @@ test("met a jour le solde apres un lancer", () => {
 });
 
 test("joue un lancer complet", () => {
-  const values = Array.from({ length: 8 }, () => 0.9);
-  const outcome = playPlinko(10, 8, () => values.shift() ?? 0.9);
+  const values = Array.from({ length: 10 }, () => 0.9);
+  const outcome = playPlinko(10, 10, () => values.shift() ?? 0.9);
 
-  assert.equal(outcome.slot, 8);
+  assert.equal(outcome.slot, 10);
   assert.equal(outcome.multiplier, 10);
   assert.equal(outcome.payout, 100);
 });

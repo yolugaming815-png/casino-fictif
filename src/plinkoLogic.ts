@@ -1,4 +1,4 @@
-export const PLINKO_ROWS = [8, 10, 12] as const;
+export const PLINKO_ROWS = [10, 12] as const;
 
 export type PlinkoRows = (typeof PLINKO_ROWS)[number];
 export type PlinkoStep = "L" | "R";
@@ -21,13 +21,11 @@ export type PlinkoProbability = {
 export type PlinkoLayout = "desktop" | "mobile";
 
 const PLINKO_MULTIPLIERS: Record<PlinkoRows, readonly number[]> = {
-  8: [10, 5, 0.5, 0.2, 0.2, 0.2, 0.5, 5, 10],
   10: [10, 5, 2, 0.5, 0.2, 0.2, 0.2, 0.5, 2, 5, 10],
   12: [10, 5, 0.5, 0.5, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5, 0.5, 5, 10],
 };
 
 const MOBILE_PLINKO_MULTIPLIERS: Record<PlinkoRows, readonly number[]> = {
-  8: [0.2, 0.2, 0.5, 2, 10, 2, 0.5, 0.2, 0.2],
   10: [0.2, 0.2, 0.5, 1, 2, 10, 2, 1, 0.5, 0.2, 0.2],
   12: [0.2, 0.2, 0.5, 1, 2, 5, 10, 5, 2, 1, 0.5, 0.2, 0.2],
 };
