@@ -2,7 +2,9 @@ import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   GoogleAuthProvider,
   getAuth,
+  getRedirectResult,
   onAuthStateChanged,
+  signInWithPopup,
   signInWithRedirect,
   signOut,
   type User,
@@ -63,7 +65,19 @@ export function watchCasinoUser(onChange: (user: CasinoUser | null) => void) {
     return () => undefined;
   }
 
-  return onAuthStateChanged(getAuth(app), (user) => {
+  const auth = getAuth(app);
+
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result?.user) {
+        onChange(toCasinoUser(result.user));
+      }
+    })
+    .catch(() => {
+      onChange(null);
+    });
+
+  return onAuthStateChanged(auth, (user) => {
     onChange(user ? toCasinoUser(user) : null);
   });
 }
@@ -74,7 +88,26 @@ export async function signInWithGoogle() {
     throw new Error("Firebase n'est pas configure.");
   }
 
-  await signInWithRedirect(getAuth(app), new GoogleAuthProvider());
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return toCasinoUser(result.user);
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/cancelled-popup-request" ||
+      code === "auth/popup-closed-by-user"
+    ) {
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 export async function signOutGoogle() {
