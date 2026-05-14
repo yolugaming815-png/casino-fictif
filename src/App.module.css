@@ -1562,7 +1562,10 @@
   --case-dark: #173d32;
   --case-mid: #2f6d58;
   --case-light: #87e0b5;
-  --case-pattern: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.34) 0 5px, transparent 5px 12px);
+  --case-pattern:
+    radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.32) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 82% 76%, rgba(16, 18, 24, 0.26) 0 3px, transparent 3.5px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px 14px);
 }
 
 .caseThemeRoulette {
@@ -1677,13 +1680,18 @@
 }
 
 .caseThemeBlackjack .caseMiniMark {
-  width: 16px;
-  height: 22px;
+  width: 18px;
+  height: 24px;
   border-radius: 3px;
   background:
-    radial-gradient(circle at 50% 32%, #cf3d3d 0 3px, transparent 3.4px),
-    linear-gradient(135deg, transparent 0 45%, rgba(16, 18, 24, 0.9) 46% 52%, transparent 53%),
+    radial-gradient(circle at 42% 34%, #cf3d3d 0 3px, transparent 3.4px),
+    radial-gradient(circle at 58% 34%, #cf3d3d 0 3px, transparent 3.4px),
+    linear-gradient(135deg, transparent 0 42%, #cf3d3d 43% 56%, transparent 57%),
+    radial-gradient(circle at 38% 75%, #101218 0 2px, transparent 2.4px),
+    radial-gradient(circle at 62% 75%, #101218 0 2px, transparent 2.4px),
+    linear-gradient(135deg, transparent 0 44%, rgba(16, 18, 24, 0.9) 45% 51%, transparent 52%),
     #f9f7ef;
+  border: 1px solid rgba(16, 18, 24, 0.28);
 }
 
 .caseThemeRoulette .caseMiniMark {
@@ -1813,15 +1821,18 @@
 }
 
 .caseThemeBlackjack .caseMark {
-  width: 24px;
-  height: 34px;
+  width: 28px;
+  height: 38px;
   border-radius: 4px;
   background:
-    radial-gradient(circle at 50% 30%, #cf3d3d 0 4px, transparent 4.5px),
-    radial-gradient(circle at 42% 72%, #101218 0 3px, transparent 3.5px),
-    radial-gradient(circle at 58% 72%, #101218 0 3px, transparent 3.5px),
-    linear-gradient(135deg, transparent 0 45%, rgba(16, 18, 24, 0.9) 46% 52%, transparent 53%),
+    radial-gradient(circle at 42% 30%, #cf3d3d 0 4px, transparent 4.5px),
+    radial-gradient(circle at 58% 30%, #cf3d3d 0 4px, transparent 4.5px),
+    linear-gradient(135deg, transparent 0 42%, #cf3d3d 43% 56%, transparent 57%),
+    radial-gradient(circle at 38% 73%, #101218 0 3px, transparent 3.5px),
+    radial-gradient(circle at 62% 73%, #101218 0 3px, transparent 3.5px),
+    linear-gradient(135deg, transparent 0 44%, rgba(16, 18, 24, 0.9) 45% 51%, transparent 52%),
     #f9f7ef;
+  border: 1px solid rgba(16, 18, 24, 0.28);
 }
 
 .caseThemeRoulette .caseMark {
