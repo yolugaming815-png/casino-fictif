@@ -69,6 +69,15 @@ import {
   type RocketOutcome,
   type RocketTarget,
 } from "./rocketLogic";
+import {
+  isFirebaseConfigured,
+  loadCloudSave,
+  saveCloudSave,
+  signInWithGoogle,
+  signOutGoogle,
+  watchCasinoUser,
+  type CasinoUser,
+} from "./firebaseClient";
 
 type SlotHistoryItem = SpinOutcome & {
   id: number;
@@ -124,9 +133,23 @@ type CaseHistoryItem = {
   balanceAfter: number;
 };
 
+type SavedGameState = {
+  version: 1;
+  balance: number;
+  ownedSkinIds: string[];
+  equippedSkins: EquippedSkins;
+  slotHistory: SlotHistoryItem[];
+  blackjackHistory: BlackjackHistoryItem[];
+  plinkoHistory: PlinkoHistoryItem[];
+  rouletteHistory: RouletteHistoryItem[];
+  rocketHistory: RocketHistoryItem[];
+  caseHistory: CaseHistoryItem[];
+};
+
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
 const CASE_REEL_DURATION_MS = 3600;
+const SAVE_KEY = "casino-fictif-save-v1";
 
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
@@ -169,14 +192,104 @@ const rouletteRules = [
 const ROULETTE_SPIN_DURATION_MS = 2600;
 const ROCKET_FLIGHT_DURATION_MS = 2200;
 
+function readArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function sanitizeOwnedSkinIds(value: unknown) {
+  const knownIds = new Set(SHOP_ITEMS.map((item) => item.id));
+  const ids = readArray<string>(value).filter((id) => knownIds.has(id));
+  return Array.from(new Set([...Object.values(DEFAULT_EQUIPPED_SKINS), ...ids]));
+}
+
+function sanitizeEquippedSkins(value: unknown): EquippedSkins {
+  const saved = value && typeof value === "object" ? (value as Partial<EquippedSkins>) : {};
+  return (Object.keys(DEFAULT_EQUIPPED_SKINS) as SkinCategory[]).reduce((skins, category) => {
+    const id = saved[category];
+    const item = typeof id === "string" ? SHOP_ITEMS.find((candidate) => candidate.id === id) : undefined;
+    return {
+      ...skins,
+      [category]: item?.category === category ? item.id : DEFAULT_EQUIPPED_SKINS[category],
+    };
+  }, {} as EquippedSkins);
+}
+
+function sanitizeCaseHistory(value: unknown) {
+  return readArray<CaseHistoryItem>(value)
+    .map((historyItem) => {
+      const shopItem = SHOP_ITEMS.find((item) => item.id === historyItem.item?.id);
+      return shopItem ? { ...historyItem, item: shopItem } : null;
+    })
+    .filter((historyItem): historyItem is CaseHistoryItem => historyItem !== null)
+    .slice(0, 10);
+}
+
+function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | null {
+  if (parsed.version !== 1) {
+    return null;
+  }
+
+  const equippedSkins = sanitizeEquippedSkins(parsed.equippedSkins);
+  const ownedSkinIds = sanitizeOwnedSkinIds([
+    ...sanitizeOwnedSkinIds(parsed.ownedSkinIds),
+    ...Object.values(equippedSkins),
+  ]);
+
+  return {
+    version: 1,
+    balance: typeof parsed.balance === "number" && Number.isFinite(parsed.balance) ? parsed.balance : INITIAL_BALANCE,
+    ownedSkinIds,
+    equippedSkins,
+    slotHistory: readArray<SlotHistoryItem>(parsed.slotHistory).slice(0, 10),
+    blackjackHistory: readArray<BlackjackHistoryItem>(parsed.blackjackHistory).slice(0, 10),
+    plinkoHistory: readArray<PlinkoHistoryItem>(parsed.plinkoHistory).slice(0, 10),
+    rouletteHistory: readArray<RouletteHistoryItem>(parsed.rouletteHistory).slice(0, 10),
+    rocketHistory: readArray<RocketHistoryItem>(parsed.rocketHistory).slice(0, 10),
+    caseHistory: sanitizeCaseHistory(parsed.caseHistory),
+  };
+}
+
+function loadSavedGame(): SavedGameState | null {
+  try {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const rawSave = window.localStorage.getItem(SAVE_KEY);
+    if (!rawSave) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawSave) as Partial<SavedGameState>;
+    return normalizeSavedGame(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function saveGame(state: SavedGameState) {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    }
+  } catch {
+    // La sauvegarde locale peut etre bloquee par le navigateur, le jeu doit continuer.
+  }
+}
+
+function getNextHistoryId(items: Array<{ id: number }> | undefined) {
+  return Math.max(-1, ...(items ?? []).map((item) => item.id)) + 1;
+}
+
 function App() {
-  const [balance, setBalance] = useState(INITIAL_BALANCE);
+  const savedGame = useMemo(() => loadSavedGame(), []);
+  const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
   const [activeSection, setActiveSection] = useState<"games" | "cases" | "shop">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [paused, setPaused] = useState(false);
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
-  const [slotHistory, setSlotHistory] = useState<SlotHistoryItem[]>([]);
+  const [slotHistory, setSlotHistory] = useState<SlotHistoryItem[]>(savedGame?.slotHistory ?? []);
   const [currentReels, setCurrentReels] = useState(SYMBOLS.slice(0, 3));
   const [slotMessage, setSlotMessage] = useState("Pret a lancer une partie fictive.");
   const [slotSpinning, setSlotSpinning] = useState(false);
@@ -188,12 +301,12 @@ function App() {
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
   const [blackjackPhase, setBlackjackPhase] = useState<BlackjackPhase>("betting");
   const [blackjackMessage, setBlackjackMessage] = useState("Choisis une mise virtuelle pour commencer.");
-  const [blackjackHistory, setBlackjackHistory] = useState<BlackjackHistoryItem[]>([]);
+  const [blackjackHistory, setBlackjackHistory] = useState<BlackjackHistoryItem[]>(savedGame?.blackjackHistory ?? []);
   const [hasPlayerAction, setHasPlayerAction] = useState(false);
 
   const [plinkoBet, setPlinkoBet] = useState<Bet>(25);
   const [plinkoRows, setPlinkoRows] = useState<PlinkoRows>(10);
-  const [plinkoHistory, setPlinkoHistory] = useState<PlinkoHistoryItem[]>([]);
+  const [plinkoHistory, setPlinkoHistory] = useState<PlinkoHistoryItem[]>(savedGame?.plinkoHistory ?? []);
   const [plinkoMessage, setPlinkoMessage] = useState("Choisis une mise virtuelle et lance la bille.");
   const [plinkoBallSlots, setPlinkoBallSlots] = useState<number[]>([]);
   const [activePlinkoLaunches, setActivePlinkoLaunches] = useState<PlinkoLaunch[]>([]);
@@ -201,14 +314,14 @@ function App() {
   const [rouletteBet, setRouletteBet] = useState<Bet>(25);
   const [rouletteBetKind, setRouletteBetKind] = useState<RouletteBetKind>("red");
   const [rouletteNumber, setRouletteNumber] = useState(17);
-  const [rouletteHistory, setRouletteHistory] = useState<RouletteHistoryItem[]>([]);
+  const [rouletteHistory, setRouletteHistory] = useState<RouletteHistoryItem[]>(savedGame?.rouletteHistory ?? []);
   const [rouletteMessage, setRouletteMessage] = useState("Choisis une mise virtuelle et un pari.");
   const [rouletteResult, setRouletteResult] = useState<number | null>(null);
   const [pendingRouletteResult, setPendingRouletteResult] = useState<number | null>(null);
   const [rouletteSpinning, setRouletteSpinning] = useState(false);
   const [rouletteRunId, setRouletteRunId] = useState(0);
-  const [ownedSkinIds, setOwnedSkinIds] = useState(Object.values(DEFAULT_EQUIPPED_SKINS));
-  const [equippedSkins, setEquippedSkins] = useState<EquippedSkins>(DEFAULT_EQUIPPED_SKINS);
+  const [ownedSkinIds, setOwnedSkinIds] = useState(savedGame?.ownedSkinIds ?? Object.values(DEFAULT_EQUIPPED_SKINS));
+  const [equippedSkins, setEquippedSkins] = useState<EquippedSkins>(savedGame?.equippedSkins ?? DEFAULT_EQUIPPED_SKINS);
   const [shopMessage, setShopMessage] = useState("Les skins sont cosmetiques et ne changent pas les probabilites.");
   const [selectedCase, setSelectedCase] = useState<SkinCategory>("plinkoBall");
   const [caseMessage, setCaseMessage] = useState("Choisis une caisse et ouvre-la avec des credits virtuels.");
@@ -216,23 +329,32 @@ function App() {
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseModalPhase, setCaseModalPhase] = useState<"box" | "reel">("box");
   const [caseReelItems, setCaseReelItems] = useState<ShopItem[]>([]);
-  const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(null);
-  const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>([]);
+  const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(savedGame?.caseHistory[0] ?? null);
+  const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>(savedGame?.caseHistory ?? []);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
-  const [rocketHistory, setRocketHistory] = useState<RocketHistoryItem[]>([]);
+  const [rocketHistory, setRocketHistory] = useState<RocketHistoryItem[]>(savedGame?.rocketHistory ?? []);
   const [rocketAnimating, setRocketAnimating] = useState(false);
   const [rocketFlight, setRocketFlight] = useState<RocketOutcome | null>(null);
+  const [accountUser, setAccountUser] = useState<CasinoUser | null>(null);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountMessage, setAccountMessage] = useState(
+    isFirebaseConfigured()
+      ? "Connecte-toi avec Google pour sauvegarder en ligne."
+      : "Ajoute les cles Firebase pour activer les comptes Google.",
+  );
 
-  const spinId = useRef(0);
+  const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
   const slotTimeoutId = useRef<number | null>(null);
-  const handId = useRef(0);
-  const plinkoId = useRef(0);
-  const rouletteId = useRef(0);
-  const rocketId = useRef(0);
-  const caseId = useRef(0);
+  const cloudSaveReadyRef = useRef(false);
+  const cloudSaveTimeoutRef = useRef<number | null>(null);
+  const handId = useRef(getNextHistoryId(savedGame?.blackjackHistory));
+  const plinkoId = useRef(getNextHistoryId(savedGame?.plinkoHistory));
+  const rouletteId = useRef(getNextHistoryId(savedGame?.rouletteHistory));
+  const rocketId = useRef(getNextHistoryId(savedGame?.rocketHistory));
+  const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
 
   const totalNet = useMemo(() => {
     const slotNet = slotHistory.reduce((sum, item) => sum + item.net, 0);
@@ -259,6 +381,160 @@ function App() {
     }),
     [equippedSkins],
   );
+
+  useEffect(() => {
+    saveGame({
+      version: 1,
+      balance,
+      ownedSkinIds,
+      equippedSkins,
+      slotHistory,
+      blackjackHistory,
+      plinkoHistory,
+      rouletteHistory,
+      rocketHistory,
+      caseHistory,
+    });
+  }, [
+    balance,
+    ownedSkinIds,
+    equippedSkins,
+    slotHistory,
+    blackjackHistory,
+    plinkoHistory,
+    rouletteHistory,
+    rocketHistory,
+    caseHistory,
+  ]);
+
+  useEffect(() => {
+    return watchCasinoUser(async (user) => {
+      setAccountUser(user);
+      cloudSaveReadyRef.current = false;
+
+      if (!user) {
+        setAccountMessage(
+          isFirebaseConfigured()
+            ? "Connecte-toi avec Google pour sauvegarder en ligne."
+            : "Ajoute les cles Firebase pour activer les comptes Google.",
+        );
+        return;
+      }
+
+      setAccountLoading(true);
+      setAccountMessage("Chargement de ta sauvegarde Google...");
+
+      try {
+        const cloudSave = normalizeSavedGame((await loadCloudSave(user.uid)) as Partial<SavedGameState>);
+
+        if (cloudSave) {
+          applyCloudSave(cloudSave);
+          setAccountMessage("Sauvegarde Google chargee.");
+        } else {
+          await saveCloudSave(user.uid, getCurrentSaveState());
+          setAccountMessage("Compte Google cree avec ta partie actuelle.");
+        }
+
+        cloudSaveReadyRef.current = true;
+      } catch {
+        setAccountMessage("Impossible de charger la sauvegarde Google pour le moment.");
+      } finally {
+        setAccountLoading(false);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    if (cloudSaveTimeoutRef.current !== null) {
+      window.clearTimeout(cloudSaveTimeoutRef.current);
+    }
+
+    cloudSaveTimeoutRef.current = window.setTimeout(() => {
+      saveCloudSave(accountUser.uid, getCurrentSaveState())
+        .then(() => setAccountMessage("Sauvegarde Google a jour."))
+        .catch(() => setAccountMessage("La sauvegarde Google a echoue. La sauvegarde locale reste active."));
+    }, 700);
+  }, [
+    accountUser,
+    balance,
+    ownedSkinIds,
+    equippedSkins,
+    slotHistory,
+    blackjackHistory,
+    plinkoHistory,
+    rouletteHistory,
+    rocketHistory,
+    caseHistory,
+  ]);
+
+  function getCurrentSaveState(): SavedGameState {
+    return {
+      version: 1,
+      balance,
+      ownedSkinIds,
+      equippedSkins,
+      slotHistory,
+      blackjackHistory,
+      plinkoHistory,
+      rouletteHistory,
+      rocketHistory,
+      caseHistory,
+    };
+  }
+
+  function applyCloudSave(importedSave: SavedGameState) {
+    setBalance(importedSave.balance);
+    setOwnedSkinIds(importedSave.ownedSkinIds);
+    setEquippedSkins(importedSave.equippedSkins);
+    setSlotHistory(importedSave.slotHistory);
+    setBlackjackHistory(importedSave.blackjackHistory);
+    setPlinkoHistory(importedSave.plinkoHistory);
+    setRouletteHistory(importedSave.rouletteHistory);
+    setRocketHistory(importedSave.rocketHistory);
+    setCaseHistory(importedSave.caseHistory);
+    setLastCaseDrop(importedSave.caseHistory[0] ?? null);
+    setActivePlinkoLaunches([]);
+    setRocketAnimating(false);
+    setRocketFlight(null);
+    setCaseOpening(false);
+    setCaseModalVisible(false);
+    spinId.current = getNextHistoryId(importedSave.slotHistory);
+    handId.current = getNextHistoryId(importedSave.blackjackHistory);
+    plinkoId.current = getNextHistoryId(importedSave.plinkoHistory);
+    rouletteId.current = getNextHistoryId(importedSave.rouletteHistory);
+    rocketId.current = getNextHistoryId(importedSave.rocketHistory);
+    caseId.current = getNextHistoryId(importedSave.caseHistory);
+  }
+
+  async function handleGoogleSignIn() {
+    if (!isFirebaseConfigured()) {
+      setAccountMessage("Firebase n'est pas encore configure dans le fichier .env.");
+      return;
+    }
+
+    setAccountLoading(true);
+    setAccountMessage("Ouverture de la connexion Google...");
+
+    try {
+      await signInWithGoogle();
+    } catch {
+      setAccountMessage("Connexion Google annulee ou impossible.");
+      setAccountLoading(false);
+    }
+  }
+
+  async function handleGoogleSignOut() {
+    setAccountLoading(true);
+    try {
+      await signOutGoogle();
+    } finally {
+      setAccountLoading(false);
+    }
+  }
 
   function handleSlotSpin() {
     if (paused) {
@@ -767,6 +1043,24 @@ function App() {
           >
             {paused ? "Reprendre" : "Faire une pause"}
           </button>
+          <div className={styles.accountTools}>
+            <span>{accountUser ? accountUser.displayName || accountUser.email || "Compte Google" : accountMessage}</span>
+            {accountUser ? (
+              <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
+                Se deconnecter
+              </button>
+            ) : (
+              <button
+                className={styles.secondaryButton}
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={accountLoading || !isFirebaseConfigured()}
+              >
+                Connexion Google
+              </button>
+            )}
+            {accountUser && <small>{accountMessage}</small>}
+          </div>
         </section>
 
         <nav className={styles.modeTabs} aria-label="Section principale">

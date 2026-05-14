@@ -65,7 +65,7 @@
 
 .statusBar {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr auto minmax(220px, auto);
   gap: 12px;
   align-items: center;
   padding: 16px;
@@ -84,6 +84,23 @@
 
 .statusBar strong {
   font-size: 1.35rem;
+}
+
+.accountTools {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.accountTools .secondaryButton {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+}
+
+.accountTools small {
+  color: #b8c2bd;
+  text-align: right;
 }
 
 .positive {
@@ -1880,6 +1897,14 @@
 
   .history li {
     display: grid;
+  }
+
+  .accountTools {
+    justify-items: stretch;
+  }
+
+  .accountTools small {
+    text-align: left;
   }
 }
 
