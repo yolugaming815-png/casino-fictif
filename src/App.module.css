@@ -412,6 +412,52 @@
   margin-top: auto;
 }
 
+.onlineRoomList {
+  display: grid;
+  gap: 14px;
+}
+
+.onlineRoomCard {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.onlineRoomCard span {
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.onlineRoomCard h3,
+.onlineRoomCard p,
+.socialSectionHeader p {
+  margin: 4px 0 0;
+}
+
+.onlineRoomCard p,
+.socialSectionHeader p {
+  color: #d5ddd9;
+}
+
+.onlineRoomPlayers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.onlineRoomPlayers span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(16, 18, 24, 0.68);
+  color: #f9f7ef;
+  font-size: 0.9rem;
+}
+
 .pokerTable {
   display: grid;
   gap: 18px;
@@ -3011,6 +3057,7 @@
   .shopFooter,
   .inventorySectionHeader,
   .shopSectionHeader,
+  .onlineRoomCard,
   .socialItem {
     display: grid;
   }

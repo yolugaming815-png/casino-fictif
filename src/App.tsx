@@ -72,10 +72,13 @@ import {
 } from "./rocketLogic";
 import {
   answerFriendRequest,
+  createOnlineRoom,
   isFirebaseConfigured,
+  joinOnlineRoom,
   loadFriendRequests,
   loadLeaderboard,
   loadCloudSave,
+  loadOnlineRooms,
   sendFriendRequest,
   saveCloudSave,
   saveLeaderboardEntry,
@@ -85,6 +88,8 @@ import {
   type CasinoUser,
   type FriendRequestEntry,
   type LeaderboardEntry,
+  type OnlineRoomEntry,
+  type OnlineRoomType,
 } from "./firebaseClient";
 
 type SlotHistoryItem = SpinOutcome & {
@@ -406,6 +411,8 @@ function App() {
   const [friendRequestMessage, setFriendRequestMessage] = useState("");
   const [friendRequests, setFriendRequests] = useState<FriendRequestEntry[]>([]);
   const [friendsMessage, setFriendsMessage] = useState("Connecte-toi pour voir tes amis.");
+  const [onlineRooms, setOnlineRooms] = useState<OnlineRoomEntry[]>([]);
+  const [onlineMessage, setOnlineMessage] = useState("Connecte-toi pour creer ou rejoindre un salon.");
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -477,6 +484,8 @@ function App() {
       if (!user) {
         setFriendRequests([]);
         setFriendsMessage("Connecte-toi pour voir tes amis.");
+        setOnlineRooms([]);
+        setOnlineMessage("Connecte-toi pour creer ou rejoindre un salon.");
         setAccountMessage(
           isFirebaseConfigured()
             ? "Connecte-toi avec Google pour sauvegarder en ligne."
@@ -504,6 +513,7 @@ function App() {
 
         await refreshLeaderboard();
         await refreshFriendRequests(user.uid);
+        await refreshOnlineRooms();
         cloudSaveReadyRef.current = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -556,6 +566,7 @@ function App() {
   useEffect(() => {
     if (accountUser) {
       refreshFriendRequests(accountUser.uid);
+      refreshOnlineRooms();
     }
   }, [accountUser]);
 
@@ -589,6 +600,22 @@ function App() {
       setFriendsMessage(requests.length ? "Demandes et amis synchronises." : "Aucune demande d'ami pour le moment.");
     } catch {
       setFriendsMessage("Impossible de charger les amis pour le moment.");
+    }
+  }
+
+  async function refreshOnlineRooms() {
+    if (!isFirebaseConfigured()) {
+      setOnlineRooms([]);
+      setOnlineMessage("Firebase doit etre configure pour les jeux en ligne.");
+      return;
+    }
+
+    try {
+      const rooms = await loadOnlineRooms();
+      setOnlineRooms(rooms);
+      setOnlineMessage(rooms.length ? "Salons en ligne disponibles." : "Aucun salon ouvert pour le moment.");
+    } catch {
+      setOnlineMessage("Impossible de charger les salons en ligne pour le moment.");
     }
   }
 
@@ -631,6 +658,38 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setFriendsMessage(`Action impossible : ${message}`);
+    }
+  }
+
+  async function handleCreateOnlineRoom(type: OnlineRoomType, game: string) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour creer un salon.");
+      return;
+    }
+
+    try {
+      await createOnlineRoom(accountUser, type, game);
+      setOnlineMessage(type === "poker" ? "Table de poker creee." : "Salon de duel cree.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Creation impossible : ${message}`);
+    }
+  }
+
+  async function handleJoinOnlineRoom(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour rejoindre un salon.");
+      return;
+    }
+
+    try {
+      await joinOnlineRoom(room, accountUser);
+      setOnlineMessage(`Tu as rejoint ${room.game}.`);
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Impossible de rejoindre : ${message}`);
     }
   }
 
@@ -1295,8 +1354,13 @@ function App() {
             currentUser={accountUser}
             friendRequests={friendRequests}
             leaderboard={leaderboard}
+            message={onlineMessage}
             mode={activeOnlineGame}
+            rooms={onlineRooms}
+            onCreateRoom={handleCreateOnlineRoom}
+            onJoinRoom={handleJoinOnlineRoom}
             onOpenProfile={handleOpenPlayerProfile}
+            onRefreshRooms={refreshOnlineRooms}
           />
         ) : activeSection === "cases" ? (
           <CaseOpeningGame
@@ -1736,14 +1800,24 @@ function OnlineGames({
   currentUser,
   friendRequests,
   leaderboard,
+  message,
   mode,
+  rooms,
+  onCreateRoom,
+  onJoinRoom,
   onOpenProfile,
+  onRefreshRooms,
 }: {
   currentUser: CasinoUser | null;
   friendRequests: FriendRequestEntry[];
   leaderboard: LeaderboardEntry[];
+  message: string;
   mode: "duel" | "poker";
+  rooms: OnlineRoomEntry[];
+  onCreateRoom: (type: OnlineRoomType, game: string) => void;
+  onJoinRoom: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
+  onRefreshRooms: () => void;
 }) {
   const currentUserId = currentUser?.uid ?? "";
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
@@ -1765,6 +1839,7 @@ function OnlineGames({
       return items;
     }, []);
   const visibleFriends = friends.slice(0, 4);
+  const visibleRooms = rooms.filter((room) => room.type === mode);
 
   if (!currentUser) {
     return (
@@ -1797,7 +1872,7 @@ function OnlineGames({
                 <span>Mode {index + 1}</span>
                 <h3>Duel {gameName}</h3>
                 <p>3 manches chacun. Le meilleur bilan virtuel gagne le duel.</p>
-                <button className={styles.primaryButton} type="button" disabled={friends.length === 0}>
+                <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel ${gameName}`)} disabled={friends.length === 0}>
                   Creer un duel
                 </button>
               </article>
@@ -1826,7 +1901,7 @@ function OnlineGames({
                         Profil
                       </button>
                     )}
-                    <button className={styles.primaryButton} type="button">
+                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel avec ${friend.displayName}`)}>
                       Inviter
                     </button>
                   </div>
@@ -1835,6 +1910,8 @@ function OnlineGames({
             )}
           </div>
         </section>
+
+        <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onRefreshRooms={onRefreshRooms} />
       </>
     );
   }
@@ -1871,15 +1948,17 @@ function OnlineGames({
             </div>
           </div>
           <div className={styles.pokerActions}>
-            <button className={styles.primaryButton} type="button">
+            <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("poker", "Table poker")}>
               Creer une table
             </button>
-            <button className={styles.secondaryButton} type="button">
-              Rejoindre une table
+            <button className={styles.secondaryButton} type="button" onClick={onRefreshRooms}>
+              Actualiser les tables
             </button>
           </div>
         </div>
       </section>
+
+      <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onRefreshRooms={onRefreshRooms} />
 
       <section className={styles.columns}>
         <article className={styles.panel}>
@@ -1892,6 +1971,66 @@ function OnlineGames({
         </article>
       </section>
     </>
+  );
+}
+
+function OnlineRoomsPanel({
+  currentUserId,
+  message,
+  rooms,
+  onJoinRoom,
+  onRefreshRooms,
+}: {
+  currentUserId: string;
+  message: string;
+  rooms: OnlineRoomEntry[];
+  onJoinRoom: (room: OnlineRoomEntry) => void;
+  onRefreshRooms: () => void;
+}) {
+  return (
+    <section className={styles.panel}>
+      <div className={styles.socialSectionHeader}>
+        <div>
+          <h2>Salons ouverts</h2>
+          <p>{message}</p>
+        </div>
+        <button className={styles.secondaryButton} type="button" onClick={onRefreshRooms}>
+          Actualiser
+        </button>
+      </div>
+
+      <div className={styles.onlineRoomList}>
+        {rooms.length === 0 ? (
+          <p className={styles.empty}>Aucun salon ouvert dans ce mode.</p>
+        ) : (
+          rooms.map((room) => {
+            const alreadyJoined = room.players.some((player) => player.uid === currentUserId);
+            const full = room.players.length >= room.maxPlayers;
+
+            return (
+              <article className={styles.onlineRoomCard} key={room.id}>
+                <div>
+                  <span>{room.type === "poker" ? "Table poker" : "Duel"}</span>
+                  <h3>{room.game}</h3>
+                  <p>Hote : {room.hostName}</p>
+                </div>
+                <div className={styles.onlineRoomPlayers}>
+                  {room.players.map((player) => (
+                    <span key={player.uid}>{player.displayName}</span>
+                  ))}
+                  {Array.from({ length: Math.max(0, room.maxPlayers - room.players.length) }).map((_, index) => (
+                    <span key={`open-${room.id}-${index}`}>Place libre</span>
+                  ))}
+                </div>
+                <button className={alreadyJoined ? styles.secondaryButton : styles.primaryButton} type="button" onClick={() => onJoinRoom(room)} disabled={alreadyJoined || full}>
+                  {alreadyJoined ? "Deja dedans" : full ? "Complet" : "Rejoindre"}
+                </button>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </section>
   );
 }
 

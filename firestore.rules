@@ -38,5 +38,22 @@ service cloud.firestore {
           )
         );
     }
+
+    match /onlineRooms/{roomId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.type in ["duel", "poker"]
+        && request.resource.data.status == "waiting"
+        && request.resource.data.players is list
+        && request.resource.data.maxPlayers is number;
+      allow update: if request.auth != null
+        && resource.data.status == "waiting"
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.hostUid == resource.data.hostUid
+        && request.resource.data.status == "waiting"
+        && request.resource.data.players is list
+        && request.resource.data.players.size() <= resource.data.maxPlayers;
+    }
   }
 }
