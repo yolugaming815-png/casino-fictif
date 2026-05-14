@@ -74,6 +74,7 @@ import {
   isFirebaseConfigured,
   loadLeaderboard,
   loadCloudSave,
+  sendFriendRequest,
   saveCloudSave,
   saveLeaderboardEntry,
   signInWithGoogle,
@@ -242,6 +243,15 @@ function countOwnedSkins(ownedSkinIds: readonly string[]) {
   }, {});
 }
 
+function buildPublicInventory(ownedSkinIds: readonly string[]) {
+  const ownedCounts = countOwnedSkins(ownedSkinIds);
+
+  return SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0).map((item) => ({
+    id: item.id,
+    count: ownedCounts[item.id],
+  }));
+}
+
 function sanitizeEquippedSkins(value: unknown): EquippedSkins {
   const saved = value && typeof value === "object" ? (value as Partial<EquippedSkins>) : {};
   return (Object.keys(DEFAULT_EQUIPPED_SKINS) as SkinCategory[]).reduce((skins, category) => {
@@ -388,6 +398,8 @@ function App() {
   );
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardMessage, setLeaderboardMessage] = useState("Connecte-toi pour apparaitre dans le classement.");
+  const [selectedProfile, setSelectedProfile] = useState<LeaderboardEntry | null>(null);
+  const [friendRequestMessage, setFriendRequestMessage] = useState("");
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -473,11 +485,12 @@ function App() {
 
         if (cloudSave) {
           applyCloudSave(cloudSave);
-          await saveLeaderboardEntry(user, cloudSave.balance);
+          await saveLeaderboardEntry(user, cloudSave.balance, buildPublicInventory(cloudSave.ownedSkinIds), cloudSave.equippedSkins);
           setAccountMessage("Sauvegarde Google chargee.");
         } else {
-          await saveCloudSave(user.uid, getCurrentSaveState());
-          await saveLeaderboardEntry(user, balance);
+          const currentSave = getCurrentSaveState();
+          await saveCloudSave(user.uid, currentSave);
+          await saveLeaderboardEntry(user, currentSave.balance, buildPublicInventory(currentSave.ownedSkinIds), currentSave.equippedSkins);
           setAccountMessage("Compte Google cree avec ta partie actuelle.");
         }
 
@@ -502,7 +515,12 @@ function App() {
     }
 
     cloudSaveTimeoutRef.current = window.setTimeout(() => {
-      Promise.all([saveCloudSave(accountUser.uid, getCurrentSaveState()), saveLeaderboardEntry(accountUser, balance)])
+      const currentSave = getCurrentSaveState();
+
+      Promise.all([
+        saveCloudSave(accountUser.uid, currentSave),
+        saveLeaderboardEntry(accountUser, currentSave.balance, buildPublicInventory(currentSave.ownedSkinIds), currentSave.equippedSkins),
+      ])
         .then(() => {
           setAccountMessage("Sauvegarde Google a jour.");
           return refreshLeaderboard();
@@ -536,9 +554,35 @@ function App() {
     try {
       const entries = await loadLeaderboard(10);
       setLeaderboard(entries);
+      setSelectedProfile((profile) => (profile ? entries.find((entry) => entry.uid === profile.uid) ?? profile : null));
       setLeaderboardMessage(entries.length ? "Classement des comptes connectes." : "Aucun joueur classe pour le moment.");
     } catch {
       setLeaderboardMessage("Classement indisponible pour le moment.");
+    }
+  }
+
+  function handleOpenPlayerProfile(entry: LeaderboardEntry) {
+    setFriendRequestMessage("");
+    setSelectedProfile(entry);
+  }
+
+  async function handleSendFriendRequest(entry: LeaderboardEntry) {
+    if (!accountUser) {
+      setFriendRequestMessage("Connecte-toi avec Google pour envoyer une demande.");
+      return;
+    }
+
+    if (accountUser.uid === entry.uid) {
+      setFriendRequestMessage("C'est ton profil.");
+      return;
+    }
+
+    try {
+      await sendFriendRequest(accountUser, entry);
+      setFriendRequestMessage(`Demande envoyee a ${entry.displayName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setFriendRequestMessage(`Demande impossible : ${message}`);
     }
   }
 
@@ -1077,7 +1121,22 @@ function App() {
           </div>
         </section>
 
-        <LeaderboardPanel currentUserId={accountUser?.uid ?? null} entries={leaderboard} message={leaderboardMessage} />
+        <LeaderboardPanel
+          currentUserId={accountUser?.uid ?? null}
+          entries={leaderboard}
+          message={leaderboardMessage}
+          onOpenProfile={handleOpenPlayerProfile}
+        />
+
+        {selectedProfile && (
+          <PlayerProfileModal
+            currentUserId={accountUser?.uid ?? null}
+            friendRequestMessage={friendRequestMessage}
+            player={selectedProfile}
+            onClose={() => setSelectedProfile(null)}
+            onSendFriendRequest={() => handleSendFriendRequest(selectedProfile)}
+          />
+        )}
 
         <nav className={styles.modeTabs} aria-label="Section principale">
           <button
@@ -1363,10 +1422,12 @@ function LeaderboardPanel({
   currentUserId,
   entries,
   message,
+  onOpenProfile,
 }: {
   currentUserId: string | null;
   entries: LeaderboardEntry[];
   message: string;
+  onOpenProfile: (entry: LeaderboardEntry) => void;
 }) {
   return (
     <section className={styles.leaderboardPanel} aria-label="Classement des joueurs">
@@ -1377,14 +1438,99 @@ function LeaderboardPanel({
       <ol className={styles.leaderboardList}>
         {entries.map((entry, index) => (
           <li className={entry.uid === currentUserId ? styles.currentLeaderboardPlayer : ""} key={entry.uid}>
-            <span>{index + 1}</span>
-            <strong>{entry.displayName}</strong>
-            <em>{entry.balance.toLocaleString("fr-FR")} credits</em>
+            <button className={styles.leaderboardPlayerButton} type="button" onClick={() => onOpenProfile(entry)}>
+              <span>{index + 1}</span>
+              <strong>{entry.displayName}</strong>
+              <em>{entry.balance.toLocaleString("fr-FR")} credits</em>
+            </button>
           </li>
         ))}
       </ol>
       {entries.length === 0 && <p className={styles.empty}>Connecte-toi avec Google pour entrer dans le classement.</p>}
     </section>
+  );
+}
+
+function PlayerProfileModal({
+  currentUserId,
+  friendRequestMessage,
+  player,
+  onClose,
+  onSendFriendRequest,
+}: {
+  currentUserId: string | null;
+  friendRequestMessage: string;
+  player: LeaderboardEntry;
+  onClose: () => void;
+  onSendFriendRequest: () => void;
+}) {
+  const inventory = player.inventory
+    .map((inventoryItem) => {
+      const item = SHOP_ITEMS.find((candidate) => candidate.id === inventoryItem.id);
+      return item ? { item, count: inventoryItem.count } : null;
+    })
+    .filter((item): item is { item: ShopItem; count: number } => item !== null);
+  const groupedInventory = (Object.keys(DEFAULT_EQUIPPED_SKINS) as SkinCategory[]).map((category) => ({
+    category,
+    items: inventory.filter(({ item }) => item.category === category),
+  }));
+  const isCurrentUser = player.uid === currentUserId;
+
+  return (
+    <div className={styles.profileModalBackdrop} role="dialog" aria-modal="true" aria-label={`Profil de ${player.displayName}`}>
+      <section className={styles.profileModal}>
+        <header className={styles.profileModalHeader}>
+          <div>
+            <span>Profil joueur</span>
+            <h2>{player.displayName}</h2>
+            <p>{player.balance.toLocaleString("fr-FR")} credits</p>
+          </div>
+          <button className={styles.secondaryButton} type="button" onClick={onClose}>
+            Fermer
+          </button>
+        </header>
+
+        <div className={styles.profileActions}>
+          <button className={styles.primaryButton} type="button" onClick={onSendFriendRequest} disabled={!currentUserId || isCurrentUser}>
+            {isCurrentUser ? "Ton profil" : "Demander en ami"}
+          </button>
+          <small>{friendRequestMessage || (currentUserId ? "Clique pour envoyer une demande d'ami." : "Connecte-toi pour envoyer une demande.")}</small>
+        </div>
+
+        <div className={styles.profileInventory}>
+          {inventory.length === 0 ? (
+            <p className={styles.empty}>Aucun inventaire public pour le moment.</p>
+          ) : (
+            groupedInventory.map((group) =>
+              group.items.length > 0 ? (
+                <section className={styles.profileInventorySection} key={group.category}>
+                  <h3>{skinCategoryLabel(group.category)}</h3>
+                  <div className={styles.profileInventoryGrid}>
+                    {group.items.map(({ item, count }) => {
+                      const equipped = player.equippedSkins[item.category] === item.id;
+
+                      return (
+                        <article className={`${styles.profileInventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
+                          <div className={styles.inventoryPreview}>
+                            <SkinPreview item={item} large />
+                            <span className={styles.inventoryCount}>x{count}</span>
+                          </div>
+                          <div>
+                            <small>{rarityLabel(item.rarity)}</small>
+                            <h4>{item.name}</h4>
+                            <p>{equipped ? "Equipe" : "Dans l'inventaire"}</p>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null,
+            )
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 

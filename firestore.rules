@@ -14,5 +14,15 @@ service cloud.firestore {
         && request.resource.data.displayName is string
         && request.resource.data.balance is number;
     }
+
+    match /friendRequests/{requestId} {
+      allow read: if request.auth != null
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow write: if request.auth != null
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.status == "pending";
+    }
   }
 }

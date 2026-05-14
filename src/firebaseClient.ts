@@ -22,6 +22,8 @@ export type LeaderboardEntry = {
   uid: string;
   displayName: string;
   balance: number;
+  inventory: Array<{ id: string; count: number }>;
+  equippedSkins: Record<string, string>;
   updatedAt?: unknown;
 };
 
@@ -152,7 +154,12 @@ export async function saveCloudSave(userId: string, gameSave: unknown) {
   );
 }
 
-export async function saveLeaderboardEntry(user: CasinoUser, balance: number) {
+export async function saveLeaderboardEntry(
+  user: CasinoUser,
+  balance: number,
+  inventory: Array<{ id: string; count: number }> = [],
+  equippedSkins: Record<string, string> = {},
+) {
   const app = getFirebaseApp();
   if (!app) {
     return;
@@ -164,7 +171,29 @@ export async function saveLeaderboardEntry(user: CasinoUser, balance: number) {
       uid: user.uid,
       displayName: user.displayName || "Joueur anonyme",
       balance,
+      inventory,
+      equippedSkins,
       updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function sendFriendRequest(from: CasinoUser, to: LeaderboardEntry) {
+  const app = getFirebaseApp();
+  if (!app || from.uid === to.uid) {
+    return;
+  }
+
+  await setDoc(
+    doc(getFirestore(app), "friendRequests", `${from.uid}_${to.uid}`),
+    {
+      fromUid: from.uid,
+      fromDisplayName: from.displayName || "Joueur anonyme",
+      toUid: to.uid,
+      toDisplayName: to.displayName,
+      status: "pending",
+      createdAt: serverTimestamp(),
     },
     { merge: true },
   );
@@ -185,6 +214,15 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
       uid: String(data.uid ?? entry.id),
       displayName: typeof data.displayName === "string" ? data.displayName : "Joueur anonyme",
       balance: typeof data.balance === "number" && Number.isFinite(data.balance) ? data.balance : 0,
+      inventory: Array.isArray(data.inventory)
+        ? data.inventory
+            .map((item) => ({
+              id: typeof item?.id === "string" ? item.id : "",
+              count: typeof item?.count === "number" && Number.isFinite(item.count) ? item.count : 0,
+            }))
+            .filter((item) => item.id && item.count > 0)
+        : [],
+      equippedSkins: data.equippedSkins && typeof data.equippedSkins === "object" ? (data.equippedSkins as Record<string, string>) : {},
       updatedAt: data.updatedAt,
     };
   });

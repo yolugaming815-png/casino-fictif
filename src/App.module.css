@@ -135,16 +135,32 @@
 }
 
 .leaderboardList li {
+  border-radius: 8px;
+}
+
+.leaderboardPlayerButton {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+  width: 100%;
   padding: 10px;
   border-radius: 8px;
+  border: 0;
   background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.leaderboardList span {
+.leaderboardPlayerButton:hover,
+.leaderboardPlayerButton:focus-visible {
+  background: rgba(255, 209, 102, 0.14);
+  outline: 2px solid rgba(255, 209, 102, 0.54);
+}
+
+.leaderboardPlayerButton span {
   display: grid;
   place-items: center;
   min-width: 28px;
@@ -155,13 +171,13 @@
   font-weight: 900;
 }
 
-.leaderboardList strong {
+.leaderboardPlayerButton strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.leaderboardList em {
+.leaderboardPlayerButton em {
   color: #79e29f;
   font-style: normal;
   font-weight: 900;
@@ -170,7 +186,132 @@
 
 .currentLeaderboardPlayer {
   outline: 2px solid rgba(255, 209, 102, 0.68);
-  background: rgba(255, 209, 102, 0.12) !important;
+}
+
+.currentLeaderboardPlayer .leaderboardPlayerButton {
+  background: rgba(255, 209, 102, 0.12);
+}
+
+.profileModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.profileModal {
+  display: grid;
+  gap: 18px;
+  width: min(920px, 100%);
+  max-height: min(780px, 92vh);
+  overflow: auto;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(94, 184, 241, 0.16), transparent 34%),
+    #101218;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.54);
+}
+
+.profileModalHeader,
+.profileActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+}
+
+.profileModalHeader h2 {
+  margin: 4px 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.profileModalHeader span,
+.profileInventoryItem small {
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.profileModalHeader p,
+.profileActions small,
+.profileInventoryItem p {
+  margin: 0;
+  color: #d5ddd9;
+}
+
+.profileActions {
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profileActions button {
+  min-width: 168px;
+}
+
+.profileInventory,
+.profileInventorySection,
+.profileInventoryGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.profileInventorySection h3 {
+  margin: 0;
+}
+
+.profileInventoryGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profileInventoryItem {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profileInventoryItem.rarity-common {
+  background:
+    linear-gradient(90deg, rgba(213, 221, 217, 0.08), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.profileInventoryItem.rarity-rare {
+  background:
+    linear-gradient(90deg, rgba(94, 184, 241, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.profileInventoryItem.rarity-epic {
+  background:
+    linear-gradient(90deg, rgba(197, 140, 255, 0.18), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.profileInventoryItem.rarity-legendary {
+  background:
+    linear-gradient(90deg, rgba(255, 209, 102, 0.2), transparent 42%),
+    rgba(255, 255, 255, 0.05);
+}
+
+.profileInventoryItem h4 {
+  margin: 0;
+}
+
+.profileInventoryItem p {
+  margin-top: 6px;
 }
 
 .positive {
@@ -2742,12 +2883,16 @@
     display: grid;
   }
 
-  .leaderboardList li {
+  .leaderboardPlayerButton {
     grid-template-columns: 32px minmax(0, 1fr);
   }
 
-  .leaderboardList em {
+  .leaderboardPlayerButton em {
     grid-column: 2;
+  }
+
+  .profileInventoryGrid {
+    grid-template-columns: 1fr;
   }
 
   .accountTools {
@@ -2861,12 +3006,19 @@
     padding: 8px;
   }
 
-  .caseModal {
+  .profileModalBackdrop {
+    padding: 8px;
+  }
+
+  .caseModal,
+  .profileModal {
     max-height: 94vh;
     padding: 14px;
   }
 
-  .caseModalHeader {
+  .caseModalHeader,
+  .profileModalHeader,
+  .profileActions {
     display: grid;
   }
 
@@ -2883,7 +3035,8 @@
   .caseRewardPanel,
   .caseDrop,
   .caseItem,
-  .inventoryItem {
+  .inventoryItem,
+  .profileInventoryItem {
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
