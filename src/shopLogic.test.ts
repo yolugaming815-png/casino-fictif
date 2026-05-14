@@ -1,14 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_EQUIPPED_SKINS, buySkin, equipSkin, getShopItem } from "./shopLogic.ts";
+import { DEFAULT_EQUIPPED_SKINS, SKIN_PRICES_BY_RARITY, buySkin, equipSkin, getShopItem } from "./shopLogic.ts";
 
 test("achete un skin avec des credits virtuels", () => {
   const skin = getShopItem("plinko-neon");
   const result = buySkin(500, ["plinko-gold"], skin);
 
   assert.equal(result.purchased, true);
-  assert.equal(result.balance, 380);
+  assert.equal(result.balance, 500 - SKIN_PRICES_BY_RARITY.common);
   assert.deepEqual(result.ownedSkinIds, ["plinko-gold", "plinko-neon"]);
+});
+
+test("valorise les skins selon leur rarete", () => {
+  assert.equal(getShopItem("plinko-neon").price, 200);
+  assert.equal(getShopItem("plinko-ruby").price, 400);
+  assert.equal(getShopItem("plinko-lilac").price, 700);
+  assert.equal(getShopItem("plinko-mint").price, 1000);
 });
 
 test("refuse un achat sans solde suffisant", () => {

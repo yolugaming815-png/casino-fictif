@@ -2231,6 +2231,7 @@ function ShopGame({
                       <div>
                         <h3>{item.name}</h3>
                         <p>{item.description}</p>
+                        <small>{rarityLabel(item.rarity)}</small>
                       </div>
                       <footer className={styles.shopFooter}>
                         <strong>{item.price === 0 ? "Inclus" : `${item.price} credits`}</strong>
