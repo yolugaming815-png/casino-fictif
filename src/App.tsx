@@ -1381,6 +1381,7 @@ function PlinkoPhysicsBoard({
   const frameRef = useRef<number | null>(null);
   const onResolveRef = useRef(onResolve);
   const engineRef = useRef<ReturnType<typeof Engine.create> | null>(null);
+  const [boardSizeKey, setBoardSizeKey] = useState(0);
   const activeBodiesRef = useRef(
     new Map<
       number,
@@ -1397,6 +1398,22 @@ function PlinkoPhysicsBoard({
   useEffect(() => {
     onResolveRef.current = onResolve;
   }, [onResolve]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      setBoardSizeKey((value) => value + 1);
+    });
+
+    observer.observe(canvas);
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1492,7 +1509,7 @@ function PlinkoPhysicsBoard({
       engineRef.current = null;
       activeBodiesRef.current.clear();
     };
-  }, [ballSkin, rows]);
+  }, [ballSkin, rows, boardSizeKey]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

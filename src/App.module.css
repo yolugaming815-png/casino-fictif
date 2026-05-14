@@ -1,6 +1,7 @@
 .app {
   min-height: 100vh;
   padding: 24px;
+  overflow-x: hidden;
   background:
     linear-gradient(135deg, rgba(28, 31, 39, 0.92), rgba(18, 28, 25, 0.94)),
     url("https://images.unsplash.com/photo-1596838132731-3301c3fd4317?auto=format&fit=crop&w=1600&q=80");
@@ -677,8 +678,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  min-height: 560px;
-  padding: 28px 18px 16px;
+  min-height: clamp(420px, 64vw, 560px);
+  padding: clamp(16px, 4vw, 28px) clamp(10px, 3vw, 18px) 16px;
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(121, 226, 159, 0.08), rgba(255, 209, 102, 0.08)),
@@ -688,8 +689,9 @@
 
 .plinkoCanvas {
   width: 100%;
-  height: 468px;
+  height: clamp(320px, 54vw, 468px);
   display: block;
+  touch-action: none;
 }
 
 .plinkoSlots {
@@ -702,6 +704,7 @@
   display: grid;
   place-items: center;
   min-height: 42px;
+  min-width: 0;
   border-radius: 8px;
   background: rgba(249, 247, 239, 0.92);
   color: #101218;
@@ -786,6 +789,7 @@
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   font-weight: 900;
+  font-size: clamp(0.68rem, 1.9vw, 0.95rem);
 }
 
 .red {
@@ -1801,7 +1805,6 @@
 
   .header,
   .statusBar,
-  .gameTabs,
   .modeTabs,
   .blackjackTable,
   .caseLayout,
@@ -1809,6 +1812,10 @@
   .rocketStage,
   .columns {
     grid-template-columns: 1fr;
+  }
+
+  .gameTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .shopHeader,
@@ -1849,5 +1856,135 @@
 
   .history li {
     display: grid;
+  }
+}
+
+@media (max-width: 520px) {
+  .app {
+    padding: 8px;
+  }
+
+  .shell,
+  .machine,
+  .panel {
+    border-radius: 8px;
+  }
+
+  .header,
+  .statusBar,
+  .machine,
+  .panel {
+    padding: 14px;
+  }
+
+  .header h1 {
+    font-size: 2.45rem;
+    line-height: 1;
+  }
+
+  .disclaimer {
+    font-size: 0.72rem;
+  }
+
+  .ageBadge {
+    min-width: 48px;
+    border-width: 2px;
+    font-size: 0.9rem;
+  }
+
+  .modeTabs,
+  .gameTabs {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .modeTabs button,
+  .gameTabs button {
+    min-height: 42px;
+    padding: 0 8px;
+    font-size: 0.82rem;
+  }
+
+  .reels {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .reel {
+    min-height: 92px;
+    font-size: clamp(2rem, 14vw, 3rem);
+  }
+
+  .plinkoBoard {
+    min-height: 390px;
+    padding: 12px 6px 10px;
+  }
+
+  .plinkoCanvas {
+    height: min(72vw, 360px);
+    min-height: 280px;
+  }
+
+  .plinkoSlots {
+    gap: 2px;
+  }
+
+  .plinkoSlot {
+    min-height: 34px;
+    border-radius: 6px;
+    font-size: 0.62rem;
+  }
+
+  .rouletteGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .rouletteCell {
+    min-height: 38px;
+    font-size: 0.82rem;
+  }
+
+  .rouletteCenter {
+    min-width: 64px;
+    min-height: 64px;
+  }
+
+  .rocketAltitudeTrack {
+    min-height: min(92vw, 390px);
+  }
+
+  .rocketMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .caseModalBackdrop {
+    padding: 8px;
+  }
+
+  .caseModal {
+    max-height: 94vh;
+    padding: 14px;
+  }
+
+  .caseModalHeader {
+    display: grid;
+  }
+
+  .caseReelWindow {
+    min-height: 154px;
+  }
+
+  .caseReelItem {
+    width: 112px;
+    min-height: 124px;
+    padding: 10px;
+  }
+
+  .caseRewardPanel,
+  .caseDrop,
+  .caseItem {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
   }
 }
