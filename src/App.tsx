@@ -4625,11 +4625,45 @@ function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean 
   }
 
   return (
-    <span
-      className={`${large ? styles.caseOrbPreview : styles.shopOrbPreview} ${ballSkinClass(item.id)}`}
-      style={{ "--shop-preview-color": item.preview, "--shop-preview-glow": ballGlow(item.id) } as CSSProperties}
+    <svg
+      className={large ? styles.ballSvgLarge : styles.ballSvgSmall}
+      viewBox="0 0 96 96"
+      style={{ "--shop-preview-glow": ballGlow(item.id) } as CSSProperties}
       aria-hidden="true"
-    />
+    >
+      {ballPreviewSvg(item)}
+    </svg>
+  );
+}
+
+function ballPreviewSvg(item: ShopItem): ReactNode {
+  const baseColor = item.preview;
+  const isRoulette = item.category === "rouletteBall";
+
+  return (
+    <g>
+      <defs>
+        <radialGradient id={`ball-gradient-${item.id}`} cx="34%" cy="28%" r="70%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="18%" stopColor={baseColor} />
+          <stop offset="100%" stopColor={baseColor} />
+        </radialGradient>
+      </defs>
+      <circle cx="48" cy="48" r="32" fill={`url(#ball-gradient-${item.id})`} />
+      <circle cx="48" cy="48" r="32" fill="none" stroke="rgba(255,255,255,0.42)" strokeWidth="3" />
+      <circle cx="34" cy="32" r="8" fill="rgba(255,255,255,0.9)" />
+      {isRoulette ? (
+        <>
+          <path d="M26 57 C38 69 58 70 72 56" fill="none" stroke="rgba(16,18,24,0.34)" strokeWidth="5" strokeLinecap="round" />
+          <path d="M25 43 C39 32 57 31 71 42" fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="4" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d="M70 63 C63 76 42 83 27 70 C42 76 61 72 70 63Z" fill="rgba(16,18,24,0.16)" />
+          <path d="M63 18 C75 26 83 42 80 56" fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="4" strokeLinecap="round" />
+        </>
+      )}
+    </g>
   );
 }
 
