@@ -1405,7 +1405,9 @@ function PlinkoPhysicsBoard({
       {
         launch: PlinkoLaunch;
         body: ReturnType<typeof Bodies.circle>;
+        duration: number;
         resolved: boolean;
+        startTime: number;
       }
     >(),
   );
@@ -1488,7 +1490,12 @@ function PlinkoPhysicsBoard({
 
       activeBodiesRef.current.forEach((entry, id) => {
         const { body } = entry;
-        steerPlinkoBall(body, entry.launch.slot, width, height, rows, dimensions);
+        const elapsed = performance.now() - entry.startTime;
+        const progress = Math.max(0, Math.min(1, elapsed / entry.duration));
+        const visualPosition = getPlinkoVisualPosition(entry.launch, width, height, rows, progress);
+
+        Body.setPosition(body, visualPosition);
+        Body.setVelocity(body, { x: 0, y: 0 });
 
         context.fillStyle = ballSkin.preview;
         context.shadowColor = ballGlow(ballSkin.id);
@@ -1496,7 +1503,7 @@ function PlinkoPhysicsBoard({
         drawCircle(context, body.position.x, body.position.y, dimensions.ballRadius);
         context.shadowBlur = 0;
 
-        if (!entry.resolved && body.position.y >= slotTop + 34) {
+        if (!entry.resolved && progress >= 1) {
           entry.resolved = true;
 
           window.setTimeout(() => onResolveRef.current(entry.launch), 180);
@@ -1559,7 +1566,9 @@ function PlinkoPhysicsBoard({
       activeBodiesRef.current.set(launch.id, {
         launch,
         body,
+        duration: 1550 + launch.rows * 70,
         resolved: false,
+        startTime: performance.now(),
       });
     });
   }, [launches, rows]);
@@ -1581,35 +1590,61 @@ function getPegPositions(width: number, height: number, rows: PlinkoRows) {
   });
 }
 
-function steerPlinkoBall(
-  body: ReturnType<typeof Bodies.circle>,
-  slot: number,
+function getPlinkoVisualPosition(
+  launch: PlinkoLaunch,
   width: number,
   height: number,
   rows: PlinkoRows,
-  dimensions: ReturnType<typeof getPlinkoDimensions>,
+  progress: number,
 ) {
-  const startY = 22;
-  const endY = dimensions.slotTop + 34;
-  const progress = Math.max(0, Math.min(1, (body.position.y - startY) / Math.max(endY - startY, 1)));
-  const targetSlotX = (slot + 0.5) * dimensions.slotWidth;
-  const centeredStartX = width / 2;
-  const targetX = centeredStartX + (targetSlotX - centeredStartX) * smoothstep(progress);
-  const pullStrength = dimensions.compactBoard ? 0.055 : 0.032;
-  const damping = dimensions.compactBoard ? 0.72 : 0.82;
-  const nextVelocityX = body.velocity.x * damping + (targetX - body.position.x) * pullStrength;
+  const dimensions = getPlinkoDimensions(width, height, rows);
+  const topY = 22;
+  const firstPegY = 66;
+  const finalY = dimensions.slotTop + 34;
+  const eased = smoothstep(progress);
+  const segmentCount = rows + 1;
+  const rawSegment = eased * segmentCount;
+  const segment = Math.min(rows, Math.floor(rawSegment));
+  const localProgress = rawSegment - segment;
+  const currentPoint = getPlinkoPathPoint(launch, width, dimensions, segment, firstPegY, finalY);
+  const nextPoint = getPlinkoPathPoint(launch, width, dimensions, segment + 1, firstPegY, finalY);
+  const wobble = Math.sin(progress * Math.PI * rows * 2) * dimensions.pegRadius * 0.55 * (1 - progress);
 
-  Body.setVelocity(body, {
-    x: nextVelocityX,
-    y: body.velocity.y,
-  });
-
-  if (progress > 0.88) {
-    Body.setPosition(body, {
-      x: body.position.x * 0.78 + targetSlotX * 0.22,
-      y: body.position.y,
-    });
+  if (progress < 0.06) {
+    return {
+      x: width / 2,
+      y: topY + (firstPegY - topY) * smoothstep(progress / 0.06),
+    };
   }
+
+  return {
+    x: currentPoint.x + (nextPoint.x - currentPoint.x) * smoothstep(localProgress) + wobble,
+    y: currentPoint.y + (nextPoint.y - currentPoint.y) * localProgress,
+  };
+}
+
+function getPlinkoPathPoint(
+  launch: PlinkoLaunch,
+  width: number,
+  dimensions: ReturnType<typeof getPlinkoDimensions>,
+  segment: number,
+  firstPegY: number,
+  finalY: number,
+) {
+  if (segment <= 0) {
+    return { x: width / 2, y: firstPegY };
+  }
+
+  if (segment > launch.rows) {
+    return { x: (launch.slot + 0.5) * dimensions.slotWidth, y: finalY };
+  }
+
+  const row = segment - 1;
+  const rightCount = launch.path.slice(0, segment).filter((step) => step === "R").length;
+  const x = width / 2 + (rightCount - segment / 2) * dimensions.spacing;
+  const y = firstPegY + row * ((dimensions.slotTop - 64) / Math.max(launch.rows - 1, 1));
+
+  return { x, y };
 }
 
 function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
