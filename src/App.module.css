@@ -490,6 +490,14 @@
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.pokerRoomPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .duelStatus {
   margin: 0;
   color: #ffd166;
@@ -524,6 +532,38 @@
   border-radius: 8px;
   background: rgba(255, 209, 102, 0.14);
   color: #ffd166;
+  font-weight: 900;
+}
+
+.pokerMiniBoard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pokerMiniBoard > div {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(16, 18, 24, 0.54);
+}
+
+.pokerMiniCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pokerMiniCards span {
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  min-height: 58px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f9f7ef;
+  color: #101218;
   font-weight: 900;
 }
 
@@ -3121,6 +3161,10 @@
 
   .pokerSeats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pokerMiniBoard {
+    grid-template-columns: 1fr;
   }
 
   .shopHeader,

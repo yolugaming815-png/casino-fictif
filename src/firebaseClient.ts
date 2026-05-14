@@ -67,6 +67,8 @@ export type DuelPlayerScore = {
   total: number;
 };
 
+export type PokerPhase = "waiting" | "preflop" | "flop" | "turn" | "river" | "showdown";
+
 export type OnlineRoomEntry = {
   id: string;
   type: OnlineRoomType;
@@ -82,6 +84,13 @@ export type OnlineRoomEntry = {
   duelScores: Record<string, DuelPlayerScore>;
   winnerUid?: string;
   winnerName?: string;
+  pokerPhase: PokerPhase;
+  pokerDeck: string[];
+  pokerHands: Record<string, string[]>;
+  communityCards: string[];
+  foldedPlayerIds: string[];
+  pokerWinnerUid?: string;
+  pokerWinnerName?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -362,6 +371,14 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
       ];
     }),
   );
+  const rawHands = data.pokerHands && typeof data.pokerHands === "object" ? (data.pokerHands as Record<string, unknown>) : {};
+  const pokerHands = Object.fromEntries(
+    Object.entries(rawHands).map(([uid, hand]) => [uid, Array.isArray(hand) ? hand.filter((card): card is string => typeof card === "string") : []]),
+  );
+  const pokerPhase =
+    data.pokerPhase === "preflop" || data.pokerPhase === "flop" || data.pokerPhase === "turn" || data.pokerPhase === "river" || data.pokerPhase === "showdown"
+      ? data.pokerPhase
+      : "waiting";
 
   return {
     id,
@@ -378,6 +395,13 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     duelScores,
     winnerUid: typeof data.winnerUid === "string" ? data.winnerUid : undefined,
     winnerName: typeof data.winnerName === "string" ? data.winnerName : undefined,
+    pokerPhase,
+    pokerDeck: Array.isArray(data.pokerDeck) ? data.pokerDeck.filter((card): card is string => typeof card === "string") : [],
+    pokerHands,
+    communityCards: Array.isArray(data.communityCards) ? data.communityCards.filter((card): card is string => typeof card === "string") : [],
+    foldedPlayerIds: Array.isArray(data.foldedPlayerIds) ? data.foldedPlayerIds.filter((uid): uid is string => typeof uid === "string") : [],
+    pokerWinnerUid: typeof data.pokerWinnerUid === "string" ? data.pokerWinnerUid : undefined,
+    pokerWinnerName: typeof data.pokerWinnerName === "string" ? data.pokerWinnerName : undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -403,6 +427,13 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     invitedUid: invitedPlayer?.uid ?? "",
     invitedName: invitedPlayer?.displayName ?? "",
     duelScores: {},
+    pokerPhase: "waiting",
+    pokerDeck: [],
+    pokerHands: {},
+    communityCards: [],
+    foldedPlayerIds: [],
+    pokerWinnerUid: "",
+    pokerWinnerName: "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -421,7 +452,7 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
 
   return snapshot.docs
     .map((room) => parseOnlineRoom(room.id, room.data()))
-    .filter((room) => room.hostUid && room.players.length > 0 && room.status !== "finished");
+    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker"));
 }
 
 export async function loadDuelHistory(userId: string): Promise<OnlineRoomEntry[]> {
@@ -526,6 +557,121 @@ function createDuelRoundScore(game: string) {
   }
 
   return Math.floor(Math.random() * 120) + gameBoost;
+}
+
+function createPokerDeck() {
+  const suits = ["♠", "♥", "♦", "♣"];
+  const ranks = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"];
+  const deck = suits.flatMap((suit) => ranks.map((rank) => `${rank}${suit}`));
+
+  for (let index = deck.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [deck[index], deck[swapIndex]] = [deck[swapIndex], deck[index]];
+  }
+
+  return deck;
+}
+
+function pickPokerWinner(players: OnlineRoomPlayer[], foldedPlayerIds: string[]) {
+  const activePlayers = players.filter((player) => !foldedPlayerIds.includes(player.uid));
+  const candidates = activePlayers.length ? activePlayers : players;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.hostUid !== user.uid || room.players.length < 2) {
+    throw new Error("La table ne peut pas encore etre lancee.");
+  }
+
+  const deck = createPokerDeck();
+  const pokerHands: Record<string, string[]> = {};
+
+  room.players.forEach((player) => {
+    pokerHands[player.uid] = [deck.shift() ?? "", deck.shift() ?? ""].filter(Boolean);
+  });
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    status: "playing",
+    pokerPhase: "preflop",
+    pokerDeck: deck,
+    pokerHands,
+    communityCards: [],
+    foldedPlayerIds: [],
+    pokerWinnerUid: "",
+    pokerWinnerName: "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.status !== "playing" || room.hostUid !== user.uid) {
+    throw new Error("Seul l'hote peut avancer la table.");
+  }
+
+  const deck = [...room.pokerDeck];
+  const communityCards = [...room.communityCards];
+  let nextPhase: PokerPhase = "flop";
+  let nextStatus: OnlineRoomStatus = "playing";
+  let winner = room.pokerWinnerUid ? { uid: room.pokerWinnerUid, displayName: room.pokerWinnerName || "Joueur anonyme" } : undefined;
+
+  if (room.pokerPhase === "preflop") {
+    communityCards.push(...deck.splice(0, 3));
+    nextPhase = "flop";
+  } else if (room.pokerPhase === "flop") {
+    communityCards.push(...deck.splice(0, 1));
+    nextPhase = "turn";
+  } else if (room.pokerPhase === "turn") {
+    communityCards.push(...deck.splice(0, 1));
+    nextPhase = "river";
+  } else {
+    nextPhase = "showdown";
+    nextStatus = "finished";
+    winner = pickPokerWinner(room.players, room.foldedPlayerIds);
+  }
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    status: nextStatus,
+    pokerPhase: nextPhase,
+    pokerDeck: deck,
+    communityCards,
+    pokerWinnerUid: winner?.uid ?? "",
+    pokerWinnerName: winner?.displayName ?? "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.status !== "playing" || !room.players.some((player) => player.uid === user.uid)) {
+    throw new Error("Tu ne peux pas te coucher sur cette table.");
+  }
+
+  const foldedPlayerIds = Array.from(new Set([...room.foldedPlayerIds, user.uid]));
+  const activePlayers = room.players.filter((player) => !foldedPlayerIds.includes(player.uid));
+  const winner = activePlayers.length === 1 ? activePlayers[0] : undefined;
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    foldedPlayerIds,
+    status: winner ? "finished" : "playing",
+    pokerPhase: winner ? "showdown" : room.pokerPhase,
+    pokerWinnerUid: winner?.uid ?? room.pokerWinnerUid ?? "",
+    pokerWinnerName: winner?.displayName ?? room.pokerWinnerName ?? "",
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser) {
