@@ -83,6 +83,9 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(["pokerWinnerHandLabel"]) || request.resource.data.pokerWinnerHandLabel is string)
         && (!request.resource.data.keys().hasAny(["pokerWinnerHandCards"]) || request.resource.data.pokerWinnerHandCards is list)
         && (!request.resource.data.keys().hasAny(["pokerShowdownResults"]) || request.resource.data.pokerShowdownResults is list);
+      allow delete: if request.auth != null
+        && resource.data.status == "waiting"
+        && request.time > resource.data.createdAt + duration.value(30, "m");
     }
   }
 }

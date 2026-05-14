@@ -12,6 +12,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -122,6 +123,8 @@ export type DuelStats = {
   losses: number;
   ratio: number;
 };
+
+const STALE_WAITING_ROOM_MS = 30 * 60 * 1000;
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA95a2M9sm2EXwQNU3KFeMShp3tLYqmtCo",
@@ -365,6 +368,14 @@ function casinoPlayer(user: CasinoUser): OnlineRoomPlayer {
   };
 }
 
+function timestampToMillis(value: unknown) {
+  if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+
+  return null;
+}
+
 function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomEntry {
   const type = data.type === "poker" ? "poker" : "duel";
   const status = data.status === "playing" || data.status === "finished" ? data.status : "waiting";
@@ -520,9 +531,17 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
 
   const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), limit(20));
   const snapshot = await getDocs(roomsQuery);
+  const now = Date.now();
+  const parsedRooms = snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data()));
+  const staleWaitingRooms = parsedRooms.filter((room) => {
+    const createdAt = timestampToMillis(room.createdAt);
+    return room.status === "waiting" && createdAt !== null && now - createdAt > STALE_WAITING_ROOM_MS;
+  });
 
-  return snapshot.docs
-    .map((room) => parseOnlineRoom(room.id, room.data()))
+  await Promise.allSettled(staleWaitingRooms.map((room) => deleteDoc(doc(getFirestore(app), "onlineRooms", room.id))));
+
+  return parsedRooms
+    .filter((room) => !staleWaitingRooms.some((staleRoom) => staleRoom.id === room.id))
     .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker"));
 }
 
