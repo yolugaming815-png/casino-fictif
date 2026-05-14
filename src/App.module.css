@@ -541,6 +541,25 @@
   gap: 12px;
 }
 
+.pokerPotRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.12);
+}
+
+.pokerPotRow span {
+  color: #d5ddd9;
+  font-weight: 800;
+}
+
+.pokerPotRow strong {
+  color: #ffd166;
+}
+
 .pokerMiniBoard > div {
   display: grid;
   gap: 8px;

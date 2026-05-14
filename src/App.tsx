@@ -73,6 +73,7 @@ import {
 import {
   advancePokerPhase,
   answerFriendRequest,
+  checkPokerPlayer,
   createOnlineRoom,
   foldPokerPlayer,
   isFirebaseConfigured,
@@ -830,6 +831,25 @@ function App() {
     }
   }
 
+  async function handleCheckPoker(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour checker.");
+      return;
+    }
+
+    try {
+      setOnlineActionRoomId(room.id);
+      await checkPokerPlayer(room, accountUser);
+      setOnlineMessage("Check enregistre.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Action poker impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
+    }
+  }
+
   async function handleFoldPoker(room: OnlineRoomEntry) {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour te coucher.");
@@ -1518,6 +1538,7 @@ function App() {
             rooms={onlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onAdvancePoker={handleAdvancePokerPhase}
+            onCheckPoker={handleCheckPoker}
             onFoldPoker={handleFoldPoker}
             onJoinRoom={handleJoinOnlineRoom}
             onLeaveRoom={handleLeaveOnlineRoom}
@@ -1971,6 +1992,7 @@ function OnlineGames({
   mode,
   rooms,
   onAdvancePoker,
+  onCheckPoker,
   onCreateRoom,
   onFoldPoker,
   onJoinRoom,
@@ -1990,6 +2012,7 @@ function OnlineGames({
   mode: "duel" | "poker";
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
+  onCheckPoker: (room: OnlineRoomEntry) => void;
   onCreateRoom: (type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
@@ -2106,6 +2129,7 @@ function OnlineGames({
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
         onAdvancePoker={onAdvancePoker}
+        onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
@@ -2167,6 +2191,7 @@ function OnlineGames({
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
         onAdvancePoker={onAdvancePoker}
+        onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
@@ -2192,6 +2217,7 @@ function OnlineRoomsPanel({
   message,
   rooms,
   onAdvancePoker,
+  onCheckPoker,
   onFoldPoker,
   onJoinRoom,
   onLeaveRoom,
@@ -2205,6 +2231,7 @@ function OnlineRoomsPanel({
   message: string;
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
+  onCheckPoker: (room: OnlineRoomEntry) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
@@ -2270,6 +2297,7 @@ function OnlineRoomsPanel({
                     currentUserId={currentUserId}
                     room={room}
                     onAdvance={onAdvancePoker}
+                    onCheck={onCheckPoker}
                     onFold={onFoldPoker}
                     onStart={onStartPoker}
                   />
@@ -2402,6 +2430,7 @@ function PokerRoomPanel({
   currentUserId,
   room,
   onAdvance,
+  onCheck,
   onFold,
   onStart,
 }: {
@@ -2409,6 +2438,7 @@ function PokerRoomPanel({
   currentUserId: string;
   room: OnlineRoomEntry;
   onAdvance: (room: OnlineRoomEntry) => void;
+  onCheck: (room: OnlineRoomEntry) => void;
   onFold: (room: OnlineRoomEntry) => void;
   onStart: (room: OnlineRoomEntry) => void;
 }) {
@@ -2417,8 +2447,12 @@ function PokerRoomPanel({
   const inRoom = room.players.some((player) => player.uid === currentUserId);
   const folded = room.foldedPlayerIds.includes(currentUserId);
   const canStart = room.status === "waiting" && isHost && room.players.length >= 2;
-  const canAdvance = room.status === "playing" && isHost;
-  const canFold = room.status === "playing" && inRoom && !folded;
+  const activePlayers = room.players.filter((player) => !room.foldedPlayerIds.includes(player.uid));
+  const phaseDone = room.status === "playing" && activePlayers.every((player) => room.pokerActions[player.uid] === "checked" || room.pokerActions[player.uid] === "folded");
+  const isTurn = room.pokerTurnUid === currentUserId;
+  const canAdvance = room.status === "playing" && isHost && phaseDone;
+  const canCheck = room.status === "playing" && inRoom && !folded && isTurn;
+  const canFold = room.status === "playing" && inRoom && !folded && isTurn;
   const phaseLabel =
     room.status === "waiting"
       ? room.players.length < 2
@@ -2426,11 +2460,17 @@ function PokerRoomPanel({
         : "Table prete a lancer."
       : room.status === "finished"
         ? `Gagnant : ${room.pokerWinnerName || "a determiner"}`
-        : `Phase : ${room.pokerPhase}`;
+        : phaseDone
+          ? `Phase ${room.pokerPhase} terminee.`
+          : `Tour de ${room.pokerTurnName || "joueur"}.`;
 
   return (
     <div className={styles.pokerRoomPanel}>
       <p className={styles.duelStatus}>{phaseLabel}</p>
+      <div className={styles.pokerPotRow}>
+        <span>Pot virtuel</span>
+        <strong>{room.pokerPot.toLocaleString("fr-FR")} credits</strong>
+      </div>
       <div className={styles.pokerMiniBoard}>
         <div>
           <strong>Tes cartes</strong>
@@ -2449,13 +2489,16 @@ function PokerRoomPanel({
         {room.players.map((player) => (
           <span key={player.uid}>
             {player.displayName}
-            {room.foldedPlayerIds.includes(player.uid) ? " couche" : ""}
+            {room.foldedPlayerIds.includes(player.uid) ? " couche" : room.pokerActions[player.uid] === "checked" ? " check" : room.pokerTurnUid === player.uid ? " joue" : ""}
           </span>
         ))}
       </div>
       <div className={styles.socialActions}>
         <button className={styles.primaryButton} type="button" onClick={() => onStart(room)} disabled={busy || !canStart}>
           Lancer la partie
+        </button>
+        <button className={styles.primaryButton} type="button" onClick={() => onCheck(room)} disabled={busy || !canCheck}>
+          Check
         </button>
         <button className={styles.secondaryButton} type="button" onClick={() => onFold(room)} disabled={busy || !canFold}>
           Se coucher

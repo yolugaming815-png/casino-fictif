@@ -89,6 +89,10 @@ export type OnlineRoomEntry = {
   pokerHands: Record<string, string[]>;
   communityCards: string[];
   foldedPlayerIds: string[];
+  pokerActions: Record<string, string>;
+  pokerPot: number;
+  pokerTurnUid?: string;
+  pokerTurnName?: string;
   pokerWinnerUid?: string;
   pokerWinnerName?: string;
   createdAt?: unknown;
@@ -375,6 +379,10 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
   const pokerHands = Object.fromEntries(
     Object.entries(rawHands).map(([uid, hand]) => [uid, Array.isArray(hand) ? hand.filter((card): card is string => typeof card === "string") : []]),
   );
+  const rawPokerActions = data.pokerActions && typeof data.pokerActions === "object" ? (data.pokerActions as Record<string, unknown>) : {};
+  const pokerActions = Object.fromEntries(
+    Object.entries(rawPokerActions).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
   const pokerPhase =
     data.pokerPhase === "preflop" || data.pokerPhase === "flop" || data.pokerPhase === "turn" || data.pokerPhase === "river" || data.pokerPhase === "showdown"
       ? data.pokerPhase
@@ -400,6 +408,10 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     pokerHands,
     communityCards: Array.isArray(data.communityCards) ? data.communityCards.filter((card): card is string => typeof card === "string") : [],
     foldedPlayerIds: Array.isArray(data.foldedPlayerIds) ? data.foldedPlayerIds.filter((uid): uid is string => typeof uid === "string") : [],
+    pokerActions,
+    pokerPot: typeof data.pokerPot === "number" && Number.isFinite(data.pokerPot) ? data.pokerPot : 0,
+    pokerTurnUid: typeof data.pokerTurnUid === "string" ? data.pokerTurnUid : undefined,
+    pokerTurnName: typeof data.pokerTurnName === "string" ? data.pokerTurnName : undefined,
     pokerWinnerUid: typeof data.pokerWinnerUid === "string" ? data.pokerWinnerUid : undefined,
     pokerWinnerName: typeof data.pokerWinnerName === "string" ? data.pokerWinnerName : undefined,
     createdAt: data.createdAt,
@@ -432,6 +444,10 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     pokerHands: {},
     communityCards: [],
     foldedPlayerIds: [],
+    pokerActions: {},
+    pokerPot: 0,
+    pokerTurnUid: "",
+    pokerTurnName: "",
     pokerWinnerUid: "",
     pokerWinnerName: "",
     createdAt: serverTimestamp(),
@@ -578,6 +594,24 @@ function pickPokerWinner(players: OnlineRoomPlayer[], foldedPlayerIds: string[])
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+function activePokerPlayers(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
+  return room.players.filter((player) => !foldedPlayerIds.includes(player.uid));
+}
+
+function nextPokerTurn(room: OnlineRoomEntry, currentUid: string, foldedPlayerIds = room.foldedPlayerIds) {
+  const activePlayers = activePokerPlayers(room, foldedPlayerIds);
+  if (!activePlayers.length) {
+    return null;
+  }
+
+  const currentIndex = Math.max(0, activePlayers.findIndex((player) => player.uid === currentUid));
+  return activePlayers[(currentIndex + 1) % activePlayers.length];
+}
+
+function allActivePokerPlayersActed(room: OnlineRoomEntry, actions: Record<string, string>, foldedPlayerIds = room.foldedPlayerIds) {
+  return activePokerPlayers(room, foldedPlayerIds).every((player) => actions[player.uid] === "checked" || actions[player.uid] === "folded");
+}
+
 export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
   const app = getFirebaseApp();
   if (!app) {
@@ -602,6 +636,10 @@ export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
     pokerHands,
     communityCards: [],
     foldedPlayerIds: [],
+    pokerActions: {},
+    pokerPot: room.players.length * 25,
+    pokerTurnUid: room.players[0]?.uid ?? "",
+    pokerTurnName: room.players[0]?.displayName ?? "",
     pokerWinnerUid: "",
     pokerWinnerName: "",
     updatedAt: serverTimestamp(),
@@ -616,6 +654,10 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
 
   if (room.type !== "poker" || room.status !== "playing" || room.hostUid !== user.uid) {
     throw new Error("Seul l'hote peut avancer la table.");
+  }
+
+  if (!allActivePokerPlayersActed(room, room.pokerActions)) {
+    throw new Error("Tous les joueurs actifs doivent checker ou se coucher.");
   }
 
   const deck = [...room.pokerDeck];
@@ -644,8 +686,39 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
     pokerPhase: nextPhase,
     pokerDeck: deck,
     communityCards,
+    pokerActions: {},
+    pokerTurnUid: nextStatus === "playing" ? activePokerPlayers(room)[0]?.uid ?? "" : "",
+    pokerTurnName: nextStatus === "playing" ? activePokerPlayers(room)[0]?.displayName ?? "" : "",
     pokerWinnerUid: winner?.uid ?? "",
     pokerWinnerName: winner?.displayName ?? "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function checkPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.status !== "playing" || room.pokerTurnUid !== user.uid) {
+    throw new Error("Ce n'est pas ton tour.");
+  }
+
+  if (room.foldedPlayerIds.includes(user.uid)) {
+    throw new Error("Tu es deja couche.");
+  }
+
+  const pokerActions = {
+    ...room.pokerActions,
+    [user.uid]: "checked",
+  };
+  const nextTurn = nextPokerTurn(room, user.uid);
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    pokerActions,
+    pokerTurnUid: allActivePokerPlayersActed(room, pokerActions) ? "" : nextTurn?.uid ?? "",
+    pokerTurnName: allActivePokerPlayersActed(room, pokerActions) ? "" : nextTurn?.displayName ?? "",
     updatedAt: serverTimestamp(),
   });
 }
@@ -663,11 +736,20 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
   const foldedPlayerIds = Array.from(new Set([...room.foldedPlayerIds, user.uid]));
   const activePlayers = room.players.filter((player) => !foldedPlayerIds.includes(player.uid));
   const winner = activePlayers.length === 1 ? activePlayers[0] : undefined;
+  const pokerActions = {
+    ...room.pokerActions,
+    [user.uid]: "folded",
+  };
+  const nextTurn = nextPokerTurn(room, user.uid, foldedPlayerIds);
+  const phaseDone = allActivePokerPlayersActed(room, pokerActions, foldedPlayerIds);
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     foldedPlayerIds,
+    pokerActions,
     status: winner ? "finished" : "playing",
     pokerPhase: winner ? "showdown" : room.pokerPhase,
+    pokerTurnUid: winner || phaseDone ? "" : nextTurn?.uid ?? "",
+    pokerTurnName: winner || phaseDone ? "" : nextTurn?.displayName ?? "",
     pokerWinnerUid: winner?.uid ?? room.pokerWinnerUid ?? "",
     pokerWinnerName: winner?.displayName ?? room.pokerWinnerName ?? "",
     updatedAt: serverTimestamp(),

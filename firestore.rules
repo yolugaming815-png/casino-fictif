@@ -51,7 +51,9 @@ service cloud.firestore {
         && request.resource.data.duelScores is map
         && request.resource.data.pokerHands is map
         && request.resource.data.communityCards is list
-        && request.resource.data.foldedPlayerIds is list;
+        && request.resource.data.foldedPlayerIds is list
+        && request.resource.data.pokerActions is map
+        && request.resource.data.pokerPot is number;
       allow update: if request.auth != null
         && request.resource.data.type == resource.data.type
         && request.resource.data.hostUid == resource.data.hostUid
@@ -62,7 +64,9 @@ service cloud.firestore {
         && request.resource.data.duelScores is map
         && request.resource.data.pokerHands is map
         && request.resource.data.communityCards is list
-        && request.resource.data.foldedPlayerIds is list;
+        && request.resource.data.foldedPlayerIds is list
+        && request.resource.data.pokerActions is map
+        && request.resource.data.pokerPot is number;
     }
   }
 }
