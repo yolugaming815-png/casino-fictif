@@ -1754,10 +1754,7 @@ function PlinkoPhysicsBoard({
       activeBodiesRef.current.forEach((entry, id) => {
         const { body } = entry;
 
-        context.fillStyle = ballSkin.preview;
-        context.shadowColor = ballGlow(ballSkin.id);
-        context.shadowBlur = dimensions.ballRadius * 1.6;
-        drawCircle(context, body.position.x, body.position.y, dimensions.ballRadius);
+        drawSkinnedBall(context, body.position.x, body.position.y, dimensions.ballRadius, ballSkin);
         context.shadowBlur = 0;
 
         if (entry.path.length < rows && body.position.y >= entry.nextPathY) {
@@ -1889,6 +1886,73 @@ function drawCircle(context: CanvasRenderingContext2D, x: number, y: number, rad
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fill();
+}
+
+function drawSkinnedBall(context: CanvasRenderingContext2D, x: number, y: number, radius: number, skin: ShopItem) {
+  context.save();
+  context.shadowColor = ballGlow(skin.id);
+  context.shadowBlur = radius * 1.8;
+  const gradient = context.createRadialGradient(x - radius * 0.35, y - radius * 0.35, radius * 0.1, x, y, radius);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.18, skin.preview);
+  gradient.addColorStop(1, skin.preview);
+  context.fillStyle = gradient;
+  drawCircle(context, x, y, radius);
+  context.shadowBlur = 0;
+
+  context.save();
+  context.beginPath();
+  context.arc(x, y, radius * 0.92, 0, Math.PI * 2);
+  context.clip();
+  context.strokeStyle = "rgba(16, 18, 24, 0.28)";
+  context.lineWidth = Math.max(1.2, radius * 0.16);
+
+  if (skin.id.includes("neon")) {
+    for (let offset = -radius * 2; offset <= radius * 2; offset += radius * 0.55) {
+      context.beginPath();
+      context.moveTo(x - radius + offset, y + radius);
+      context.lineTo(x + radius + offset, y - radius);
+      context.stroke();
+    }
+  } else if (skin.id.includes("ruby") || skin.id.includes("rose")) {
+    context.beginPath();
+    context.arc(x + radius * 0.28, y + radius * 0.28, radius * 0.52, 0, Math.PI * 2);
+    context.stroke();
+  } else if (skin.id.includes("ocean") || skin.id.includes("sapphire")) {
+    context.beginPath();
+    context.moveTo(x - radius, y + radius * 0.15);
+    context.quadraticCurveTo(x, y - radius * 0.45, x + radius, y + radius * 0.12);
+    context.stroke();
+  } else if (skin.id.includes("lilac") || skin.id.includes("violet")) {
+    context.beginPath();
+    context.moveTo(x, y - radius);
+    context.lineTo(x + radius * 0.65, y);
+    context.lineTo(x, y + radius);
+    context.lineTo(x - radius * 0.65, y);
+    context.closePath();
+    context.stroke();
+  } else if (skin.id.includes("mint") || skin.id.includes("jade")) {
+    for (let dot = 0; dot < 6; dot += 1) {
+      const angle = (Math.PI * 2 * dot) / 6;
+      context.beginPath();
+      context.arc(x + Math.cos(angle) * radius * 0.45, y + Math.sin(angle) * radius * 0.45, radius * 0.12, 0, Math.PI * 2);
+      context.fillStyle = "rgba(255, 255, 255, 0.36)";
+      context.fill();
+    }
+  } else if (skin.id.includes("sun")) {
+    for (let ray = 0; ray < 8; ray += 1) {
+      const angle = (Math.PI * 2 * ray) / 8;
+      context.beginPath();
+      context.moveTo(x, y);
+      context.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius);
+      context.stroke();
+    }
+  }
+
+  context.restore();
+  context.fillStyle = "rgba(255, 255, 255, 0.85)";
+  drawCircle(context, x - radius * 0.32, y - radius * 0.34, radius * 0.16);
+  context.restore();
 }
 
 function drawSlotDividers(context: CanvasRenderingContext2D, width: number, height: number, rows: PlinkoRows) {
@@ -2181,7 +2245,7 @@ function RouletteBall({
 
   return (
     <div
-      className={styles.rouletteBall}
+      className={`${styles.rouletteBall} ${ballSkinClass(ballSkin.id)}`}
       style={
         {
           ...style,
@@ -2724,9 +2788,10 @@ function RocketGame({
       <section className={styles.machine}>
         <div className={styles.rocketStage}>
           <div className={styles.rocketAltitudeTrack} style={rocketSceneStyle}>
-            <div className={animating ? `${styles.rocketTrail} ${styles.rocketTrailFlying}` : styles.rocketTrail} />
-            <div
+          <div className={animating ? `${styles.rocketTrail} ${styles.rocketTrailFlying}` : styles.rocketTrail} />
+            <svg
               className={`${animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft} ${rocketShipClass(shipSkin.id)}`}
+              viewBox="0 0 120 86"
               style={
                 {
                   "--rocket-accent": shipSkin.preview,
@@ -2734,14 +2799,8 @@ function RocketGame({
                 } as CSSProperties
               }
             >
-              <span className={styles.rocketNose} />
-              <span className={styles.rocketBody}>
-                <span className={styles.rocketWindow} />
-              </span>
-              <span className={styles.rocketFinLeft} />
-              <span className={styles.rocketFinRight} />
-              <span className={styles.rocketFlame} />
-            </div>
+              {vehiclePreviewSvg(shipSkin.id)}
+            </svg>
           </div>
           <div className={styles.rocketMetrics}>
             <span>Cible</span>

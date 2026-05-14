@@ -778,6 +778,66 @@
   transition: box-shadow 120ms ease;
 }
 
+.rouletteBall.ballGold,
+.rouletteBall.ballNeon,
+.rouletteBall.ballRuby,
+.rouletteBall.ballOcean,
+.rouletteBall.ballLilac,
+.rouletteBall.ballMint,
+.rouletteBall.ballRose,
+.rouletteBall.ballSun {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    var(--roulette-ball-color, #f9f7ef);
+}
+
+.rouletteBall.ballGold {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(135deg, #ffe49a, #ffc94f 56%, #d79724);
+}
+
+.rouletteBall.ballNeon {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    repeating-linear-gradient(45deg, rgba(16, 18, 24, 0.2) 0 3px, transparent 3px 7px),
+    linear-gradient(135deg, #9effbe, #36d77d);
+}
+
+.rouletteBall.ballRuby,
+.rouletteBall.ballRose {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    radial-gradient(circle at 68% 72%, rgba(119, 23, 31, 0.65), transparent 35%),
+    var(--roulette-ball-color, #ff8fb1);
+}
+
+.rouletteBall.ballOcean {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(135deg, transparent 0 45%, rgba(255, 255, 255, 0.38) 46% 54%, transparent 55%),
+    var(--roulette-ball-color, #7cc7ff);
+}
+
+.rouletteBall.ballLilac {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 40deg, #c58cff, #8b6cff, #f3b7ff, #c58cff);
+}
+
+.rouletteBall.ballMint {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.32) 0 1px, transparent 1px 5px),
+    var(--roulette-ball-color, #56d39a);
+}
+
+.rouletteBall.ballSun {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 0deg, #fff0a8, #ffb83d, #fff0a8, #ff9e3d, #fff0a8);
+}
+
 .rouletteCenter {
   position: relative;
   z-index: 1;
