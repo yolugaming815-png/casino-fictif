@@ -1557,6 +1557,25 @@
   height: 56px;
 }
 
+.vehicleSvgSmall,
+.vehicleSvgLarge {
+  display: block;
+  width: 86px;
+  height: 62px;
+  overflow: visible;
+  filter: drop-shadow(0 0 14px var(--rocket-glow, rgba(124, 199, 255, 0.36)));
+}
+
+.vehicleSvgLarge {
+  width: 108px;
+  height: 78px;
+}
+
+.caseItem .vehicleSvgSmall {
+  width: 64px;
+  height: 48px;
+}
+
 .caseModalBackdrop {
   position: fixed;
   inset: 0;

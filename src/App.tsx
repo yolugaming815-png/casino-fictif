@@ -2988,17 +2988,14 @@ function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean 
 
   if (item.category === "rocketShip") {
     return (
-      <span
-        className={`${large ? styles.vehiclePreviewLarge : styles.vehiclePreviewSmall} ${vehiclePreviewClass(item.id)}`}
-        style={{ "--rocket-accent": item.preview, "--rocket-glow": rocketGlow(item.id) } as CSSProperties}
+      <svg
+        className={large ? styles.vehicleSvgLarge : styles.vehicleSvgSmall}
+        viewBox="0 0 120 86"
+        style={{ "--rocket-glow": rocketGlow(item.id) } as CSSProperties}
         aria-hidden="true"
       >
-        <span className={styles.vehicleBody} />
-        <span className={styles.vehicleCockpit} />
-        <span className={styles.vehicleWingLeft} />
-        <span className={styles.vehicleWingRight} />
-        <span className={styles.vehicleFlame} />
-      </span>
+        {vehiclePreviewSvg(item.id)}
+      </svg>
     );
   }
 
@@ -3043,20 +3040,63 @@ function ballSkinClass(id: string): string {
   return styles.ballGold;
 }
 
-function vehiclePreviewClass(id: string): string {
+function vehiclePreviewSvg(id: string): ReactNode {
   if (id === "rocket-comet") {
-    return styles.vehicleSpaceship;
+    return (
+      <g>
+        <ellipse cx="60" cy="52" rx="40" ry="15" fill="#2f8bd0" />
+        <ellipse cx="60" cy="48" rx="30" ry="11" fill="#76c8f6" />
+        <path d="M24 52 C36 38 84 38 96 52 C82 64 38 64 24 52Z" fill="#1f6da9" />
+        <ellipse cx="61" cy="31" rx="17" ry="13" fill="#bcecff" />
+        <ellipse cx="61" cy="29" rx="11" ry="8" fill="#e5fbff" opacity="0.75" />
+        <path d="M25 56 L10 66 L36 65Z" fill="#70d6ff" opacity="0.6" />
+        <path d="M95 56 L110 66 L84 65Z" fill="#70d6ff" opacity="0.6" />
+      </g>
+    );
   }
 
   if (id === "rocket-solar") {
-    return styles.vehicleFighter;
+    return (
+      <g>
+        <path d="M60 7 L75 58 L64 80 H56 L45 58Z" fill="#dfe6ec" />
+        <path d="M60 7 L64 80 H56Z" fill="#8b98a6" opacity="0.55" />
+        <path d="M46 44 L10 66 L50 65Z" fill="#586574" />
+        <path d="M74 44 L110 66 L70 65Z" fill="#586574" />
+        <path d="M51 61 L32 79 L54 75Z" fill="#3f4a56" />
+        <path d="M69 61 L88 79 L66 75Z" fill="#3f4a56" />
+        <rect x="52" y="30" width="16" height="12" rx="6" fill="#101218" />
+        <path d="M55 78 L60 86 L65 78Z" fill="#ffd166" />
+      </g>
+    );
   }
 
   if (id === "rocket-nebula") {
-    return styles.vehicleSpacex;
+    return (
+      <g>
+        <path d="M60 5 C76 20 76 58 67 76 H53 C44 58 44 20 60 5Z" fill="#f7fbff" />
+        <path d="M53 16 H58 V74 H53Z" fill="#101218" />
+        <path d="M62 16 H67 V74 H62Z" fill="#101218" />
+        <circle cx="60" cy="34" r="9" fill="#101218" />
+        <circle cx="60" cy="34" r="5" fill="#d8f5ff" />
+        <path d="M53 68 L35 82 L52 79Z" fill="#101218" />
+        <path d="M67 68 L85 82 L68 79Z" fill="#101218" />
+        <path d="M54 78 L60 86 L66 78Z" fill="#ffd166" />
+      </g>
+    );
   }
 
-  return styles.vehicleClassic;
+  return (
+    <g>
+      <path d="M60 7 C76 25 77 54 66 72 H54 C43 54 44 25 60 7Z" fill="#fff4df" />
+      <path d="M60 7 C66 20 67 55 62 72 H54 C43 54 44 25 60 7Z" fill="#e8edf0" opacity="0.75" />
+      <path d="M51 56 L24 76 L51 74Z" fill="#e84745" />
+      <path d="M69 56 L96 76 L69 74Z" fill="#e84745" />
+      <circle cx="60" cy="34" r="9" fill="#aee6ff" />
+      <circle cx="57" cy="31" r="3" fill="#ffffff" opacity="0.8" />
+      <path d="M53 72 L60 86 L67 72Z" fill="#ff9b42" />
+      <path d="M48 19 L60 7 L72 19Z" fill="#ffd166" />
+    </g>
+  );
 }
 
 function rarityLabel(rarity: SkinRarity): string {
