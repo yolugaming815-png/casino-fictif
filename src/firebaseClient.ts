@@ -397,6 +397,22 @@ export async function joinOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
   });
 }
 
+export async function leaveOnlineRoom(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (!room.players.some((player) => player.uid === user.uid)) {
+    return;
+  }
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    players: room.players.filter((player) => player.uid !== user.uid),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
   const app = getFirebaseApp();
   if (!app) {

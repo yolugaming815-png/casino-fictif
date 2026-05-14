@@ -75,6 +75,7 @@ import {
   createOnlineRoom,
   isFirebaseConfigured,
   joinOnlineRoom,
+  leaveOnlineRoom,
   loadFriendRequests,
   loadLeaderboard,
   loadCloudSave,
@@ -690,6 +691,22 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setOnlineMessage(`Impossible de rejoindre : ${message}`);
+    }
+  }
+
+  async function handleLeaveOnlineRoom(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour quitter un salon.");
+      return;
+    }
+
+    try {
+      await leaveOnlineRoom(room, accountUser);
+      setOnlineMessage(`Tu as quitte ${room.game}.`);
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Impossible de quitter : ${message}`);
     }
   }
 
@@ -1359,6 +1376,7 @@ function App() {
             rooms={onlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onJoinRoom={handleJoinOnlineRoom}
+            onLeaveRoom={handleLeaveOnlineRoom}
             onOpenProfile={handleOpenPlayerProfile}
             onRefreshRooms={refreshOnlineRooms}
           />
@@ -1805,6 +1823,7 @@ function OnlineGames({
   rooms,
   onCreateRoom,
   onJoinRoom,
+  onLeaveRoom,
   onOpenProfile,
   onRefreshRooms,
 }: {
@@ -1816,6 +1835,7 @@ function OnlineGames({
   rooms: OnlineRoomEntry[];
   onCreateRoom: (type: OnlineRoomType, game: string) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
+  onLeaveRoom: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
   onRefreshRooms: () => void;
 }) {
@@ -1911,7 +1931,7 @@ function OnlineGames({
           </div>
         </section>
 
-        <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onRefreshRooms={onRefreshRooms} />
+        <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onLeaveRoom={onLeaveRoom} onRefreshRooms={onRefreshRooms} />
       </>
     );
   }
@@ -1958,7 +1978,7 @@ function OnlineGames({
         </div>
       </section>
 
-      <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onRefreshRooms={onRefreshRooms} />
+      <OnlineRoomsPanel currentUserId={currentUser.uid} message={message} rooms={visibleRooms} onJoinRoom={onJoinRoom} onLeaveRoom={onLeaveRoom} onRefreshRooms={onRefreshRooms} />
 
       <section className={styles.columns}>
         <article className={styles.panel}>
@@ -1979,12 +1999,14 @@ function OnlineRoomsPanel({
   message,
   rooms,
   onJoinRoom,
+  onLeaveRoom,
   onRefreshRooms,
 }: {
   currentUserId: string;
   message: string;
   rooms: OnlineRoomEntry[];
   onJoinRoom: (room: OnlineRoomEntry) => void;
+  onLeaveRoom: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
 }) {
   return (
@@ -2022,8 +2044,13 @@ function OnlineRoomsPanel({
                     <span key={`open-${room.id}-${index}`}>Place libre</span>
                   ))}
                 </div>
-                <button className={alreadyJoined ? styles.secondaryButton : styles.primaryButton} type="button" onClick={() => onJoinRoom(room)} disabled={alreadyJoined || full}>
-                  {alreadyJoined ? "Deja dedans" : full ? "Complet" : "Rejoindre"}
+                <button
+                  className={alreadyJoined ? styles.secondaryButton : styles.primaryButton}
+                  type="button"
+                  onClick={() => (alreadyJoined ? onLeaveRoom(room) : onJoinRoom(room))}
+                  disabled={!alreadyJoined && full}
+                >
+                  {alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
                 </button>
               </article>
             );
