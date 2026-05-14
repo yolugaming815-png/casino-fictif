@@ -9,13 +9,20 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
-import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, getFirestore, limit, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 
 export type CasinoUser = {
   uid: string;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
+};
+
+export type LeaderboardEntry = {
+  uid: string;
+  displayName: string;
+  balance: number;
+  updatedAt?: unknown;
 };
 
 const firebaseConfig = {
@@ -143,4 +150,42 @@ export async function saveCloudSave(userId: string, gameSave: unknown) {
     },
     { merge: true },
   );
+}
+
+export async function saveLeaderboardEntry(user: CasinoUser, balance: number) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  await setDoc(
+    doc(getFirestore(app), "leaderboard", user.uid),
+    {
+      uid: user.uid,
+      displayName: user.displayName || "Joueur anonyme",
+      balance,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const leaderboardQuery = query(collection(getFirestore(app), "leaderboard"), orderBy("balance", "desc"), limit(limitCount));
+  const snapshot = await getDocs(leaderboardQuery);
+
+  return snapshot.docs.map((entry) => {
+    const data = entry.data();
+    return {
+      uid: String(data.uid ?? entry.id),
+      displayName: typeof data.displayName === "string" ? data.displayName : "Joueur anonyme",
+      balance: typeof data.balance === "number" && Number.isFinite(data.balance) ? data.balance : 0,
+      updatedAt: data.updatedAt,
+    };
+  });
 }

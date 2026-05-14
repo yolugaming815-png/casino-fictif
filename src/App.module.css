@@ -103,6 +103,76 @@
   text-align: right;
 }
 
+.leaderboardPanel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(16, 18, 24, 0.78);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.leaderboardPanel h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.leaderboardPanel p {
+  margin: 6px 0 0;
+  color: #d5ddd9;
+}
+
+.leaderboardList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leaderboardList li {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.leaderboardList span {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.leaderboardList strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboardList em {
+  color: #79e29f;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.currentLeaderboardPlayer {
+  outline: 2px solid rgba(255, 209, 102, 0.68);
+  background: rgba(255, 209, 102, 0.12) !important;
+}
+
 .positive {
   color: #79e29f;
 }
@@ -2347,6 +2417,7 @@
 
   .header,
   .statusBar,
+  .leaderboardPanel,
   .modeTabs,
   .blackjackTable,
   .caseLayout,
@@ -2401,6 +2472,14 @@
 
   .history li {
     display: grid;
+  }
+
+  .leaderboardList li {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .leaderboardList em {
+    grid-column: 2;
   }
 
   .accountTools {

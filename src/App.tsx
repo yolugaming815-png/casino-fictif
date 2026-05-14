@@ -72,12 +72,15 @@ import {
 } from "./rocketLogic";
 import {
   isFirebaseConfigured,
+  loadLeaderboard,
   loadCloudSave,
   saveCloudSave,
+  saveLeaderboardEntry,
   signInWithGoogle,
   signOutGoogle,
   watchCasinoUser,
   type CasinoUser,
+  type LeaderboardEntry,
 } from "./firebaseClient";
 
 type SlotHistoryItem = SpinOutcome & {
@@ -383,6 +386,8 @@ function App() {
       ? "Connecte-toi avec Google pour sauvegarder en ligne."
       : "Ajoute les cles Firebase pour activer les comptes Google.",
   );
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardMessage, setLeaderboardMessage] = useState("Connecte-toi pour apparaitre dans le classement.");
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -468,12 +473,15 @@ function App() {
 
         if (cloudSave) {
           applyCloudSave(cloudSave);
+          await saveLeaderboardEntry(user, cloudSave.balance);
           setAccountMessage("Sauvegarde Google chargee.");
         } else {
           await saveCloudSave(user.uid, getCurrentSaveState());
+          await saveLeaderboardEntry(user, balance);
           setAccountMessage("Compte Google cree avec ta partie actuelle.");
         }
 
+        await refreshLeaderboard();
         cloudSaveReadyRef.current = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -494,8 +502,11 @@ function App() {
     }
 
     cloudSaveTimeoutRef.current = window.setTimeout(() => {
-      saveCloudSave(accountUser.uid, getCurrentSaveState())
-        .then(() => setAccountMessage("Sauvegarde Google a jour."))
+      Promise.all([saveCloudSave(accountUser.uid, getCurrentSaveState()), saveLeaderboardEntry(accountUser, balance)])
+        .then(() => {
+          setAccountMessage("Sauvegarde Google a jour.");
+          return refreshLeaderboard();
+        })
         .catch(() => setAccountMessage("La sauvegarde Google a echoue. La sauvegarde locale reste active."));
     }, 700);
   }, [
@@ -510,6 +521,26 @@ function App() {
     rocketHistory,
     caseHistory,
   ]);
+
+  useEffect(() => {
+    refreshLeaderboard();
+  }, []);
+
+  async function refreshLeaderboard() {
+    if (!isFirebaseConfigured()) {
+      setLeaderboard([]);
+      setLeaderboardMessage("Firebase doit etre configure pour afficher le classement.");
+      return;
+    }
+
+    try {
+      const entries = await loadLeaderboard(10);
+      setLeaderboard(entries);
+      setLeaderboardMessage(entries.length ? "Classement des comptes connectes." : "Aucun joueur classe pour le moment.");
+    } catch {
+      setLeaderboardMessage("Classement indisponible pour le moment.");
+    }
+  }
 
   function getCurrentSaveState(): SavedGameState {
     return {
@@ -1046,6 +1077,8 @@ function App() {
           </div>
         </section>
 
+        <LeaderboardPanel currentUserId={accountUser?.uid ?? null} entries={leaderboard} message={leaderboardMessage} />
+
         <nav className={styles.modeTabs} aria-label="Section principale">
           <button
             className={activeSection === "games" ? styles.activeTab : ""}
@@ -1323,6 +1356,35 @@ function SlotGame({
         </HistoryPanel>
       </section>
     </>
+  );
+}
+
+function LeaderboardPanel({
+  currentUserId,
+  entries,
+  message,
+}: {
+  currentUserId: string | null;
+  entries: LeaderboardEntry[];
+  message: string;
+}) {
+  return (
+    <section className={styles.leaderboardPanel} aria-label="Classement des joueurs">
+      <div>
+        <h2>Tableau des scores</h2>
+        <p>{message}</p>
+      </div>
+      <ol className={styles.leaderboardList}>
+        {entries.map((entry, index) => (
+          <li className={entry.uid === currentUserId ? styles.currentLeaderboardPlayer : ""} key={entry.uid}>
+            <span>{index + 1}</span>
+            <strong>{entry.displayName}</strong>
+            <em>{entry.balance.toLocaleString("fr-FR")} credits</em>
+          </li>
+        ))}
+      </ol>
+      {entries.length === 0 && <p className={styles.empty}>Connecte-toi avec Google pour entrer dans le classement.</p>}
+    </section>
   );
 }
 
