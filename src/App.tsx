@@ -2528,7 +2528,7 @@ function PokerRoomPanel({
         ? "En attente d'un joueur."
         : "Table prete a lancer."
       : room.status === "finished"
-        ? `Gagnant : ${room.pokerWinnerName || "a determiner"}`
+        ? `Gagnant : ${room.pokerWinnerName || "a determiner"}${room.pokerWinnerHandLabel ? ` avec ${room.pokerWinnerHandLabel}` : ""}`
         : phaseDone
           ? `Phase ${room.pokerPhase} terminee.`
           : isTurn && amountToCall > 0
@@ -2558,6 +2558,20 @@ function PokerRoomPanel({
           </div>
         </div>
       </div>
+      {room.status === "finished" && room.pokerWinnerHandLabel && (
+        <div className={styles.pokerWinnerBox}>
+          <strong>
+            {room.pokerWinnerName || "Le gagnant"} gagne avec {room.pokerWinnerHandLabel}
+          </strong>
+          {room.pokerWinnerHandCards.length > 0 && (
+            <div className={styles.pokerMiniCards}>
+              {room.pokerWinnerHandCards.map((card) => (
+                <span key={`winner-${room.id}-${card}`}>{card}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className={styles.onlineRoomPlayers}>
         {room.players.map((player) => {
           const action = room.pokerActions[player.uid];

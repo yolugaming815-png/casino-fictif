@@ -568,6 +568,20 @@
   background: rgba(16, 18, 24, 0.54);
 }
 
+.pokerWinnerBox {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 209, 102, 0.46);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.16), rgba(121, 226, 159, 0.1));
+}
+
+.pokerWinnerBox strong {
+  color: #ffd166;
+  font-size: 1.05rem;
+}
+
 .pokerMiniCards {
   display: flex;
   flex-wrap: wrap;

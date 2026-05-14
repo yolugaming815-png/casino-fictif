@@ -98,6 +98,8 @@ export type OnlineRoomEntry = {
   pokerTurnName?: string;
   pokerWinnerUid?: string;
   pokerWinnerName?: string;
+  pokerWinnerHandLabel?: string;
+  pokerWinnerHandCards: string[];
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -425,6 +427,8 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     pokerTurnName: typeof data.pokerTurnName === "string" ? data.pokerTurnName : undefined,
     pokerWinnerUid: typeof data.pokerWinnerUid === "string" ? data.pokerWinnerUid : undefined,
     pokerWinnerName: typeof data.pokerWinnerName === "string" ? data.pokerWinnerName : undefined,
+    pokerWinnerHandLabel: typeof data.pokerWinnerHandLabel === "string" ? data.pokerWinnerHandLabel : undefined,
+    pokerWinnerHandCards: Array.isArray(data.pokerWinnerHandCards) ? data.pokerWinnerHandCards.filter((card): card is string => typeof card === "string") : [],
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -463,6 +467,8 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     pokerTurnName: "",
     pokerWinnerUid: "",
     pokerWinnerName: "",
+    pokerWinnerHandLabel: "",
+    pokerWinnerHandCards: [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -608,7 +614,7 @@ function pickShowdownPokerWinner(room: OnlineRoomEntry, foldedPlayerIds = room.f
   return candidates.reduce<{ player: OnlineRoomPlayer; score: ReturnType<typeof evaluatePokerHand> } | null>((best, player) => {
     const score = evaluatePokerHand([...(room.pokerHands[player.uid] ?? []), ...room.communityCards]);
     return !best || comparePokerHands(score, best.score) > 0 ? { player, score } : best;
-  }, null)?.player;
+  }, null);
 }
 
 function activePokerPlayers(room: OnlineRoomEntry, foldedPlayerIds = room.foldedPlayerIds) {
@@ -680,6 +686,8 @@ export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
     pokerTurnName: room.players[0]?.displayName ?? "",
     pokerWinnerUid: "",
     pokerWinnerName: "",
+    pokerWinnerHandLabel: "",
+    pokerWinnerHandCards: [],
     updatedAt: serverTimestamp(),
   });
 }
@@ -703,6 +711,8 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
   let nextPhase: PokerPhase = "flop";
   let nextStatus: OnlineRoomStatus = "playing";
   let winner = room.pokerWinnerUid ? { uid: room.pokerWinnerUid, displayName: room.pokerWinnerName || "Joueur anonyme" } : undefined;
+  let winnerHandLabel = room.pokerWinnerHandLabel ?? "";
+  let winnerHandCards = room.pokerWinnerHandCards;
 
   if (room.pokerPhase === "preflop") {
     communityCards.push(...deck.splice(0, 3));
@@ -716,7 +726,10 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
   } else {
     nextPhase = "showdown";
     nextStatus = "finished";
-    winner = pickShowdownPokerWinner(room);
+    const showdownWinner = pickShowdownPokerWinner(room);
+    winner = showdownWinner?.player;
+    winnerHandLabel = showdownWinner?.score.label ?? "";
+    winnerHandCards = showdownWinner?.score.cards ?? [];
   }
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
@@ -731,6 +744,8 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
     pokerTurnName: nextStatus === "playing" ? activePokerPlayers(room)[0]?.displayName ?? "" : "",
     pokerWinnerUid: winner?.uid ?? "",
     pokerWinnerName: winner?.displayName ?? "",
+    pokerWinnerHandLabel: winnerHandLabel,
+    pokerWinnerHandCards: winnerHandCards,
     updatedAt: serverTimestamp(),
   });
 }
@@ -877,6 +892,8 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
     pokerTurnName: winner || phaseDone ? "" : nextTurn?.displayName ?? "",
     pokerWinnerUid: winner?.uid ?? room.pokerWinnerUid ?? "",
     pokerWinnerName: winner?.displayName ?? room.pokerWinnerName ?? "",
+    pokerWinnerHandLabel: winner ? "Adversaires couches" : room.pokerWinnerHandLabel ?? "",
+    pokerWinnerHandCards: winner ? [] : room.pokerWinnerHandCards,
     updatedAt: serverTimestamp(),
   });
 }
