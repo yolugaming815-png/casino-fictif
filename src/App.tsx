@@ -436,8 +436,9 @@ function App() {
         }
 
         cloudSaveReadyRef.current = true;
-      } catch {
-        setAccountMessage("Impossible de charger la sauvegarde Google pour le moment.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Erreur inconnue";
+        setAccountMessage(`Sauvegarde Google impossible : ${message}`);
       } finally {
         setAccountLoading(false);
       }
