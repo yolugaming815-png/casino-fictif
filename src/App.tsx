@@ -2533,15 +2533,15 @@ function rocketShipClass(id: string): string {
 
 function rocketGlow(id: string): string {
   if (id === "rocket-comet") {
-    return "rgba(124, 199, 255, 0.92)";
+    return "rgba(124, 199, 255, 0.88)";
   }
 
   if (id === "rocket-solar") {
-    return "rgba(255, 209, 102, 0.96)";
+    return "rgba(174, 230, 255, 0.86)";
   }
 
   if (id === "rocket-nebula") {
-    return "rgba(201, 140, 255, 0.96)";
+    return "rgba(249, 247, 239, 0.92)";
   }
 
   return "rgba(249, 247, 239, 0.72)";
@@ -2616,7 +2616,7 @@ function skinCategoryLabel(category: ShopItem["category"]): string {
   }
 
   if (category === "rocketShip") {
-    return "Fusee Rocket";
+    return "Vehicule Rocket";
   }
 
   return "Dos blackjack";

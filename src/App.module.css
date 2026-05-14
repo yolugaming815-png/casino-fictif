@@ -1466,35 +1466,165 @@
     linear-gradient(180deg, #f9f7ef, #d8e2e8);
 }
 
+.rocketClassic .rocketNose {
+  background: linear-gradient(180deg, #ffdf8a, #e27a4d);
+}
+
 .rocketComet .rocketBody {
+  left: 6px;
+  top: 34px;
+  width: 60px;
+  height: 44px;
+  border-radius: 50% 50% 42% 42%;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent),
-    linear-gradient(180deg, #eaf7ff, #90d5ff);
+    radial-gradient(circle at 50% 45%, rgba(214, 244, 255, 0.9) 0 18%, transparent 19%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent),
+    linear-gradient(180deg, #d8f5ff, #3c77a8);
+  border-radius: 30px 30px 18px 18px;
+}
+
+.rocketComet .rocketNose {
+  left: 17px;
+  top: 8px;
+  width: 38px;
+  height: 34px;
+  clip-path: ellipse(50% 50% at 50% 50%);
+  background: linear-gradient(180deg, #d6f4ff, #7cc7ff);
+}
+
+.rocketComet .rocketWindow {
+  inset: 12px auto auto 20px;
+  width: 20px;
+  height: 14px;
+  border-radius: 999px;
+}
+
+.rocketComet .rocketFinLeft,
+.rocketComet .rocketFinRight {
+  top: 62px;
+  width: 34px;
+  height: 22px;
+  background: #2f6a9b;
+}
+
+.rocketComet .rocketFinLeft {
+  left: -6px;
+  clip-path: polygon(100% 0, 100% 100%, 0 72%, 18% 20%);
+}
+
+.rocketComet .rocketFinRight {
+  right: -6px;
+  clip-path: polygon(0 0, 100% 20%, 100% 72%, 0 100%);
 }
 
 .rocketComet .rocketFlame {
+  left: 22px;
+  bottom: 10px;
+  width: 28px;
+  height: 26px;
   background: linear-gradient(180deg, #d6f4ff 0%, #5eb8f1 58%, rgba(94, 184, 241, 0.16) 100%);
 }
 
 .rocketSolar .rocketBody {
+  left: 11px;
+  top: 30px;
+  width: 50px;
+  height: 54px;
+  border-radius: 8px 8px 18px 18px;
+  clip-path: polygon(50% 0, 84% 24%, 72% 100%, 28% 100%, 16% 24%);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent),
-    linear-gradient(180deg, #fff1bd, #ffd166);
+    linear-gradient(90deg, transparent 0 22%, rgba(18, 24, 32, 0.8) 22% 35%, transparent 35% 65%, rgba(18, 24, 32, 0.8) 65% 78%, transparent 78%),
+    linear-gradient(180deg, #d9dde4, #687481);
+}
+
+.rocketSolar .rocketNose {
+  left: 21px;
+  top: 0;
+  width: 30px;
+  height: 42px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #dfe5ec, #8d98a6);
+}
+
+.rocketSolar .rocketWindow {
+  inset: 18px auto auto 15px;
+  width: 20px;
+  height: 8px;
+  border-radius: 999px;
+  background: #101218;
 }
 
 .rocketSolar .rocketFinLeft,
 .rocketSolar .rocketFinRight {
-  background: #d86642;
+  top: 58px;
+  width: 42px;
+  height: 18px;
+  background: #596371;
+}
+
+.rocketSolar .rocketFinLeft {
+  left: -14px;
+  clip-path: polygon(100% 0, 100% 100%, 0 78%, 18% 22%);
+}
+
+.rocketSolar .rocketFinRight {
+  right: -14px;
+  clip-path: polygon(0 0, 100% 22%, 100% 78%, 0 100%);
+}
+
+.rocketSolar .rocketFlame {
+  left: 24px;
+  bottom: 8px;
+  height: 28px;
+  background: linear-gradient(180deg, #aee6ff 0%, #ffdf8a 48%, rgba(255, 143, 95, 0.18) 100%);
 }
 
 .rocketNebula .rocketBody {
+  left: 17px;
+  top: 26px;
+  width: 38px;
+  height: 76px;
+  border-radius: 18px 18px 10px 10px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent),
-    linear-gradient(180deg, #eadcff, #b58cff);
+    linear-gradient(90deg, transparent 0 16%, #101218 16% 28%, transparent 28% 72%, #101218 72% 84%, transparent 84%),
+    linear-gradient(180deg, #ffffff, #d8e2e8);
+  border: 1px solid rgba(16, 18, 24, 0.18);
+}
+
+.rocketNebula .rocketNose {
+  left: 18px;
+  top: 0;
+  width: 36px;
+  height: 34px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #f9f7ef, #d8e2e8);
+}
+
+.rocketNebula .rocketWindow {
+  inset: 20px auto auto 10px;
+  width: 18px;
+  height: 18px;
+  background: #101218;
+  border: 3px solid rgba(255, 255, 255, 0.8);
+}
+
+.rocketNebula .rocketFinLeft,
+.rocketNebula .rocketFinRight {
+  top: 76px;
+  height: 22px;
+  background: #101218;
+}
+
+.rocketNebula .rocketFinLeft {
+  left: 4px;
+}
+
+.rocketNebula .rocketFinRight {
+  right: 4px;
 }
 
 .rocketNebula .rocketFlame {
-  background: linear-gradient(180deg, #ffd7f1 0%, #c58cff 58%, rgba(197, 140, 255, 0.18) 100%);
+  background: linear-gradient(180deg, #d6f4ff 0%, #ffd166 50%, rgba(255, 107, 107, 0.16) 100%);
 }
 
 .rocketMetrics {
