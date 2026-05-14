@@ -27,6 +27,8 @@ import {
 import {
   PLINKO_ROWS,
   calculatePlinkoPayout,
+  generatePlinkoPath,
+  getFinalSlot,
   getPlinkoProbabilities,
   getPlinkoMultiplier,
   type PlinkoOutcome,
@@ -99,6 +101,8 @@ type PlinkoLaunch = {
   id: number;
   bet: Bet;
   rows: PlinkoRows;
+  path: PlinkoStep[];
+  slot: number;
 };
 
 type RouletteHistoryItem = RouletteOutcome & {
@@ -448,10 +452,13 @@ function App() {
       return;
     }
 
+    const path = generatePlinkoPath(plinkoRows);
     const launch: PlinkoLaunch = {
       id: plinkoId.current++,
       bet: plinkoBet,
+      path,
       rows: plinkoRows,
+      slot: getFinalSlot(path),
     };
 
     setBalance((current) => current - plinkoBet);
@@ -463,19 +470,19 @@ function App() {
     );
   }
 
-  function finishPlinko(launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) {
-    const multiplier = getPlinkoMultiplier(slot, launch.rows);
+  function finishPlinko(launch: PlinkoLaunch) {
+    const multiplier = getPlinkoMultiplier(launch.slot, launch.rows);
     const payout = calculatePlinkoPayout(launch.bet, multiplier);
     const nextBalance = balance + payout.payout;
     const outcome: PlinkoOutcome = {
-      path,
-      slot,
+      path: launch.path,
+      slot: launch.slot,
       multiplier,
       ...payout,
     };
 
     setBalance((current) => current + payout.payout);
-    setPlinkoBallSlots((items) => [slot, ...items].slice(0, 4));
+    setPlinkoBallSlots((items) => [launch.slot, ...items].slice(0, 4));
     setPlinkoMessage(
       outcome.net >= 0
         ? `Case ${outcome.slot} : x${outcome.multiplier}, +${outcome.net} credits virtuels.`
@@ -1260,7 +1267,7 @@ function PlinkoGame({
   onBetChange: (bet: Bet) => void;
   onLaunch: () => void;
   onReset: () => void;
-  onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
+  onResolve: (launch: PlinkoLaunch) => void;
   onRowsChange: (rows: PlinkoRows) => void;
 }) {
   const probabilities = getPlinkoProbabilities(rows);
@@ -1375,7 +1382,7 @@ function PlinkoPhysicsBoard({
   ballSkin: ShopItem;
   launches: PlinkoLaunch[];
   rows: PlinkoRows;
-  onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
+  onResolve: (launch: PlinkoLaunch) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -1443,7 +1450,7 @@ function PlinkoPhysicsBoard({
     const pegs = getPegPositions(width, height, rows).map((peg) =>
       Bodies.circle(peg.x, peg.y, dimensions.pegRadius, {
         isStatic: true,
-        restitution: 0.58,
+        restitution: dimensions.pegRestitution,
         friction: 0,
         label: "peg",
       }),
@@ -1474,6 +1481,11 @@ function PlinkoPhysicsBoard({
       activeBodiesRef.current.forEach((entry, id) => {
         const { body } = entry;
 
+        if (dimensions.compactBoard) {
+          const centerPull = (width / 2 - body.position.x) * 0.00045;
+          Body.setVelocity(body, { x: body.velocity.x * 0.9 + centerPull, y: body.velocity.y });
+        }
+
         context.fillStyle = ballSkin.preview;
         context.shadowColor = ballGlow(ballSkin.id);
         context.shadowBlur = dimensions.ballRadius * 1.6;
@@ -1487,10 +1499,8 @@ function PlinkoPhysicsBoard({
 
         if (!entry.resolved && body.position.y >= slotTop + 34) {
           entry.resolved = true;
-          const slot = Math.max(0, Math.min(rows, Math.floor(body.position.x / slotWidth)));
-          const path = normalizePath(entry.path, rows, slot);
 
-          window.setTimeout(() => onResolveRef.current(entry.launch, slot, path), 180);
+          window.setTimeout(() => onResolveRef.current(entry.launch), 180);
           Composite.remove(engine.world, body);
           activeBodiesRef.current.delete(id);
         }
@@ -1539,9 +1549,9 @@ function PlinkoPhysicsBoard({
       }
 
       const body = Bodies.circle(width / 2 + (Math.random() - 0.5) * dimensions.launchSpread, 22, dimensions.ballRadius, {
-        restitution: 0.48,
+        restitution: dimensions.ballRestitution,
         friction: 0.001,
-        frictionAir: 0.006,
+        frictionAir: dimensions.frictionAir,
         density: 0.004,
         label: `ball-${launch.id}`,
       });
@@ -1587,10 +1597,14 @@ function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
     : Math.max(6.2, Math.min(11, spacing * 0.3));
 
   return {
+    ballRestitution: compactBoard ? 0.32 : 0.48,
     ballRadius,
+    compactBoard,
     dividerWidth: Math.max(2, Math.min(5, spacing * 0.12)),
+    frictionAir: compactBoard ? 0.018 : 0.006,
     launchSpread: Math.max(18, Math.min(42, spacing * 1.35)),
-    launchVelocity: Math.max(0.7, Math.min(1.6, spacing / 36)),
+    launchVelocity: compactBoard ? Math.max(0.22, Math.min(0.55, spacing / 70)) : Math.max(0.7, Math.min(1.6, spacing / 36)),
+    pegRestitution: compactBoard ? 0.34 : 0.58,
     pegRadius,
     slotTop: height - 68,
     slotWidth: width / (rows + 1),
