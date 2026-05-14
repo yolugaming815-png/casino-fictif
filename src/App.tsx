@@ -177,6 +177,7 @@ const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
 const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
+const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
@@ -350,6 +351,31 @@ function saveGame(state: SavedGameState) {
   }
 }
 
+function firebaseTimeToMillis(value: unknown) {
+  if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+
+  return null;
+}
+
+function formatWaitingRoomCountdown(room: OnlineRoomEntry, now: number) {
+  if (room.status !== "waiting") {
+    return "";
+  }
+
+  const createdAt = firebaseTimeToMillis(room.createdAt);
+
+  if (createdAt === null) {
+    return "Suppression auto dans 30 min";
+  }
+
+  const remainingMs = Math.max(0, WAITING_ROOM_TTL_MS - (now - createdAt));
+  const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+
+  return `Suppression auto dans ${remainingMinutes} min`;
+}
+
 function getNextHistoryId(items: Array<{ id: number }> | undefined) {
   return Math.max(-1, ...(items ?? []).map((item) => item.id)) + 1;
 }
@@ -432,6 +458,7 @@ function App() {
   const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
   const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
   const paidPokerAnteRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-paid-poker-ante") ?? "[]") as string[]));
+  const [now, setNow] = useState(Date.now());
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -582,6 +609,11 @@ function App() {
 
   useEffect(() => {
     refreshLeaderboard();
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -1652,6 +1684,7 @@ function App() {
             message={onlineMessage}
             mode={activeOnlineGame}
             actionRoomId={onlineActionRoomId}
+            now={now}
             rooms={onlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onAdvancePoker={handleAdvancePokerPhase}
@@ -2109,6 +2142,7 @@ function OnlineGames({
   leaderboard,
   message,
   mode,
+  now,
   rooms,
   onAdvancePoker,
   onCallPoker,
@@ -2131,6 +2165,7 @@ function OnlineGames({
   leaderboard: LeaderboardEntry[];
   message: string;
   mode: "duel" | "poker";
+  now: number;
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
   onCallPoker: (room: OnlineRoomEntry) => void;
@@ -2258,6 +2293,7 @@ function OnlineGames({
         onRaisePoker={onRaisePoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
+        now={now}
       />
         <DuelHistoryPanel currentUserId={currentUser.uid} history={duelHistory} />
       </>
@@ -2322,6 +2358,7 @@ function OnlineGames({
         onRaisePoker={onRaisePoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
+        now={now}
       />
 
       <section className={styles.columns}>
@@ -2342,6 +2379,7 @@ function OnlineRoomsPanel({
   actionRoomId,
   currentUserId,
   message,
+  now,
   rooms,
   onAdvancePoker,
   onCallPoker,
@@ -2358,6 +2396,7 @@ function OnlineRoomsPanel({
   actionRoomId: string | null;
   currentUserId: string;
   message: string;
+  now: number;
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
   onCallPoker: (room: OnlineRoomEntry) => void;
@@ -2392,6 +2431,7 @@ function OnlineRoomsPanel({
             const full = room.players.length >= room.maxPlayers;
             const busy = actionRoomId === room.id;
             const invitedLabel = room.invitedName ? ` | Invite : ${room.invitedName}` : "";
+            const countdownLabel = formatWaitingRoomCountdown(room, now);
 
             return (
               <article className={styles.onlineRoomCard} key={room.id}>
@@ -2402,6 +2442,7 @@ function OnlineRoomsPanel({
                     Hote : {room.hostName}
                     {invitedLabel} | {room.status === "waiting" ? "En attente" : room.status === "playing" ? "En cours" : "Termine"}
                   </p>
+                  {countdownLabel && <small className={styles.roomCountdown}>{countdownLabel}</small>}
                 </div>
                 <div className={styles.onlineRoomPlayers}>
                   {room.players.map((player) => (
