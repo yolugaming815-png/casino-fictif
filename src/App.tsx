@@ -1405,8 +1405,6 @@ function PlinkoPhysicsBoard({
       {
         launch: PlinkoLaunch;
         body: ReturnType<typeof Bodies.circle>;
-        nextPathY: number;
-        path: PlinkoStep[];
         resolved: boolean;
       }
     >(),
@@ -1490,22 +1488,13 @@ function PlinkoPhysicsBoard({
 
       activeBodiesRef.current.forEach((entry, id) => {
         const { body } = entry;
-
-        if (dimensions.compactBoard) {
-          const centerPull = (width / 2 - body.position.x) * 0.00045;
-          Body.setVelocity(body, { x: body.velocity.x * 0.9 + centerPull, y: body.velocity.y });
-        }
+        steerPlinkoBall(body, entry.launch.slot, width, height, rows, dimensions);
 
         context.fillStyle = ballSkin.preview;
         context.shadowColor = ballGlow(ballSkin.id);
         context.shadowBlur = dimensions.ballRadius * 1.6;
         drawCircle(context, body.position.x, body.position.y, dimensions.ballRadius);
         context.shadowBlur = 0;
-
-        if (entry.path.length < rows && body.position.y >= entry.nextPathY) {
-          entry.path.push(body.velocity.x < 0 ? "L" : "R");
-          entry.nextPathY += (slotTop - 70) / Math.max(rows - 1, 1);
-        }
 
         if (!entry.resolved && body.position.y >= slotTop + 34) {
           entry.resolved = true;
@@ -1543,7 +1532,6 @@ function PlinkoPhysicsBoard({
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const dimensions = getPlinkoDimensions(width, height, rows);
-    const firstPegY = getPegPositions(width, height, rows)[0]?.y ?? 70;
     const launchIds = new Set(launches.map((launch) => launch.id));
 
     activeBodiesRef.current.forEach((entry, id) => {
@@ -1571,8 +1559,6 @@ function PlinkoPhysicsBoard({
       activeBodiesRef.current.set(launch.id, {
         launch,
         body,
-        nextPathY: firstPegY,
-        path: [],
         resolved: false,
       });
     });
@@ -1593,6 +1579,37 @@ function getPegPositions(width: number, height: number, rows: PlinkoRows) {
       y,
     }));
   });
+}
+
+function steerPlinkoBall(
+  body: ReturnType<typeof Bodies.circle>,
+  slot: number,
+  width: number,
+  height: number,
+  rows: PlinkoRows,
+  dimensions: ReturnType<typeof getPlinkoDimensions>,
+) {
+  const startY = 22;
+  const endY = dimensions.slotTop + 34;
+  const progress = Math.max(0, Math.min(1, (body.position.y - startY) / Math.max(endY - startY, 1)));
+  const targetSlotX = (slot + 0.5) * dimensions.slotWidth;
+  const centeredStartX = width / 2;
+  const targetX = centeredStartX + (targetSlotX - centeredStartX) * smoothstep(progress);
+  const pullStrength = dimensions.compactBoard ? 0.055 : 0.032;
+  const damping = dimensions.compactBoard ? 0.72 : 0.82;
+  const nextVelocityX = body.velocity.x * damping + (targetX - body.position.x) * pullStrength;
+
+  Body.setVelocity(body, {
+    x: nextVelocityX,
+    y: body.velocity.y,
+  });
+
+  if (progress > 0.88) {
+    Body.setPosition(body, {
+      x: body.position.x * 0.78 + targetSlotX * 0.22,
+      y: body.position.y,
+    });
+  }
 }
 
 function getPlinkoDimensions(width: number, height: number, rows: PlinkoRows) {
