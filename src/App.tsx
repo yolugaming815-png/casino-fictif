@@ -2651,14 +2651,7 @@ function ShopGame({
                   return (
                     <article className={styles.shopItem} key={item.id}>
                       <div className={styles.shopPreview}>
-                        {item.category === "cardBack" ? (
-                          <span className={`${styles.shopCardPreview} ${cardBackClass(item.id)}`} />
-                        ) : (
-                          <span
-                            className={styles.shopOrbPreview}
-                            style={{ "--shop-preview-color": item.preview, "--shop-preview-glow": ballGlow(item.id) } as CSSProperties}
-                          />
-                        )}
+                        <SkinPreview item={item} />
                       </div>
                       <div>
                         <h3>{item.name}</h3>
