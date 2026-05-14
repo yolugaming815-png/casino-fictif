@@ -1594,6 +1594,35 @@
   filter: drop-shadow(0 0 16px var(--case-accent-soft));
 }
 
+.caseMiniPreview::before,
+.caseMiniPreview::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.caseMiniPreview::before {
+  left: 12px;
+  right: 12px;
+  bottom: 19px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow:
+    0 -11px 0 rgba(0, 0, 0, 0.2),
+    0 10px 0 rgba(0, 0, 0, 0.18);
+}
+
+.caseMiniPreview::after {
+  inset: 24px 12px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow:
+    inset 8px 0 0 rgba(255, 255, 255, 0.12),
+    inset -8px 0 0 rgba(0, 0, 0, 0.16);
+}
+
 .caseMiniLid,
 .caseMiniBody,
 .caseMiniMark {
@@ -1608,6 +1637,7 @@
   height: 16px;
   border-radius: 7px 7px 3px 3px;
   background:
+    linear-gradient(90deg, transparent 0 12%, rgba(255, 255, 255, 0.4) 12% 18%, transparent 18% 82%, rgba(255, 255, 255, 0.34) 82% 88%, transparent 88%),
     var(--case-pattern),
     linear-gradient(180deg, var(--case-light), var(--case-mid));
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -1620,6 +1650,10 @@
   border-radius: 6px 6px 10px 10px;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent 24% 76%, rgba(0, 0, 0, 0.2)),
+    radial-gradient(circle at 13% 24%, rgba(255, 255, 255, 0.55) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 87% 24%, rgba(255, 255, 255, 0.42) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 13% 78%, rgba(0, 0, 0, 0.26) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 87% 78%, rgba(0, 0, 0, 0.26) 0 3px, transparent 3.5px),
     var(--case-pattern),
     linear-gradient(180deg, var(--case-mid), var(--case-dark));
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -1636,6 +1670,9 @@
 
 .caseThemePlinko .caseMiniMark {
   border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 12%, transparent 13%),
+    linear-gradient(135deg, #ffe49a, #ffc94f 56%, #d79724);
 }
 
 .caseThemeBlackjack .caseMiniMark {
@@ -1647,7 +1684,9 @@
 
 .caseThemeRoulette .caseMiniMark {
   border-radius: 50%;
-  background: conic-gradient(#cf3d3d 0 25%, #101218 25% 50%, #cf3d3d 50% 75%, #101218 75%);
+  background:
+    radial-gradient(circle, #f9f7ef 0 22%, transparent 23%),
+    conic-gradient(#cf3d3d 0 25%, #101218 25% 50%, #cf3d3d 50% 75%, #101218 75%);
 }
 
 .caseThemeRocket .caseMiniMark {
@@ -1673,6 +1712,38 @@
   margin: 4px auto;
 }
 
+.caseBox::before,
+.caseBox::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.caseBox::before {
+  left: 20%;
+  right: 20%;
+  bottom: 39%;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow:
+    0 -30px 0 rgba(255, 255, 255, 0.18),
+    0 27px 0 rgba(0, 0, 0, 0.22);
+}
+
+.caseBox::after {
+  left: 17%;
+  right: 17%;
+  bottom: 20%;
+  height: 40%;
+  border-radius: 8px 8px 13px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 14px 0 0 rgba(255, 255, 255, 0.1),
+    inset -14px 0 0 rgba(0, 0, 0, 0.16);
+}
+
 .caseLid,
 .caseGlow,
 .caseBody {
@@ -1688,6 +1759,7 @@
   height: 18%;
   border-radius: 8px 8px 4px 4px;
   background:
+    linear-gradient(90deg, transparent 0 12%, rgba(255, 255, 255, 0.34) 12% 18%, transparent 18% 82%, rgba(255, 255, 255, 0.28) 82% 88%, transparent 88%),
     var(--case-pattern),
     linear-gradient(180deg, var(--case-light), var(--case-mid));
   border: 1px solid color-mix(in srgb, var(--case-accent) 55%, transparent);
@@ -1701,6 +1773,10 @@
   border-radius: 6px 6px 12px 12px;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent 22% 78%, rgba(0, 0, 0, 0.18)),
+    radial-gradient(circle at 10% 22%, rgba(255, 255, 255, 0.46) 0 4px, transparent 4.6px),
+    radial-gradient(circle at 90% 22%, rgba(255, 255, 255, 0.36) 0 4px, transparent 4.6px),
+    radial-gradient(circle at 10% 80%, rgba(0, 0, 0, 0.28) 0 4px, transparent 4.6px),
+    radial-gradient(circle at 90% 80%, rgba(0, 0, 0, 0.28) 0 4px, transparent 4.6px),
     var(--case-pattern),
     linear-gradient(180deg, var(--case-mid), var(--case-dark));
   border: 1px solid color-mix(in srgb, var(--case-accent) 42%, transparent);
