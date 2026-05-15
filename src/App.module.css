@@ -585,7 +585,7 @@
     rgba(255, 255, 255, 0.06);
 }
 
-.specialChestPreview span {
+.specialChestPreview > span {
   width: 112px;
   height: 62px;
   border-radius: 8px;
@@ -604,45 +604,151 @@
 
 .clawMachine {
   position: relative;
-  min-height: 260px;
+  min-height: 320px;
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
-    linear-gradient(180deg, rgba(94, 184, 241, 0.14), transparent 48%),
+    linear-gradient(180deg, rgba(94, 184, 241, 0.18), transparent 48%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 12%),
     rgba(16, 18, 24, 0.58);
+  box-shadow: inset 0 -80px 120px rgba(0, 0, 0, 0.35);
 }
 
-.clawArm {
+.clawMachine:focus-visible {
+  outline: 3px solid #ffd166;
+  outline-offset: 3px;
+}
+
+.clawMachine::before {
+  content: "";
+  position: absolute;
+  inset: 18px 24px auto;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3d4655, #d5ddd9, #3d4655);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.32);
+}
+
+.clawCarriage {
+  position: absolute;
+  left: var(--claw-x);
+  top: 20px;
+  width: 96px;
+  height: 190px;
+  transform: translateX(-50%);
+  transition: left 0.18s ease;
+  z-index: 3;
+}
+
+.clawCarriageDropping .clawCable {
+  height: 188px;
+}
+
+.clawCarriageDropping .clawBody {
+  transform: translate(-50%, 98px);
+}
+
+.clawCarriageDropping .clawGripLeft {
+  transform: translate(20px, 98px) rotate(18deg);
+}
+
+.clawCarriageDropping .clawGripRight {
+  transform: translate(52px, 98px) rotate(-18deg);
+}
+
+.clawRail {
   position: absolute;
   left: 50%;
-  top: 0;
-  width: 8px;
-  height: 112px;
-  border-radius: 999px;
-  background: #d5ddd9;
+  top: -12px;
+  width: 56px;
+  height: 28px;
+  transform: translateX(-50%);
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(180deg, #687385, #252b35);
+  box-shadow: 0 0 20px rgba(143, 211, 255, 0.25);
 }
 
-.clawHook {
+.clawCable {
   position: absolute;
-  left: calc(50% - 28px);
-  top: 104px;
-  width: 64px;
-  height: 46px;
-  border: 6px solid #ffd166;
-  border-top: 0;
-  border-radius: 0 0 32px 32px;
+  left: calc(50% - 4px);
+  top: 12px;
+  width: 8px;
+  height: 86px;
+  border-radius: 999px;
+  background: #d5ddd9;
+  transition: height 0.38s ease-in;
+}
+
+.clawBody {
+  position: absolute;
+  left: 50%;
+  top: 88px;
+  width: 46px;
+  height: 30px;
+  transform: translateX(-50%);
+  border-radius: 12px 12px 18px 18px;
+  background: linear-gradient(180deg, #ffe29b, #ffd166 60%, #b8862b);
+  box-shadow: 0 0 22px rgba(255, 209, 102, 0.45);
+  transition: transform 0.38s ease-in;
+}
+
+.clawGripLeft,
+.clawGripRight {
+  position: absolute;
+  top: 112px;
+  width: 12px;
+  height: 58px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f9f7ef, #ffd166);
+  transform-origin: top center;
+  transition: transform 0.38s ease-in;
+}
+
+.clawGripLeft {
+  left: 20px;
+  transform: rotate(34deg);
+}
+
+.clawGripRight {
+  left: 64px;
+  transform: rotate(-34deg);
 }
 
 .clawPrize {
-  position: relative;
+  position: absolute;
+  left: var(--ball-left);
+  bottom: var(--ball-bottom);
   display: inline-block;
-  width: 72px;
-  height: 44px;
-  margin: 184px 12px 0;
-  border-radius: 8px;
-  background: var(--special-chest-color);
-  box-shadow: 0 0 24px color-mix(in srgb, var(--special-chest-color) 50%, transparent);
+  width: var(--ball-size);
+  height: var(--ball-size);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.9) 0 12%, transparent 13%),
+    radial-gradient(circle at 55% 62%, var(--special-chest-color), color-mix(in srgb, var(--special-chest-color) 58%, #101218));
+  border: 2px solid color-mix(in srgb, var(--special-chest-color) 70%, #ffffff);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--special-chest-color) 50%, transparent),
+    inset -8px -10px 18px rgba(0, 0, 0, 0.22);
+  transition:
+    left 0.28s ease,
+    bottom 0.28s ease,
+    transform 0.28s ease;
+}
+
+.clawPrizeGrabbed {
+  left: var(--claw-x);
+  bottom: 112px;
+  transform: translateX(-50%) scale(0.82);
+  z-index: 2;
+}
+
+.clawControls {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.35fr) minmax(180px, 1fr) minmax(100px, 0.35fr);
+  gap: 10px;
 }
 
 .tradeForm label {

@@ -63,6 +63,7 @@ import {
   openCase,
   openSpecialChest,
   type CaseDefinition,
+  type SpecialChestDefinition,
   type SpecialChestId,
 } from "./caseLogic";
 import { evaluatePokerHand } from "./pokerLogic";
@@ -184,7 +185,7 @@ type SpecialInventory = {
 type ClawOutcome = {
   id: number;
   chestId: SpecialChestId;
-  rewardType: "key" | "fragments" | "miss";
+  rewardType: "credits" | "key" | "fragments" | "miss";
   amount: number;
   label: string;
   balanceAfter: number;
@@ -2005,15 +2006,25 @@ function App() {
 
     const chest = SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)];
     const roll = Math.random();
-    const rewardType: ClawOutcome["rewardType"] = roll < 0.08 ? "key" : roll < 0.78 ? "fragments" : "miss";
-    const amount = rewardType === "key" ? 1 : rewardType === "fragments" ? (roll < 0.28 ? 3 : roll < 0.52 ? 2 : 1) : 0;
-    const nextBalance = balance - CLAW_COST;
+    const rewardType: ClawOutcome["rewardType"] = roll < 0.01 ? "key" : roll < 0.16 ? "fragments" : "credits";
+    const creditRewards = [25, 25, 50, 50, 75, 100, 150];
+    const amount =
+      rewardType === "key"
+        ? 1
+        : rewardType === "fragments"
+          ? roll < 0.04
+            ? 3
+            : roll < 0.09
+              ? 2
+              : 1
+          : creditRewards[Math.floor(Math.random() * creditRewards.length)];
+    const nextBalance = balance - CLAW_COST + (rewardType === "credits" ? amount : 0);
     const label =
       rewardType === "key"
         ? `${chest.keyName} attrapee`
         : rewardType === "fragments"
           ? `${amount} ${chest.fragmentName}${amount > 1 ? "s" : ""}`
-          : "La pince a glisse";
+          : `${amount} credits attrapes`;
     const outcome: ClawOutcome = {
       id: clawId.current++,
       chestId: chest.id,
@@ -2024,7 +2035,7 @@ function App() {
     };
 
     setBalance(nextBalance);
-    if (rewardType !== "miss") {
+    if (rewardType === "key" || rewardType === "fragments") {
       setSpecialInventory((current) => ({
         ...current,
         keys: {
@@ -2038,7 +2049,7 @@ function App() {
       }));
     }
     setClawHistory((items) => [outcome, ...items].slice(0, 10));
-    setClawMessage(rewardType === "miss" ? "Rate : la pince a lache le lot." : `${label} gagne.`);
+    setClawMessage(`${label} dans la boule.`);
   }
 
   function launchRocket() {
@@ -5399,9 +5410,7 @@ function CaseOpeningGame({
 
             return (
               <article className={styles.shopItem} key={chest.id}>
-                <div className={styles.specialChestPreview} style={{ "--chest-theme": chest.theme } as CSSProperties}>
-                  <CaseThemePreview category={SHOP_ITEMS.find((item) => item.id === chest.itemIds[0])?.category ?? "plinkoBall"} />
-                </div>
+                <SpecialChestPreview chest={chest} />
                 <div>
                   <h3>{chest.title}</h3>
                   <p>{chest.subtitle}</p>
@@ -5586,6 +5595,17 @@ function CaseThemePreview({ category }: { category: SkinCategory }) {
       <span className={styles.caseMiniBody} />
       <span className={styles.caseMiniMark} />
     </span>
+  );
+}
+
+function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
+  const category = SHOP_ITEMS.find((item) => item.id === chest.itemIds[0])?.category ?? "plinkoBall";
+
+  return (
+    <div className={styles.specialChestPreview} style={{ "--special-chest-color": chest.theme } as CSSProperties}>
+      <CaseThemePreview category={category} />
+      <strong>{chest.title}</strong>
+    </div>
   );
 }
 
@@ -5782,10 +5802,7 @@ function ShopGame({
         <div className={styles.shopGrid}>
           {SPECIAL_CHESTS.map((chest) => (
             <article className={styles.shopItem} key={chest.id}>
-              <div className={styles.specialChestPreview} style={{ "--special-chest-color": chest.theme } as CSSProperties}>
-                <span />
-                <strong>{chest.title}</strong>
-              </div>
+              <SpecialChestPreview chest={chest} />
               <div>
                 <h3>{chest.title}</h3>
                 <p>{chest.subtitle}</p>
@@ -5830,6 +5847,76 @@ function ClawGame({
   specialInventory: SpecialInventory;
   onPlay: () => void;
 }) {
+  const [clawPosition, setClawPosition] = useState(50);
+  const [dropping, setDropping] = useState(false);
+  const [grabbedBall, setGrabbedBall] = useState<number | null>(null);
+  const clawBalls = useMemo(
+    () =>
+      Array.from({ length: 9 }, (_, index) => {
+        const chest = SPECIAL_CHESTS[index % SPECIAL_CHESTS.length];
+
+        return {
+          chest,
+          left: 10 + index * 10,
+          size: index % 3 === 0 ? 48 : index % 3 === 1 ? 42 : 38,
+          bottom: 18 + (index % 2) * 10,
+        };
+      }),
+    [],
+  );
+
+  function moveClaw(direction: -1 | 1) {
+    if (dropping) {
+      return;
+    }
+
+    setClawPosition((current) => Math.min(90, Math.max(10, current + direction * 8)));
+  }
+
+  function dropClaw() {
+    if (dropping || paused || balance < CLAW_COST) {
+      return;
+    }
+
+    const closestBallIndex = clawBalls.reduce((closest, ball, index) => {
+      const currentDistance = Math.abs(ball.left - clawPosition);
+      const closestDistance = Math.abs(clawBalls[closest].left - clawPosition);
+
+      return currentDistance < closestDistance ? index : closest;
+    }, 0);
+
+    setDropping(true);
+    window.setTimeout(() => setGrabbedBall(closestBallIndex), 520);
+    window.setTimeout(() => onPlay(), 780);
+    window.setTimeout(() => {
+      setDropping(false);
+      setGrabbedBall(null);
+    }, 1250);
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        moveClaw(-1);
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        moveClaw(1);
+      }
+
+      if (event.key === "ArrowDown" || event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        dropClaw();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
   return (
     <>
       <section className={styles.machine}>
@@ -5841,16 +5928,44 @@ function ClawGame({
           <strong>{CLAW_COST} credits / tentative</strong>
         </div>
         <div className={styles.clawStage}>
-          <div className={styles.clawMachine}>
-            <span className={styles.clawArm} />
-            <span className={styles.clawHook} />
-            {SPECIAL_CHESTS.map((chest) => (
-              <span className={styles.clawPrize} key={chest.id} style={{ "--special-chest-color": chest.theme } as CSSProperties} />
+          <div className={styles.clawMachine} tabIndex={0} aria-label="Machine a pince">
+            <div
+              className={`${styles.clawCarriage} ${dropping ? styles.clawCarriageDropping : ""}`}
+              style={{ "--claw-x": `${clawPosition}%` } as CSSProperties}
+            >
+              <span className={styles.clawRail} />
+              <span className={styles.clawCable} />
+              <span className={styles.clawBody} />
+              <span className={styles.clawGripLeft} />
+              <span className={styles.clawGripRight} />
+            </div>
+            {clawBalls.map((ball, index) => (
+              <span
+                className={`${styles.clawPrize} ${grabbedBall === index ? styles.clawPrizeGrabbed : ""}`}
+                key={`${ball.chest.id}-${index}`}
+                style={
+                  {
+                    "--special-chest-color": ball.chest.theme,
+                    "--ball-left": `${ball.left}%`,
+                    "--ball-size": `${ball.size}px`,
+                    "--ball-bottom": `${ball.bottom}px`,
+                    "--claw-x": `${clawPosition}%`,
+                  } as CSSProperties
+                }
+              />
             ))}
           </div>
-          <button className={styles.primaryButton} type="button" onClick={onPlay} disabled={paused || balance < CLAW_COST}>
-            Tenter la pince
-          </button>
+          <div className={styles.clawControls}>
+            <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(-1)} disabled={dropping}>
+              Gauche
+            </button>
+            <button className={styles.primaryButton} type="button" onClick={dropClaw} disabled={dropping || paused || balance < CLAW_COST}>
+              {dropping ? "La pince descend..." : "Descendre la pince"}
+            </button>
+            <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(1)} disabled={dropping}>
+              Droite
+            </button>
+          </div>
         </div>
       </section>
 
@@ -5874,7 +5989,7 @@ function ClawGame({
             <li key={item.id}>
               <span>{item.label}</span>
               <small>
-                {getSpecialChestDefinition(item.chestId).title} | solde {item.balanceAfter}
+                {item.rewardType === "credits" ? "Credits" : getSpecialChestDefinition(item.chestId).title} | solde {item.balanceAfter}
               </small>
             </li>
           ))}
