@@ -64,7 +64,7 @@ export const SPECIAL_CHESTS: SpecialChestDefinition[] = [
     keyName: "Cle Nebula",
     fragmentName: "Fragment Nebula",
     theme: "#8fd3ff",
-    itemIds: ["plinko-galaxy-core"],
+    itemIds: ["plinko-starfall", "plinko-aurora", "plinko-supernova", "plinko-cosmic-ice", "plinko-galaxy-core"],
   },
   {
     id: "royal",
@@ -74,7 +74,7 @@ export const SPECIAL_CHESTS: SpecialChestDefinition[] = [
     keyName: "Cle Royal",
     fragmentName: "Fragment Royal",
     theme: "#ffd166",
-    itemIds: ["cards-joker-gold"],
+    itemIds: ["cards-joker-neon", "cards-crown-night", "cards-gilded-mask", "cards-ace-vault", "cards-joker-gold"],
   },
   {
     id: "prism",
@@ -84,7 +84,7 @@ export const SPECIAL_CHESTS: SpecialChestDefinition[] = [
     keyName: "Cle Prism",
     fragmentName: "Fragment Prism",
     theme: "#c58cff",
-    itemIds: ["roulette-prism"],
+    itemIds: ["roulette-opal", "roulette-laser", "roulette-comet", "roulette-crystal", "roulette-prism"],
   },
   {
     id: "orbital",
@@ -94,7 +94,7 @@ export const SPECIAL_CHESTS: SpecialChestDefinition[] = [
     keyName: "Cle Orbital",
     fragmentName: "Fragment Orbital",
     theme: "#79e29f",
-    itemIds: ["rocket-orbital-x"],
+    itemIds: ["rocket-ion-wing", "rocket-starlancer", "rocket-blackbird", "rocket-capsule-v", "rocket-orbital-x"],
   },
 ];
 

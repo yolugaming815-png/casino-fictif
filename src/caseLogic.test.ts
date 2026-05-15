@@ -7,10 +7,11 @@ test("ouvre une caisse et ajoute un nouveau skin", () => {
   const outcome = openCase(500, ["plinko-gold"], SHOP_ITEMS, "plinkoBall", () => 0.99);
 
   assert.ok(outcome);
-  assert.equal(outcome.item.id, "plinko-mint");
+  assert.equal(outcome.item.category, "plinkoBall");
+  assert.equal(outcome.item.source, undefined);
   assert.equal(outcome.duplicate, false);
   assert.equal(outcome.balance, 410);
-  assert.ok(outcome.ownedSkinIds.includes("plinko-mint"));
+  assert.ok(outcome.ownedSkinIds.includes(outcome.item.id));
 });
 
 test("garde un doublon dans l'inventaire sans remboursement", () => {

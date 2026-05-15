@@ -569,6 +569,7 @@ function App() {
   const [caseOpening, setCaseOpening] = useState(false);
   const [caseModalVisible, setCaseModalVisible] = useState(false);
   const [caseModalPhase, setCaseModalPhase] = useState<"box" | "reel">("box");
+  const [caseModalTitle, setCaseModalTitle] = useState(getCaseDefinition("plinkoBall").title);
   const [caseReelItems, setCaseReelItems] = useState<ShopItem[]>([]);
   const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(savedGame?.caseHistory[0] ?? null);
   const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>(savedGame?.caseHistory ?? []);
@@ -1900,6 +1901,7 @@ function App() {
 
     setLastCaseDrop(null);
     setCaseReelItems(buildCaseReel(selectedCase, outcome.item));
+    setCaseModalTitle(definition.title);
     setCaseModalPhase("box");
     setCaseModalVisible(true);
     setCaseOpening(true);
@@ -1953,6 +1955,10 @@ function App() {
   function openOwnedSpecialChest(chestId: SpecialChestId) {
     const chest = getSpecialChestDefinition(chestId);
 
+    if (caseOpening) {
+      return;
+    }
+
     if (specialInventory.chests[chestId] <= 0) {
       setCaseMessage(`Tu dois posseder un ${chest.title}.`);
       return;
@@ -1973,6 +1979,15 @@ function App() {
       balanceAfter: balance,
     };
 
+    setLastCaseDrop(null);
+    setSelectedCase(outcome.item.category);
+    setCaseReelItems(buildCaseReel(outcome.item.category, outcome.item, chest.itemIds));
+    setCaseModalTitle(chest.title);
+    setCaseModalPhase("box");
+    setCaseModalVisible(true);
+    setCaseOpening(true);
+    setCaseMessage(`${chest.title} en ouverture...`);
+
     setSpecialInventory((current) => ({
       ...current,
       chests: {
@@ -1984,13 +1999,21 @@ function App() {
         [chestId]: current.keys[chestId] - 1,
       },
     }));
-    setOwnedSkinIds(outcome.ownedSkinIds);
-    setLastCaseDrop(historyItem);
-    setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
-    if (!outcome.duplicate) {
-      setEquippedSkins((current) => equipSkin(current, outcome.item));
-    }
-    setCaseMessage(outcome.duplicate ? `Doublon exclusif : ${outcome.item.name} ajoute.` : `${outcome.item.name} exclusif debloque et equipe.`);
+
+    window.setTimeout(() => {
+      setCaseModalPhase("reel");
+    }, CASE_BOX_OPEN_DURATION_MS);
+
+    window.setTimeout(() => {
+      setOwnedSkinIds(outcome.ownedSkinIds);
+      setLastCaseDrop(historyItem);
+      setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
+      if (!outcome.duplicate) {
+        setEquippedSkins((current) => equipSkin(current, outcome.item));
+      }
+      setCaseMessage(outcome.duplicate ? `Doublon exclusif : ${outcome.item.name} ajoute.` : `${outcome.item.name} exclusif debloque et equipe.`);
+      setCaseOpening(false);
+    }, CASE_BOX_OPEN_DURATION_MS + CASE_REEL_DURATION_MS);
   }
 
   function playClawMachine() {
@@ -2356,6 +2379,7 @@ function App() {
             lastDrop={lastCaseDrop}
             message={caseMessage}
             modalPhase={caseModalPhase}
+            modalTitle={caseModalTitle}
             modalVisible={caseModalVisible}
             opening={caseOpening}
             ownedSkinIds={ownedSkinIds}
@@ -5298,6 +5322,7 @@ function CaseOpeningGame({
   lastDrop,
   message,
   modalPhase,
+  modalTitle,
   modalVisible,
   opening,
   ownedSkinIds,
@@ -5316,6 +5341,7 @@ function CaseOpeningGame({
   lastDrop: CaseHistoryItem | null;
   message: string;
   modalPhase: "box" | "reel";
+  modalTitle: string;
   modalVisible: boolean;
   opening: boolean;
   ownedSkinIds: string[];
@@ -5503,7 +5529,7 @@ function CaseOpeningGame({
           phase={modalPhase}
           opening={opening}
           reelItems={reelItems}
-          title={selectedDefinition.title}
+          title={modalTitle}
           onClose={onCloseModal}
         />
       )}
@@ -6478,8 +6504,10 @@ function rarityLabel(rarity: SkinRarity): string {
   return "Commun";
 }
 
-function buildCaseReel(category: SkinCategory, winningItem: ShopItem): ShopItem[] {
-  const items = SHOP_ITEMS.filter((item) => item.category === category && item.source !== "special");
+function buildCaseReel(category: SkinCategory, winningItem: ShopItem, itemIds?: readonly string[]): ShopItem[] {
+  const items = itemIds
+    ? itemIds.map((itemId) => SHOP_ITEMS.find((item) => item.id === itemId)).filter((item): item is ShopItem => Boolean(item))
+    : SHOP_ITEMS.filter((item) => item.category === category && item.source !== "special");
 
   return Array.from({ length: 44 }, (_, index) => {
     if (index === CASE_REEL_WINNER_INDEX) {
