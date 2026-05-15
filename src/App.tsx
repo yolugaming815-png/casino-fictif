@@ -180,6 +180,14 @@ type SavedGameState = {
   caseHistory: CaseHistoryItem[];
 };
 
+type ActivityItem = {
+  id: string;
+  title: string;
+  detail: string;
+  kind: "friend" | "trade" | "duel" | "poker";
+  timestamp?: unknown;
+};
+
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
 const CASE_REEL_DURATION_MS = 3600;
@@ -308,6 +316,37 @@ function normalizeTradeCredits(value: string) {
   return Math.floor(normalized);
 }
 
+function getActivityMillis(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+
+  if (value && typeof value === "object" && "seconds" in value && typeof value.seconds === "number") {
+    return value.seconds * 1000;
+  }
+
+  return 0;
+}
+
+function formatActivityTime(value: unknown) {
+  const millis = getActivityMillis(value);
+
+  if (!millis) {
+    return "a l'instant";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(millis));
+}
+
 function sanitizeEquippedSkins(value: unknown): EquippedSkins {
   const saved = value && typeof value === "object" ? (value as Partial<EquippedSkins>) : {};
   return (Object.keys(DEFAULT_EQUIPPED_SKINS) as SkinCategory[]).reduce((skins, category) => {
@@ -417,7 +456,7 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "activity">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
@@ -534,6 +573,10 @@ function App() {
   const rouletteBetAvailable = canPlaceBet(balance, rouletteBet);
   const rocketBetAvailable = canPlaceBet(balance, rocketBet);
   const canDouble = blackjackPhase === "player" && !hasPlayerAction && balance >= activeBlackjackBet * 2;
+  const activityItems = useMemo(
+    () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, duelHistory, onlineRooms),
+    [accountUser, friendRequests, skinTrades, duelHistory, onlineRooms],
+  );
   const equippedItems = useMemo(
     () => ({
       plinkoBall: getShopItem(equippedSkins.plinkoBall),
@@ -1869,6 +1912,13 @@ function App() {
           >
             Echanges
           </button>
+          <button
+            className={activeSection === "activity" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("activity")}
+          >
+            Activite
+          </button>
         </nav>
 
         {activeSection === "games" && (
@@ -2004,6 +2054,8 @@ function App() {
             onCounter={handleCounterSkinTrade}
             onCreate={handleCreateSkinTrade}
           />
+        ) : activeSection === "activity" ? (
+          <ActivityPanel currentUser={accountUser} items={activityItems} />
         ) : activeGame === "slots" ? (
           <SlotGame
             bet={slotBet}
@@ -2090,6 +2142,192 @@ function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function getTradeItemName(id: string) {
+  return id ? SHOP_ITEMS.find((item) => item.id === id)?.name ?? id : "";
+}
+
+function getTradeAssetLabel(itemId: string, credits: number) {
+  const parts = [];
+  if (itemId) {
+    parts.push(getTradeItemName(itemId));
+  }
+  if (credits > 0) {
+    parts.push(`${credits.toLocaleString("fr-FR")} credits`);
+  }
+  return parts.join(" + ") || "rien";
+}
+
+function buildActivityItems(
+  currentUserId: string,
+  friendRequests: FriendRequestEntry[],
+  skinTrades: SkinTradeEntry[],
+  duelHistory: OnlineRoomEntry[],
+  onlineRooms: OnlineRoomEntry[],
+): ActivityItem[] {
+  if (!currentUserId) {
+    return [];
+  }
+
+  const friendItems = friendRequests
+    .filter((request) => request.fromUid === currentUserId || request.toUid === currentUserId)
+    .map<ActivityItem>((request) => {
+      const isIncoming = request.toUid === currentUserId;
+      const otherName = isIncoming ? request.fromDisplayName : request.toDisplayName;
+
+      if (request.status === "accepted") {
+        return {
+          id: `friend-${request.id}-accepted`,
+          kind: "friend",
+          title: "Ami ajoute",
+          detail: `${otherName} est maintenant dans ta liste d'amis.`,
+          timestamp: request.respondedAt ?? request.createdAt,
+        };
+      }
+
+      if (request.status === "rejected") {
+        return {
+          id: `friend-${request.id}-rejected`,
+          kind: "friend",
+          title: "Demande d'ami refusee",
+          detail: `Demande avec ${otherName} refusee.`,
+          timestamp: request.respondedAt ?? request.createdAt,
+        };
+      }
+
+      return {
+        id: `friend-${request.id}-pending`,
+        kind: "friend",
+        title: isIncoming ? "Nouvelle demande d'ami" : "Demande d'ami envoyee",
+        detail: isIncoming ? `${otherName} veut t'ajouter en ami.` : `Tu as envoye une demande a ${otherName}.`,
+        timestamp: request.createdAt,
+      };
+    });
+
+  const tradeItems = skinTrades
+    .filter((trade) => trade.fromUid === currentUserId || trade.toUid === currentUserId)
+    .map<ActivityItem>((trade) => {
+      const isIncoming = trade.toUid === currentUserId;
+      const otherName = isIncoming ? trade.fromDisplayName : trade.toDisplayName;
+      const offered = getTradeAssetLabel(trade.offeredItemId, trade.offeredCredits);
+      const requested = getTradeAssetLabel(trade.requestedItemId, trade.requestedCredits);
+
+      if (trade.status === "accepted") {
+        return {
+          id: `trade-${trade.id}-accepted`,
+          kind: "trade",
+          title: "Echange accepte",
+          detail: `${otherName} | ${offered} contre ${requested}.`,
+          timestamp: trade.respondedAt ?? trade.updatedAt ?? trade.createdAt,
+        };
+      }
+
+      if (trade.status === "rejected") {
+        return {
+          id: `trade-${trade.id}-rejected`,
+          kind: "trade",
+          title: "Echange refuse",
+          detail: `${otherName} | ${offered} contre ${requested}.`,
+          timestamp: trade.respondedAt ?? trade.updatedAt ?? trade.createdAt,
+        };
+      }
+
+      if (trade.status === "canceled") {
+        return {
+          id: `trade-${trade.id}-canceled`,
+          kind: "trade",
+          title: "Echange annule",
+          detail: `${otherName} | ${offered} contre ${requested}.`,
+          timestamp: trade.respondedAt ?? trade.updatedAt ?? trade.createdAt,
+        };
+      }
+
+      return {
+        id: `trade-${trade.id}-pending`,
+        kind: "trade",
+        title: isIncoming ? "Nouvelle offre d'echange" : "Offre d'echange envoyee",
+        detail: isIncoming
+          ? `${otherName} propose ${offered} contre ${requested}.`
+          : `Tu proposes ${offered} contre ${requested} a ${otherName}.`,
+        timestamp: trade.createdAt,
+      };
+    });
+
+  const duelItems = duelHistory
+    .filter((room) => room.type === "duel" && room.status === "finished" && room.playerIds.includes(currentUserId))
+    .map<ActivityItem>((room) => ({
+      id: `duel-${room.id}-${room.pokerHandId}`,
+      kind: "duel",
+      title: room.winnerUid === currentUserId ? "Duel gagne" : "Duel termine",
+      detail:
+        room.winnerUid === currentUserId
+          ? `Tu as gagne contre ${room.players.find((player) => player.uid !== currentUserId)?.displayName ?? "un joueur"}.`
+          : `${room.winnerName || "Un joueur"} a gagne le duel ${room.game}.`,
+      timestamp: room.updatedAt ?? room.createdAt,
+    }));
+
+  const pokerItems = onlineRooms
+    .filter((room) => room.type === "poker" && room.status === "finished" && room.playerIds.includes(currentUserId))
+    .map<ActivityItem>((room) => ({
+      id: `poker-${room.id}-${room.pokerHandId}`,
+      kind: "poker",
+      title: room.pokerWinnerUids.includes(currentUserId) ? "Main de poker gagnee" : "Main de poker terminee",
+      detail: room.pokerWinnerNames.length
+        ? `Gagnant : ${room.pokerWinnerNames.join(", ")} avec ${room.pokerWinnerHandLabel || "une main gagnante"}.`
+        : "La main de poker est terminee.",
+      timestamp: room.updatedAt ?? room.createdAt,
+    }));
+
+  return [...friendItems, ...tradeItems, ...duelItems, ...pokerItems]
+    .sort((first, second) => getActivityMillis(second.timestamp) - getActivityMillis(first.timestamp))
+    .slice(0, 40);
+}
+
+function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null; items: ActivityItem[] }) {
+  if (!currentUser) {
+    return (
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Activite</h2>
+            <p>Connecte-toi avec Google pour voir tes evenements recents.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const unreadCount = items.filter((item) => item.kind === "friend" || item.kind === "trade").length;
+
+  return (
+    <section className={styles.machine}>
+      <div className={styles.shopHeader}>
+        <div>
+          <h2>Journal d'activite</h2>
+          <p>Les derniers evenements de ton compte et de tes interactions en ligne.</p>
+        </div>
+        <strong>{unreadCount} social</strong>
+      </div>
+
+      <div className={styles.activityList}>
+        {items.length === 0 ? (
+          <p className={styles.empty}>Aucune activite pour le moment.</p>
+        ) : (
+          items.map((item) => (
+            <article className={`${styles.activityItem} ${styles[`activity-${item.kind}`]}`} key={item.id}>
+              <span>{item.kind === "friend" ? "Ami" : item.kind === "trade" ? "Trade" : item.kind === "duel" ? "Duel" : "Poker"}</span>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.detail}</p>
+              </div>
+              <time>{formatActivityTime(item.timestamp)}</time>
+            </article>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
