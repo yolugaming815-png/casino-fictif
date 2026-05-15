@@ -6152,11 +6152,30 @@ function RocketGame({
 }) {
   const targetProbability = getRocketSuccessProbability(target);
   const displayedMultiplier = flight?.crashMultiplier ?? target;
-  const normalizedFlightHeight = Math.max(0, Math.min(1, (displayedMultiplier - 1) / 2));
+  const normalizedFlightHeight = Math.max(0, Math.min(1, (displayedMultiplier - 0.5) / (ROCKET_MAX_TARGET - 0.5)));
+  const rocketStartLeft = 18;
+  const rocketStartBottom = 42;
+  const rocketEndLeft = 28 + normalizedFlightHeight * 56;
+  const rocketEndBottom = 52 + normalizedFlightHeight * 360;
+  const rocketTrailEndBottom = Math.max(32, rocketEndBottom - 60);
+  const rocketPoint = (start: number, end: number, progress: number) => start + (end - start) * progress;
+  const rocketTicks = Array.from({ length: 10 }, (_, index) => 0.5 + index * 0.5);
   const rocketSceneStyle = {
-    "--rocket-end-left": `${62 + normalizedFlightHeight * 24}%`,
-    "--rocket-end-bottom": `${210 + normalizedFlightHeight * 160}px`,
-    "--rocket-trail-end-bottom": `${160 + normalizedFlightHeight * 140}px`,
+    "--rocket-mid-left-1": `${rocketPoint(rocketStartLeft, rocketEndLeft, 0.25)}%`,
+    "--rocket-mid-left-2": `${rocketPoint(rocketStartLeft, rocketEndLeft, 0.55)}%`,
+    "--rocket-mid-left-3": `${rocketPoint(rocketStartLeft, rocketEndLeft, 0.82)}%`,
+    "--rocket-end-left": `${rocketEndLeft}%`,
+    "--rocket-mid-bottom-1": `${rocketPoint(rocketStartBottom, rocketEndBottom, 0.25)}px`,
+    "--rocket-mid-bottom-2": `${rocketPoint(rocketStartBottom, rocketEndBottom, 0.55)}px`,
+    "--rocket-mid-bottom-3": `${rocketPoint(rocketStartBottom, rocketEndBottom, 0.82)}px`,
+    "--rocket-end-bottom": `${rocketEndBottom}px`,
+    "--rocket-trail-mid-bottom-1": `${rocketPoint(28, rocketTrailEndBottom, 0.25)}px`,
+    "--rocket-trail-mid-bottom-2": `${rocketPoint(28, rocketTrailEndBottom, 0.55)}px`,
+    "--rocket-trail-mid-bottom-3": `${rocketPoint(28, rocketTrailEndBottom, 0.82)}px`,
+    "--rocket-trail-end-bottom": `${rocketTrailEndBottom}px`,
+    "--rocket-trail-height": `${Math.max(48, rocketEndBottom - 24)}px`,
+    "--rocket-path-length": `${170 + normalizedFlightHeight * 260}px`,
+    "--rocket-path-angle": `${-18 - normalizedFlightHeight * 24}deg`,
   } as CSSProperties;
 
   return (
@@ -6164,7 +6183,15 @@ function RocketGame({
       <section className={styles.machine}>
         <div className={styles.rocketStage}>
           <div className={styles.rocketAltitudeTrack} style={rocketSceneStyle}>
-          <div className={animating ? `${styles.rocketTrail} ${styles.rocketTrailFlying}` : styles.rocketTrail} />
+            <div className={styles.rocketScale} aria-hidden="true">
+              {rocketTicks.map((tick) => (
+                <span key={tick} style={{ bottom: `${((tick - 0.5) / 4.5) * 100}%` }}>
+                  {formatMultiplier(tick)}
+                </span>
+              ))}
+            </div>
+            <div className={animating ? `${styles.rocketPathLine} ${styles.rocketPathLineFlying}` : styles.rocketPathLine} />
+            <div className={animating ? `${styles.rocketTrail} ${styles.rocketTrailFlying}` : styles.rocketTrail} />
             <svg
               className={`${animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft} ${rocketShipClass(shipSkin.id)}`}
               viewBox="0 0 120 86"

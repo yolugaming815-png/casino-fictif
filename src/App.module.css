@@ -3712,24 +3712,63 @@
   border-radius: 8px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(124, 199, 255, 0.18), rgba(16, 18, 24, 0.22)),
-    repeating-linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.08),
-      rgba(255, 255, 255, 0.08) 1px,
-      transparent 1px,
-      transparent 54px
-    );
+    linear-gradient(180deg, rgba(124, 199, 255, 0.18), rgba(16, 18, 24, 0.22));
 }
 
 .rocketTrail,
-.rocketCraft {
+.rocketCraft,
+.rocketPathLine {
   position: absolute;
   left: 18%;
   translate: -50% 0;
 }
 
+.rocketScale {
+  position: absolute;
+  inset: 20px 0 26px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.rocketScale span {
+  position: absolute;
+  left: 8px;
+  bottom: var(--rocket-scale-y, 0%);
+  transform: translateY(50%);
+  color: rgba(238, 243, 240, 0.72);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.rocketScale span::after {
+  content: "";
+  position: absolute;
+  left: 48px;
+  top: 50%;
+  width: 920px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
+}
+
+.rocketPathLine {
+  z-index: 2;
+  bottom: 54px;
+  width: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.9), rgba(124, 199, 255, 0.46), rgba(124, 199, 255, 0));
+  box-shadow: 0 0 18px rgba(255, 209, 102, 0.35);
+  opacity: 0;
+  transform-origin: left center;
+}
+
+.rocketPathLineFlying {
+  animation: rocketPathDraw 2200ms cubic-bezier(0.22, 0.72, 0.18, 1) forwards;
+}
+
 .rocketTrail {
+  z-index: 3;
   bottom: 28px;
   width: 24px;
   height: 34px;
@@ -3740,10 +3779,11 @@
 }
 
 .rocketTrailFlying {
-  animation: rocketTrailFly 2200ms cubic-bezier(0.18, 0.92, 0.22, 1) forwards;
+  animation: rocketTrailFly 2200ms cubic-bezier(0.22, 0.72, 0.18, 1) forwards;
 }
 
 .rocketCraft {
+  z-index: 4;
   bottom: 42px;
   width: 72px;
   height: 118px;
@@ -3752,7 +3792,7 @@
 }
 
 .rocketCraftFlying {
-  animation: rocketFly 2200ms cubic-bezier(0.18, 0.92, 0.22, 1) forwards;
+  animation: rocketFly 2200ms cubic-bezier(0.22, 0.72, 0.18, 1) forwards;
 }
 
 .rocketNose,
@@ -4014,21 +4054,21 @@
     transform: translate(0, 0) rotate(14deg) scale(0.96);
   }
 
-  22% {
-    left: 27%;
-    bottom: 82px;
+  25% {
+    left: var(--rocket-mid-left-1, 27%);
+    bottom: var(--rocket-mid-bottom-1, 82px);
     transform: translate(0, -2px) rotate(10deg) scale(0.99);
   }
 
-  48% {
-    left: 45%;
-    bottom: 152px;
+  55% {
+    left: var(--rocket-mid-left-2, 45%);
+    bottom: var(--rocket-mid-bottom-2, 152px);
     transform: translate(0, -6px) rotate(4deg) scale(1.02);
   }
 
-  74% {
-    left: 70%;
-    bottom: 244px;
+  82% {
+    left: var(--rocket-mid-left-3, 70%);
+    bottom: var(--rocket-mid-bottom-3, 244px);
     transform: translate(0, -12px) rotate(-6deg) scale(1.05);
   }
 
@@ -4048,25 +4088,25 @@
     opacity: 0.78;
   }
 
-  22% {
-    left: 27%;
-    bottom: 52px;
+  25% {
+    left: var(--rocket-mid-left-1, 27%);
+    bottom: var(--rocket-trail-mid-bottom-1, 52px);
     width: 28px;
     height: 62px;
     opacity: 0.88;
   }
 
-  48% {
-    left: 45%;
-    bottom: 108px;
+  55% {
+    left: var(--rocket-mid-left-2, 45%);
+    bottom: var(--rocket-trail-mid-bottom-2, 108px);
     width: 34px;
     height: 96px;
     opacity: 1;
   }
 
-  74% {
-    left: 70%;
-    bottom: 188px;
+  82% {
+    left: var(--rocket-mid-left-3, 70%);
+    bottom: var(--rocket-trail-mid-bottom-3, 188px);
     width: 40px;
     height: 126px;
     opacity: 0.92;
@@ -4078,6 +4118,24 @@
     width: 32px;
     height: 82px;
     opacity: 0.42;
+  }
+}
+
+@keyframes rocketPathDraw {
+  0% {
+    width: 0;
+    opacity: 0;
+    transform: rotate(var(--rocket-path-angle, -32deg));
+  }
+
+  12% {
+    opacity: 0.85;
+  }
+
+  100% {
+    width: var(--rocket-path-length, 320px);
+    opacity: 0.96;
+    transform: rotate(var(--rocket-path-angle, -32deg));
   }
 }
 
