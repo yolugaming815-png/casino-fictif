@@ -220,7 +220,7 @@ const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
 const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 const MESSAGE_SEND_COOLDOWN_MS = 2500;
-const CLAW_COST = 35;
+const CLAW_COST = 75;
 const KEY_FRAGMENTS_REQUIRED = 9;
 
 function emptySpecialInventory(): SpecialInventory {
@@ -2007,7 +2007,7 @@ function App() {
     const chest = SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)];
     const roll = Math.random();
     const rewardType: ClawOutcome["rewardType"] = roll < 0.01 ? "key" : roll < 0.16 ? "fragments" : "credits";
-    const creditRewards = [25, 25, 50, 50, 75, 100, 150];
+    const creditRoll = Math.random();
     const amount =
       rewardType === "key"
         ? 1
@@ -2017,7 +2017,15 @@ function App() {
             : roll < 0.09
               ? 2
               : 1
-          : creditRewards[Math.floor(Math.random() * creditRewards.length)];
+          : creditRoll < 0.44
+            ? 25
+            : creditRoll < 0.78
+              ? 50
+              : creditRoll < 0.94
+                ? 75
+                : creditRoll < 0.99
+                  ? 100
+                  : 150;
     const nextBalance = balance - CLAW_COST + (rewardType === "credits" ? amount : 0);
     const label =
       rewardType === "key"
@@ -5852,14 +5860,17 @@ function ClawGame({
   const [grabbedBall, setGrabbedBall] = useState<number | null>(null);
   const clawBalls = useMemo(
     () =>
-      Array.from({ length: 9 }, (_, index) => {
+      Array.from({ length: 34 }, (_, index) => {
         const chest = SPECIAL_CHESTS[index % SPECIAL_CHESTS.length];
+        const row = Math.floor(index / 11);
+        const column = index % 11;
+        const rowOffset = row % 2 === 0 ? 0 : 4;
 
         return {
           chest,
-          left: 10 + index * 10,
-          size: index % 3 === 0 ? 48 : index % 3 === 1 ? 42 : 38,
-          bottom: 18 + (index % 2) * 10,
+          left: 8 + column * 8.5 + rowOffset,
+          size: 34 + ((index + row) % 3) * 4,
+          bottom: 18 + row * 30 + (column % 2) * 4,
         };
       }),
     [],
