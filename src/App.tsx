@@ -222,6 +222,12 @@ const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 const MESSAGE_SEND_COOLDOWN_MS = 2500;
 const CLAW_COST = 75;
 const KEY_FRAGMENTS_REQUIRED = 9;
+const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
+  common: 0,
+  rare: 1,
+  epic: 2,
+  legendary: 3,
+};
 
 function emptySpecialInventory(): SpecialInventory {
   return SPECIAL_CHESTS.reduce(
@@ -338,7 +344,7 @@ function countOwnedSkins(ownedSkinIds: readonly string[]) {
 function buildPublicInventory(ownedSkinIds: readonly string[]) {
   const ownedCounts = countOwnedSkins(ownedSkinIds);
 
-  return SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0).map((item) => ({
+  return sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0)).map((item) => ({
     id: item.id,
     count: ownedCounts[item.id],
   }));
@@ -3256,7 +3262,7 @@ function TradesGame({
   const [counterTradeId, setCounterTradeId] = useState("");
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
   const ownedCounts = countOwnedSkins(ownedSkinIds);
-  const ownItems = SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0);
+  const ownItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0));
   const friends = friendRequests
     .filter((request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId))
     .reduce<Array<{ uid: string; displayName: string; profile?: LeaderboardEntry }>>((items, request) => {
@@ -5356,7 +5362,7 @@ function CaseOpeningGame({
   onSelectCase: (category: SkinCategory) => void;
 }) {
   const selectedDefinition = getCaseDefinition(selectedCase);
-  const selectedItems = SHOP_ITEMS.filter((item) => item.category === selectedCase && item.source !== "special");
+  const selectedItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === selectedCase && item.source !== "special"));
   const canOpen = balance >= selectedDefinition.cost && !opening && !paused;
 
   return (
@@ -5654,7 +5660,7 @@ function InventoryGame({
   onEquip: (item: ShopItem) => void;
 }) {
   const ownedCounts = countOwnedSkins(ownedSkinIds);
-  const ownedItems = SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0);
+  const ownedItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0));
   const totalCopies = ownedSkinIds.length;
   const inventorySections: Array<{ title: string; category: SkinCategory }> = [
     { title: "Plinko", category: "plinkoBall" },
@@ -5694,7 +5700,7 @@ function InventoryGame({
 
       <div className={styles.inventorySections}>
         {inventorySections.map((section) => {
-          const sectionItems = SHOP_ITEMS.filter((item) => item.category === section.category && ownedCounts[item.id] > 0);
+          const sectionItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === section.category && ownedCounts[item.id] > 0));
           const sectionCopies = sectionItems.reduce((sum, item) => sum + ownedCounts[item.id], 0);
 
           return (
@@ -5799,7 +5805,7 @@ function ShopGame({
                 <small>{skinCategoryLabel(section.category)}</small>
               </header>
               <div className={styles.shopGrid}>
-                {SHOP_ITEMS.filter((item) => item.category === section.category && item.source !== "special").map((item) => {
+                {sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === section.category && item.source !== "special")).map((item) => {
                   const owned = ownedSkinIds.includes(item.id);
                   const equipped = equippedSkins[item.category] === item.id;
 
@@ -6242,6 +6248,38 @@ function formatRouletteColor(color: RouletteOutcome["color"]): string {
 }
 
 function cardBackClass(id: string): string {
+  if (id === "cards-linen") {
+    return styles.cardBackLinen;
+  }
+
+  if (id === "cards-club") {
+    return styles.cardBackClub;
+  }
+
+  if (id === "cards-ruby") {
+    return styles.cardBackRuby;
+  }
+
+  if (id === "cards-silver") {
+    return styles.cardBackSilver;
+  }
+
+  if (id.includes("joker")) {
+    return styles.cardBackJoker;
+  }
+
+  if (id.includes("crown")) {
+    return styles.cardBackCrown;
+  }
+
+  if (id.includes("mask")) {
+    return styles.cardBackMask;
+  }
+
+  if (id.includes("ace")) {
+    return styles.cardBackAce;
+  }
+
   if (id === "cards-midnight") {
     return styles.cardBackMidnight;
   }
@@ -6398,6 +6436,26 @@ function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean 
 }
 
 function ballSkinClass(id: string): string {
+  if (id.includes("galaxy") || id.includes("starfall") || id.includes("aurora") || id.includes("supernova") || id.includes("cosmic")) {
+    return styles.ballCosmic;
+  }
+
+  if (id.includes("pearl") || id.includes("cloud") || id.includes("crystal") || id.includes("opal")) {
+    return styles.ballPearl;
+  }
+
+  if (id.includes("copper") || id.includes("amber")) {
+    return styles.ballCopper;
+  }
+
+  if (id.includes("azure") || id.includes("comet") || id.includes("laser") || id.includes("prism")) {
+    return styles.ballPrism;
+  }
+
+  if (id.includes("eclipse") || id.includes("storm")) {
+    return styles.ballEclipse;
+  }
+
   if (id.includes("neon")) {
     return styles.ballNeon;
   }
@@ -6430,6 +6488,89 @@ function ballSkinClass(id: string): string {
 }
 
 function vehiclePreviewSvg(id: string): ReactNode {
+  if (id === "rocket-scout") {
+    return (
+      <g>
+        <path d="M60 12 C72 26 73 51 64 68 H56 C47 51 48 26 60 12Z" fill="#d8e2e8" />
+        <path d="M50 52 L24 66 L52 68Z" fill="#7c8b97" />
+        <path d="M70 52 L96 66 L68 68Z" fill="#7c8b97" />
+        <circle cx="60" cy="34" r="7" fill="#8fd3ff" />
+        <path d="M55 68 L60 82 L65 68Z" fill="#ffd166" />
+      </g>
+    );
+  }
+
+  if (id === "rocket-cargo") {
+    return (
+      <g>
+        <rect x="42" y="20" width="36" height="48" rx="10" fill="#bfa36f" />
+        <path d="M42 32 L20 58 L42 58Z" fill="#8e7750" />
+        <path d="M78 32 L100 58 L78 58Z" fill="#8e7750" />
+        <rect x="49" y="32" width="22" height="12" rx="4" fill="#243142" />
+        <path d="M48 68 L60 84 L72 68Z" fill="#ff9b42" />
+      </g>
+    );
+  }
+
+  if (id === "rocket-redcap") {
+    return (
+      <g>
+        <path d="M60 6 L72 26 H48Z" fill="#ff6b6b" />
+        <path d="M49 25 H71 L66 72 H54Z" fill="#f7fbff" />
+        <path d="M48 55 L22 78 L52 70Z" fill="#cf3d3d" />
+        <path d="M72 55 L98 78 L68 70Z" fill="#cf3d3d" />
+        <circle cx="60" cy="40" r="8" fill="#aee6ff" />
+        <path d="M54 72 L60 86 L66 72Z" fill="#ffb347" />
+      </g>
+    );
+  }
+
+  if (id === "rocket-delta") {
+    return (
+      <g>
+        <path d="M60 7 L103 70 L60 58 L17 70Z" fill="#5eb8f1" />
+        <path d="M60 7 L70 70 H50Z" fill="#d7f4ff" opacity="0.8" />
+        <path d="M53 40 H67 V51 H53Z" fill="#101218" />
+        <path d="M55 62 L60 84 L65 62Z" fill="#ffd166" />
+      </g>
+    );
+  }
+
+  if (id === "rocket-falcon") {
+    return (
+      <g>
+        <path d="M60 8 C78 20 88 52 106 64 C83 66 70 57 60 44 C50 57 37 66 14 64 C32 52 42 20 60 8Z" fill="#d5ddd9" />
+        <path d="M52 32 H68 L64 70 H56Z" fill="#4d596b" />
+        <ellipse cx="60" cy="30" rx="10" ry="6" fill="#8fd3ff" />
+        <path d="M55 70 L60 86 L65 70Z" fill="#ffd166" />
+      </g>
+    );
+  }
+
+  if (id === "rocket-eclipse") {
+    return (
+      <g>
+        <path d="M60 6 L94 62 L66 54 L60 78 L54 54 L26 62Z" fill="#252b35" />
+        <path d="M60 14 L70 54 H50Z" fill="#3b4a6b" />
+        <circle cx="60" cy="34" r="7" fill="#7cc7ff" />
+        <path d="M52 72 L60 86 L68 72Z" fill="#7cc7ff" />
+      </g>
+    );
+  }
+
+  if (id.includes("ion") || id.includes("starlancer") || id.includes("blackbird") || id.includes("capsule") || id.includes("orbital")) {
+    return (
+      <g>
+        <path d="M60 5 C82 24 86 57 72 78 H48 C34 57 38 24 60 5Z" fill={id.includes("blackbird") ? "#252b35" : id.includes("starlancer") ? "#ffd166" : "#dff7ff"} />
+        <path d="M38 50 L6 74 L45 68Z" fill={id.includes("capsule") ? "#79e29f" : "#5eb8f1"} />
+        <path d="M82 50 L114 74 L75 68Z" fill={id.includes("capsule") ? "#79e29f" : "#5eb8f1"} />
+        <ellipse cx="60" cy="34" rx="10" ry="8" fill="#101218" />
+        <ellipse cx="60" cy="34" rx="5" ry="4" fill="#aeefff" />
+        <path d="M53 76 L60 86 L67 76Z" fill="#ffd166" />
+      </g>
+    );
+  }
+
   if (id === "rocket-comet") {
     return (
       <g>
@@ -6504,10 +6645,22 @@ function rarityLabel(rarity: SkinRarity): string {
   return "Commun";
 }
 
+function sortSkinsByRarity(items: readonly ShopItem[]): ShopItem[] {
+  return [...items].sort((left, right) => {
+    const rarityDiff = RARITY_SORT_ORDER[left.rarity] - RARITY_SORT_ORDER[right.rarity];
+
+    if (rarityDiff !== 0) {
+      return rarityDiff;
+    }
+
+    return left.name.localeCompare(right.name, "fr");
+  });
+}
+
 function buildCaseReel(category: SkinCategory, winningItem: ShopItem, itemIds?: readonly string[]): ShopItem[] {
   const items = itemIds
-    ? itemIds.map((itemId) => SHOP_ITEMS.find((item) => item.id === itemId)).filter((item): item is ShopItem => Boolean(item))
-    : SHOP_ITEMS.filter((item) => item.category === category && item.source !== "special");
+    ? sortSkinsByRarity(itemIds.map((itemId) => SHOP_ITEMS.find((item) => item.id === itemId)).filter((item): item is ShopItem => Boolean(item)))
+    : sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === category && item.source !== "special"));
 
   return Array.from({ length: 44 }, (_, index) => {
     if (index === CASE_REEL_WINNER_INDEX) {

@@ -2052,6 +2052,68 @@
   border: 2px solid rgba(124, 229, 255, 0.52);
 }
 
+.cardBackLinen {
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.45), transparent 20%),
+    repeating-linear-gradient(0deg, #cbd7c0, #cbd7c0 5px, #b4c5b0 5px, #b4c5b0 10px);
+  border: 2px solid rgba(245, 247, 232, 0.55);
+}
+
+.cardBackClub {
+  background:
+    radial-gradient(circle at 50% 34%, #101218 0 7px, transparent 8px),
+    radial-gradient(circle at 42% 42%, #101218 0 5px, transparent 6px),
+    radial-gradient(circle at 58% 42%, #101218 0 5px, transparent 6px),
+    repeating-linear-gradient(45deg, #2f5f53, #2f5f53 8px, #3c8f67 8px, #3c8f67 16px);
+  border: 2px solid rgba(121, 226, 159, 0.5);
+}
+
+.cardBackRuby {
+  background:
+    radial-gradient(circle at 50% 36%, #ffd166 0 7px, transparent 8px),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent),
+    repeating-linear-gradient(135deg, #6f2230, #6f2230 9px, #a83f4b 9px, #a83f4b 18px);
+  border: 2px solid rgba(255, 107, 107, 0.58);
+}
+
+.cardBackSilver {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.36), transparent 40%),
+    repeating-linear-gradient(90deg, #697787, #697787 7px, #9aa7b5 7px, #9aa7b5 14px);
+  border: 2px solid rgba(221, 232, 242, 0.62);
+}
+
+.cardBackJoker {
+  background:
+    radial-gradient(circle at 50% 34%, #ffd166 0 6px, transparent 7px),
+    linear-gradient(135deg, rgba(121, 226, 159, 0.24), transparent),
+    repeating-linear-gradient(45deg, #151a22, #151a22 8px, #263a80 8px, #263a80 16px);
+  border: 2px solid rgba(121, 226, 159, 0.65);
+}
+
+.cardBackCrown {
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.38), transparent),
+    conic-gradient(from 45deg, #263a80, #ffd166, #263a80, #6541a5, #263a80);
+  border: 2px solid rgba(255, 209, 102, 0.68);
+}
+
+.cardBackMask {
+  background:
+    radial-gradient(ellipse at 42% 38%, #ffd166 0 10px, transparent 11px),
+    radial-gradient(ellipse at 58% 38%, #ffd166 0 10px, transparent 11px),
+    repeating-linear-gradient(135deg, #2b1f43, #2b1f43 9px, #c58cff 9px, #c58cff 17px);
+  border: 2px solid rgba(197, 140, 255, 0.65);
+}
+
+.cardBackAce {
+  background:
+    radial-gradient(circle at 50% 36%, #101218 0 6px, transparent 7px),
+    linear-gradient(135deg, rgba(255, 209, 102, 0.28), transparent),
+    repeating-linear-gradient(0deg, #4b3018, #4b3018 8px, #f5a95b 8px, #f5a95b 16px);
+  border: 2px solid rgba(245, 169, 91, 0.65);
+}
+
 .betNote {
   color: #b8c2bd;
 }
@@ -2412,6 +2474,40 @@
   background:
     radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
     conic-gradient(from 0deg, #fff0a8, #ffb83d, #fff0a8, #ff9e3d, #fff0a8);
+}
+
+.ballPearl {
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.95) 0 12%, transparent 13%),
+    linear-gradient(135deg, #ffffff, #cde7ef 48%, #e8d8ff);
+}
+
+.ballCopper {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.9) 0 10%, transparent 11%),
+    repeating-linear-gradient(120deg, rgba(90, 42, 18, 0.22) 0 4px, transparent 4px 11px),
+    linear-gradient(135deg, #ffc37d, #bf6735);
+}
+
+.ballPrism {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 30deg, #8fd3ff, #c58cff, #ffd166, #79e29f, #8fd3ff);
+}
+
+.ballEclipse {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.86) 0 9%, transparent 10%),
+    radial-gradient(circle at 72% 70%, rgba(181, 140, 255, 0.55), transparent 38%),
+    linear-gradient(135deg, #1b1f29, #5a6070);
+}
+
+.ballCosmic {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.96) 0 9%, transparent 10%),
+    radial-gradient(circle at 30% 68%, rgba(255, 209, 102, 0.65), transparent 18%),
+    radial-gradient(circle at 70% 34%, rgba(143, 211, 255, 0.7), transparent 22%),
+    conic-gradient(from 80deg, #17243b, #8fd3ff, #c58cff, #17243b);
 }
 
 .shopCardPreview {
