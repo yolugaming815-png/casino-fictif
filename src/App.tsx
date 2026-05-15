@@ -577,6 +577,13 @@ function App() {
     () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, duelHistory, onlineRooms),
     [accountUser, friendRequests, skinTrades, duelHistory, onlineRooms],
   );
+  const pendingFriendRequestsCount = accountUser
+    ? friendRequests.filter((request) => request.status === "pending" && request.toUid === accountUser.uid).length
+    : 0;
+  const pendingTradeOffersCount = accountUser
+    ? skinTrades.filter((trade) => trade.status === "pending" && trade.toUid === accountUser.uid).length
+    : 0;
+  const activityBadgeCount = pendingFriendRequestsCount + pendingTradeOffersCount;
   const equippedItems = useMemo(
     () => ({
       plinkoBall: getShopItem(equippedSkins.plinkoBall),
@@ -1903,23 +1910,35 @@ function App() {
             type="button"
             onClick={() => setActiveSection("friends")}
           >
-            Amis
+            <span>Amis</span>
+            {pendingFriendRequestsCount > 0 ? <span className={styles.tabBadge}>{pendingFriendRequestsCount}</span> : null}
           </button>
           <button
             className={activeSection === "trades" ? styles.activeTab : ""}
             type="button"
             onClick={() => setActiveSection("trades")}
           >
-            Echanges
+            <span>Echanges</span>
+            {pendingTradeOffersCount > 0 ? <span className={styles.tabBadge}>{pendingTradeOffersCount}</span> : null}
           </button>
           <button
             className={activeSection === "activity" ? styles.activeTab : ""}
             type="button"
             onClick={() => setActiveSection("activity")}
           >
-            Activite
+            <span>Activite</span>
+            {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
           </button>
         </nav>
+
+        {activityBadgeCount > 0 && activeSection !== "activity" ? (
+          <div className={styles.socialAlert} role="status">
+            {pendingFriendRequestsCount > 0 ? `${pendingFriendRequestsCount} demande${pendingFriendRequestsCount > 1 ? "s" : ""} d'ami` : ""}
+            {pendingFriendRequestsCount > 0 && pendingTradeOffersCount > 0 ? " et " : ""}
+            {pendingTradeOffersCount > 0 ? `${pendingTradeOffersCount} offre${pendingTradeOffersCount > 1 ? "s" : ""} d'echange` : ""}
+            {" en attente."}
+          </div>
+        ) : null}
 
         {activeSection === "games" && (
           <nav className={styles.gameTabs} aria-label="Choix du jeu">

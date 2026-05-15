@@ -980,7 +980,7 @@
 
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
@@ -991,6 +991,11 @@
 }
 
 .modeTabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 44px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -1000,9 +1005,40 @@
   font-weight: 800;
 }
 
+.tabBadge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #ffd166;
+  color: #101218;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .modeTabs .activeTab {
   background: #f9f7ef;
   color: #101218;
+}
+
+.modeTabs .activeTab .tabBadge {
+  background: #101218;
+  color: #ffd166;
+}
+
+.socialAlert {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.32);
+  background:
+    linear-gradient(90deg, rgba(255, 209, 102, 0.16), transparent 70%),
+    rgba(16, 18, 24, 0.76);
+  color: #fff9df;
+  font-weight: 900;
 }
 
 .gameTabs button {
