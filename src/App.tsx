@@ -111,6 +111,8 @@ import {
   type SkinTradeEntry,
 } from "./firebaseClient";
 
+const APPLIED_TRADE_KEYS_STORAGE_KEY = "casino-fictif-applied-trades";
+
 type SlotHistoryItem = SpinOutcome & {
   id: number;
   bet: Bet;
@@ -481,7 +483,7 @@ function App() {
   const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
   const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
   const paidPokerAnteRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-paid-poker-ante") ?? "[]") as string[]));
-  const appliedTradeKeysRef = useRef(new Set<string>());
+  const appliedTradeKeysRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(APPLIED_TRADE_KEYS_STORAGE_KEY) ?? "[]") as string[]));
   const [now, setNow] = useState(Date.now());
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
@@ -494,6 +496,17 @@ function App() {
   const rouletteId = useRef(getNextHistoryId(savedGame?.rouletteHistory));
   const rocketId = useRef(getNextHistoryId(savedGame?.rocketHistory));
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
+
+  function rememberAppliedTrade(tradeApplyKey: string) {
+    if (appliedTradeKeysRef.current.has(tradeApplyKey)) {
+      return;
+    }
+
+    appliedTradeKeysRef.current.add(tradeApplyKey);
+    const recentKeys = [...appliedTradeKeysRef.current].slice(-300);
+    appliedTradeKeysRef.current = new Set(recentKeys);
+    localStorage.setItem(APPLIED_TRADE_KEYS_STORAGE_KEY, JSON.stringify(recentKeys));
+  }
 
   const totalNet = useMemo(() => {
     const slotNet = slotHistory.reduce((sum, item) => sum + item.net, 0);
@@ -732,7 +745,7 @@ function App() {
 
       if (trade.status === "accepted") {
         if (isSender) {
-          appliedTradeKeysRef.current.add(tradeApplyKey);
+          rememberAppliedTrade(tradeApplyKey);
           setOwnedSkinIds((current) => [...current, trade.requestedItemId]);
           markSkinTradeApplied(trade.id, "from").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
         }
@@ -743,16 +756,21 @@ function App() {
             return;
           }
 
-          appliedTradeKeysRef.current.add(tradeApplyKey);
+          rememberAppliedTrade(tradeApplyKey);
           setOwnedSkinIds((current) => [...removeOneSkinCopy(current, trade.requestedItemId), trade.offeredItemId]);
           markSkinTradeApplied(trade.id, "to").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
         }
       }
 
       if ((trade.status === "rejected" || trade.status === "canceled") && isSender) {
-        appliedTradeKeysRef.current.add(tradeApplyKey);
+        rememberAppliedTrade(tradeApplyKey);
         setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
         markSkinTradeApplied(trade.id, "from").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
+      }
+
+      if ((trade.status === "rejected" || trade.status === "canceled") && isReceiver) {
+        rememberAppliedTrade(tradeApplyKey);
+        markSkinTradeApplied(trade.id, "to").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
       }
     });
   }, [accountUser, ownedSkinIds, skinTrades]);
@@ -2355,6 +2373,39 @@ function TradesGame({
     return SHOP_ITEMS.find((item) => item.id === id)?.name ?? id;
   }
 
+  function tradeItem(id: string) {
+    return SHOP_ITEMS.find((item) => item.id === id);
+  }
+
+  function tradeStatusLabel(status: SkinTradeEntry["status"]) {
+    if (status === "accepted") {
+      return "Accepte";
+    }
+
+    if (status === "rejected") {
+      return "Refuse";
+    }
+
+    if (status === "canceled") {
+      return "Annule";
+    }
+
+    return "En attente";
+  }
+
+  function TradeSkinPreview({ id, label }: { id: string; label: string }) {
+    const item = tradeItem(id);
+
+    return (
+      <div className={styles.tradeSkinPreview}>
+        <span>{label}</span>
+        <div className={styles.inventoryPreview}>{item ? <SkinPreview item={item} /> : <strong>?</strong>}</div>
+        <strong>{item?.name ?? id}</strong>
+        <small>{item?.rarity ?? "Skin"}</small>
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
       <section className={styles.machine}>
@@ -2434,14 +2485,26 @@ function TradesGame({
           ) : (
             incoming.map((trade) => (
               <article className={styles.socialItem} key={trade.id}>
-                <div>
-                  <strong>{trade.fromDisplayName}</strong>
-                  <small>
-                    Donne {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
-                  </small>
+                <div className={styles.tradeCardBody}>
+                  <div>
+                    <strong>{trade.fromDisplayName}</strong>
+                    <small>Te propose un echange de skins.</small>
+                  </div>
+                  <div className={styles.tradeSummary}>
+                    <TradeSkinPreview id={trade.offeredItemId} label="Tu recois" />
+                    <TradeSkinPreview id={trade.requestedItemId} label="Tu donnes" />
+                  </div>
+                  {!hasSkinCopy(ownedSkinIds, trade.requestedItemId) ? (
+                    <small className={styles.tradeWarning}>Tu ne possedes plus le skin demande.</small>
+                  ) : null}
                 </div>
                 <div className={styles.socialActions}>
-                  <button className={styles.primaryButton} type="button" onClick={() => onAnswer(trade, "accepted")}>
+                  <button
+                    className={styles.primaryButton}
+                    type="button"
+                    onClick={() => onAnswer(trade, "accepted")}
+                    disabled={!hasSkinCopy(ownedSkinIds, trade.requestedItemId)}
+                  >
                     Accepter
                   </button>
                   <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(trade, "rejected")}>
@@ -2465,11 +2528,15 @@ function TradesGame({
           ) : (
             outgoing.map((trade) => (
               <article className={styles.socialItem} key={trade.id}>
-                <div>
-                  <strong>{trade.toDisplayName}</strong>
-                  <small>
-                    Tu donnes {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
-                  </small>
+                <div className={styles.tradeCardBody}>
+                  <div>
+                    <strong>{trade.toDisplayName}</strong>
+                    <small>Offre en attente. Ton skin est reserve.</small>
+                  </div>
+                  <div className={styles.tradeSummary}>
+                    <TradeSkinPreview id={trade.offeredItemId} label="Tu donnes" />
+                    <TradeSkinPreview id={trade.requestedItemId} label="Tu demandes" />
+                  </div>
                 </div>
                 <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(trade, "canceled")}>
                   Annuler
@@ -2483,7 +2550,7 @@ function TradesGame({
       <HistoryPanel title="Historique des echanges" empty="Aucun echange termine.">
         {history.map((trade) => (
           <li key={trade.id}>
-            <span>{trade.status === "accepted" ? "Accepte" : trade.status === "rejected" ? "Refuse" : "Annule"}</span>
+            <span>{tradeStatusLabel(trade.status)}</span>
             <small>
               {trade.fromDisplayName} propose {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
             </small>

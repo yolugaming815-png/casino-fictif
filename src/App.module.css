@@ -416,6 +416,60 @@
   width: 100%;
 }
 
+.tradeCardBody {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tradeSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.tradeSkinPreview {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-areas:
+    "preview label"
+    "preview name"
+    "preview rarity";
+  gap: 2px 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(16, 18, 24, 0.42);
+}
+
+.tradeSkinPreview > span {
+  grid-area: label;
+  color: #ffd166;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.tradeSkinPreview > .inventoryPreview {
+  grid-area: preview;
+  min-height: 58px;
+}
+
+.tradeSkinPreview > strong {
+  grid-area: name;
+  min-width: 0;
+}
+
+.tradeSkinPreview > small {
+  grid-area: rarity;
+}
+
+.tradeWarning {
+  color: #ff8f8f;
+  font-weight: 800;
+}
+
 .onlineDuelGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3302,6 +3356,8 @@
   .onlineDuelGrid,
   .blackjackTable,
   .caseLayout,
+  .tradeForm,
+  .tradeSummary,
   .inventoryGrid,
   .inventoryStats,
   .profileStats,

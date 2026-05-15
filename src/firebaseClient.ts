@@ -66,10 +66,12 @@ export type SkinTradeEntry = {
   toDisplayName: string;
   offeredItemId: string;
   requestedItemId: string;
+  reservedItemId?: string;
   status: SkinTradeStatus;
   appliedFromUid: boolean;
   appliedToUid: boolean;
   createdAt?: unknown;
+  respondedAt?: unknown;
   updatedAt?: unknown;
 };
 
@@ -390,10 +392,12 @@ function parseSkinTrade(id: string, data: Record<string, unknown>): SkinTradeEnt
     toDisplayName: typeof data.toDisplayName === "string" ? data.toDisplayName : "Joueur anonyme",
     offeredItemId: typeof data.offeredItemId === "string" ? data.offeredItemId : "",
     requestedItemId: typeof data.requestedItemId === "string" ? data.requestedItemId : "",
+    reservedItemId: typeof data.reservedItemId === "string" ? data.reservedItemId : undefined,
     status,
     appliedFromUid: data.appliedFromUid === true,
     appliedToUid: data.appliedToUid === true,
     createdAt: data.createdAt,
+    respondedAt: data.respondedAt,
     updatedAt: data.updatedAt,
   };
 }
@@ -411,6 +415,7 @@ export async function createSkinTrade(from: CasinoUser, to: { uid: string; displ
     toDisplayName: to.displayName,
     offeredItemId,
     requestedItemId,
+    reservedItemId: offeredItemId,
     status: "pending",
     appliedFromUid: false,
     appliedToUid: false,
@@ -446,6 +451,10 @@ export async function answerSkinTrade(trade: SkinTradeEntry, user: CasinoUser, s
     return;
   }
 
+  if (trade.status !== "pending") {
+    throw new Error("Cet echange est deja termine.");
+  }
+
   if (status === "canceled" && trade.fromUid !== user.uid) {
     throw new Error("Seul l'envoyeur peut annuler l'echange.");
   }
@@ -456,6 +465,7 @@ export async function answerSkinTrade(trade: SkinTradeEntry, user: CasinoUser, s
 
   await updateDoc(doc(getFirestore(app), "skinTrades", trade.id), {
     status,
+    respondedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 }
