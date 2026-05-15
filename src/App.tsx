@@ -5989,6 +5989,7 @@ function ClawGame({
                 className={styles.clawReveal}
                 style={{ "--reveal-x": `${reveal.x}%`, "--special-chest-color": reveal.theme } as CSSProperties}
               >
+                <span className={styles.clawRevealBall} />
                 <span className={styles.clawRevealHalfLeft} />
                 <span className={styles.clawRevealHalfRight} />
                 <strong>
