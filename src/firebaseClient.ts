@@ -56,6 +56,19 @@ export type FriendRequestEntry = {
   respondedAt?: unknown;
 };
 
+export type PrivateMessageEntry = {
+  id: string;
+  conversationId: string;
+  participants: string[];
+  fromUid: string;
+  fromDisplayName: string;
+  toUid: string;
+  toDisplayName: string;
+  body: string;
+  readBy: string[];
+  createdAt?: unknown;
+};
+
 export type SkinTradeStatus = "pending" | "accepted" | "rejected" | "canceled";
 
 export type SkinTradeEntry = {
@@ -380,6 +393,86 @@ export async function answerFriendRequest(requestId: string, status: "accepted" 
     status,
     respondedAt: serverTimestamp(),
   });
+}
+
+function getConversationId(firstUid: string, secondUid: string) {
+  return [firstUid, secondUid].sort().join("_");
+}
+
+function parsePrivateMessage(id: string, data: Record<string, unknown>): PrivateMessageEntry {
+  return {
+    id,
+    conversationId: typeof data.conversationId === "string" ? data.conversationId : "",
+    participants: Array.isArray(data.participants) ? data.participants.filter((uid): uid is string => typeof uid === "string") : [],
+    fromUid: typeof data.fromUid === "string" ? data.fromUid : "",
+    fromDisplayName: typeof data.fromDisplayName === "string" ? data.fromDisplayName : "Joueur anonyme",
+    toUid: typeof data.toUid === "string" ? data.toUid : "",
+    toDisplayName: typeof data.toDisplayName === "string" ? data.toDisplayName : "Joueur anonyme",
+    body: typeof data.body === "string" ? data.body : "",
+    readBy: Array.isArray(data.readBy) ? data.readBy.filter((uid): uid is string => typeof uid === "string") : [],
+    createdAt: data.createdAt,
+  };
+}
+
+export async function loadPrivateMessages(userId: string): Promise<PrivateMessageEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const messagesQuery = query(collection(getFirestore(app), "privateMessages"), where("participants", "array-contains", userId), limit(120));
+  const snapshot = await getDocs(messagesQuery);
+
+  return snapshot.docs
+    .map((messageDoc) => parsePrivateMessage(messageDoc.id, messageDoc.data()))
+    .filter((message) => message.conversationId && message.fromUid && message.toUid && message.body)
+    .sort((first, second) => {
+      const firstTime = typeof first.createdAt === "object" && first.createdAt && "seconds" in first.createdAt && typeof first.createdAt.seconds === "number" ? first.createdAt.seconds : 0;
+      const secondTime = typeof second.createdAt === "object" && second.createdAt && "seconds" in second.createdAt && typeof second.createdAt.seconds === "number" ? second.createdAt.seconds : 0;
+      return firstTime - secondTime;
+    });
+}
+
+export async function sendPrivateMessage(from: CasinoUser, to: { uid: string; displayName: string }, body: string) {
+  const app = getFirebaseApp();
+  const trimmedBody = body.trim().slice(0, 280);
+
+  if (!app || from.uid === to.uid || !trimmedBody) {
+    return null;
+  }
+
+  const conversationId = getConversationId(from.uid, to.uid);
+  const message = await addDoc(collection(getFirestore(app), "privateMessages"), {
+    conversationId,
+    participants: conversationId.split("_"),
+    fromUid: from.uid,
+    fromDisplayName: from.displayName || "Joueur anonyme",
+    toUid: to.uid,
+    toDisplayName: to.displayName,
+    body: trimmedBody,
+    readBy: [from.uid],
+    createdAt: serverTimestamp(),
+  });
+
+  return message.id;
+}
+
+export async function markPrivateMessagesRead(userId: string, messages: PrivateMessageEntry[]) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  await Promise.all(
+    messages
+      .filter((message) => message.toUid === userId && !message.readBy.includes(userId))
+      .slice(0, 30)
+      .map((message) =>
+        updateDoc(doc(getFirestore(app), "privateMessages", message.id), {
+          readBy: [...new Set([...message.readBy, userId])],
+        }),
+      ),
+  );
 }
 
 function parseSkinTrade(id: string, data: Record<string, unknown>): SkinTradeEntry {

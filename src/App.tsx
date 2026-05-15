@@ -89,11 +89,14 @@ import {
   loadLeaderboard,
   loadCloudSave,
   loadOnlineRooms,
+  loadPrivateMessages,
   loadSkinTrades,
+  markPrivateMessagesRead,
   markSkinTradeApplied,
   playDuelRound,
   raisePokerPlayer,
   sendFriendRequest,
+  sendPrivateMessage,
   saveCloudSave,
   saveLeaderboardEntry,
   signInWithGoogle,
@@ -108,6 +111,7 @@ import {
   type OnlineRoomEntry,
   type OnlineRoomPlayer,
   type OnlineRoomType,
+  type PrivateMessageEntry,
   type SkinTradeEntry,
 } from "./firebaseClient";
 
@@ -184,7 +188,7 @@ type ActivityItem = {
   id: string;
   title: string;
   detail: string;
-  kind: "friend" | "trade" | "duel" | "poker";
+  kind: "friend" | "trade" | "message" | "duel" | "poker";
   timestamp?: unknown;
 };
 
@@ -456,7 +460,7 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "activity">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "messages" | "activity">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
@@ -523,6 +527,8 @@ function App() {
   const [friendRequestMessage, setFriendRequestMessage] = useState("");
   const [friendRequests, setFriendRequests] = useState<FriendRequestEntry[]>([]);
   const [friendsMessage, setFriendsMessage] = useState("Connecte-toi pour voir tes amis.");
+  const [privateMessages, setPrivateMessages] = useState<PrivateMessageEntry[]>([]);
+  const [messagesMessage, setMessagesMessage] = useState("Connecte-toi pour envoyer des messages.");
   const [skinTrades, setSkinTrades] = useState<SkinTradeEntry[]>([]);
   const [tradesMessage, setTradesMessage] = useState("Connecte-toi pour echanger des skins.");
   const [onlineRooms, setOnlineRooms] = useState<OnlineRoomEntry[]>([]);
@@ -574,8 +580,8 @@ function App() {
   const rocketBetAvailable = canPlaceBet(balance, rocketBet);
   const canDouble = blackjackPhase === "player" && !hasPlayerAction && balance >= activeBlackjackBet * 2;
   const activityItems = useMemo(
-    () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, duelHistory, onlineRooms),
-    [accountUser, friendRequests, skinTrades, duelHistory, onlineRooms],
+    () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, privateMessages, duelHistory, onlineRooms),
+    [accountUser, friendRequests, skinTrades, privateMessages, duelHistory, onlineRooms],
   );
   const pendingFriendRequestsCount = accountUser
     ? friendRequests.filter((request) => request.status === "pending" && request.toUid === accountUser.uid).length
@@ -583,7 +589,10 @@ function App() {
   const pendingTradeOffersCount = accountUser
     ? skinTrades.filter((trade) => trade.status === "pending" && trade.toUid === accountUser.uid).length
     : 0;
-  const activityBadgeCount = pendingFriendRequestsCount + pendingTradeOffersCount;
+  const unreadMessagesCount = accountUser
+    ? privateMessages.filter((message) => message.toUid === accountUser.uid && !message.readBy.includes(accountUser.uid)).length
+    : 0;
+  const activityBadgeCount = pendingFriendRequestsCount + pendingTradeOffersCount + unreadMessagesCount;
   const equippedItems = useMemo(
     () => ({
       plinkoBall: getShopItem(equippedSkins.plinkoBall),
@@ -627,6 +636,8 @@ function App() {
       if (!user) {
         setFriendRequests([]);
         setFriendsMessage("Connecte-toi pour voir tes amis.");
+        setPrivateMessages([]);
+        setMessagesMessage("Connecte-toi pour envoyer des messages.");
         setSkinTrades([]);
         setTradesMessage("Connecte-toi pour echanger des skins.");
         setOnlineRooms([]);
@@ -659,6 +670,7 @@ function App() {
 
         await refreshLeaderboard();
         await refreshFriendRequests(user.uid);
+        await refreshPrivateMessages(user.uid);
         await refreshSkinTrades(user.uid);
         await refreshOnlineRooms();
         await refreshDuelHistory(user.uid);
@@ -882,6 +894,22 @@ function App() {
     }
   }
 
+  async function refreshPrivateMessages(userId: string) {
+    if (!isFirebaseConfigured()) {
+      setPrivateMessages([]);
+      setMessagesMessage("Firebase doit etre configure pour les messages.");
+      return;
+    }
+
+    try {
+      const messages = await loadPrivateMessages(userId);
+      setPrivateMessages(messages);
+      setMessagesMessage(messages.length ? "Messages synchronises." : "Aucun message pour le moment.");
+    } catch {
+      setMessagesMessage("Impossible de charger les messages pour le moment.");
+    }
+  }
+
   async function refreshSkinTrades(userId: string) {
     if (!isFirebaseConfigured()) {
       setSkinTrades([]);
@@ -975,6 +1003,37 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setFriendsMessage(`Action impossible : ${message}`);
+    }
+  }
+
+  async function handleSendPrivateMessage(friend: { uid: string; displayName: string }, body: string) {
+    if (!accountUser) {
+      setMessagesMessage("Connecte-toi pour envoyer un message.");
+      return false;
+    }
+
+    try {
+      await sendPrivateMessage(accountUser, friend, body);
+      setMessagesMessage(`Message envoye a ${friend.displayName}.`);
+      await refreshPrivateMessages(accountUser.uid);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setMessagesMessage(`Message impossible : ${message}`);
+      return false;
+    }
+  }
+
+  async function handleMarkPrivateMessagesRead(messages: PrivateMessageEntry[]) {
+    if (!accountUser || messages.length === 0) {
+      return;
+    }
+
+    try {
+      await markPrivateMessagesRead(accountUser.uid, messages);
+      await refreshPrivateMessages(accountUser.uid);
+    } catch {
+      setMessagesMessage("Certains messages n'ont pas pu etre marques comme lus.");
     }
   }
 
@@ -1922,6 +1981,14 @@ function App() {
             {pendingTradeOffersCount > 0 ? <span className={styles.tabBadge}>{pendingTradeOffersCount}</span> : null}
           </button>
           <button
+            className={activeSection === "messages" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("messages")}
+          >
+            <span>Messages</span>
+            {unreadMessagesCount > 0 ? <span className={styles.tabBadge}>{unreadMessagesCount}</span> : null}
+          </button>
+          <button
             className={activeSection === "activity" ? styles.activeTab : ""}
             type="button"
             onClick={() => setActiveSection("activity")}
@@ -1934,8 +2001,10 @@ function App() {
         {activityBadgeCount > 0 && activeSection !== "activity" ? (
           <div className={styles.socialAlert} role="status">
             {pendingFriendRequestsCount > 0 ? `${pendingFriendRequestsCount} demande${pendingFriendRequestsCount > 1 ? "s" : ""} d'ami` : ""}
-            {pendingFriendRequestsCount > 0 && pendingTradeOffersCount > 0 ? " et " : ""}
+            {pendingFriendRequestsCount > 0 && (pendingTradeOffersCount > 0 || unreadMessagesCount > 0) ? ", " : ""}
             {pendingTradeOffersCount > 0 ? `${pendingTradeOffersCount} offre${pendingTradeOffersCount > 1 ? "s" : ""} d'echange` : ""}
+            {pendingTradeOffersCount > 0 && unreadMessagesCount > 0 ? " et " : ""}
+            {unreadMessagesCount > 0 ? `${unreadMessagesCount} message${unreadMessagesCount > 1 ? "s" : ""} non lu${unreadMessagesCount > 1 ? "s" : ""}` : ""}
             {" en attente."}
           </div>
         ) : null}
@@ -2073,6 +2142,16 @@ function App() {
             onCounter={handleCounterSkinTrade}
             onCreate={handleCreateSkinTrade}
           />
+        ) : activeSection === "messages" ? (
+          <MessagesGame
+            currentUser={accountUser}
+            friendRequests={friendRequests}
+            leaderboard={leaderboard}
+            message={messagesMessage}
+            messages={privateMessages}
+            onMarkRead={handleMarkPrivateMessagesRead}
+            onSend={handleSendPrivateMessage}
+          />
         ) : activeSection === "activity" ? (
           <ActivityPanel currentUser={accountUser} items={activityItems} />
         ) : activeGame === "slots" ? (
@@ -2183,6 +2262,7 @@ function buildActivityItems(
   currentUserId: string,
   friendRequests: FriendRequestEntry[],
   skinTrades: SkinTradeEntry[],
+  privateMessages: PrivateMessageEntry[],
   duelHistory: OnlineRoomEntry[],
   onlineRooms: OnlineRoomEntry[],
 ): ActivityItem[] {
@@ -2274,6 +2354,21 @@ function buildActivityItems(
       };
     });
 
+  const messageItems = privateMessages
+    .filter((message) => message.fromUid === currentUserId || message.toUid === currentUserId)
+    .map<ActivityItem>((message) => {
+      const isIncoming = message.toUid === currentUserId;
+      const otherName = isIncoming ? message.fromDisplayName : message.toDisplayName;
+
+      return {
+        id: `message-${message.id}`,
+        kind: "message",
+        title: isIncoming ? "Nouveau message" : "Message envoye",
+        detail: `${otherName} : ${message.body}`,
+        timestamp: message.createdAt,
+      };
+    });
+
   const duelItems = duelHistory
     .filter((room) => room.type === "duel" && room.status === "finished" && room.playerIds.includes(currentUserId))
     .map<ActivityItem>((room) => ({
@@ -2299,7 +2394,7 @@ function buildActivityItems(
       timestamp: room.updatedAt ?? room.createdAt,
     }));
 
-  return [...friendItems, ...tradeItems, ...duelItems, ...pokerItems]
+  return [...friendItems, ...tradeItems, ...messageItems, ...duelItems, ...pokerItems]
     .sort((first, second) => getActivityMillis(second.timestamp) - getActivityMillis(first.timestamp))
     .slice(0, 40);
 }
@@ -2336,7 +2431,7 @@ function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null;
         ) : (
           items.map((item) => (
             <article className={`${styles.activityItem} ${styles[`activity-${item.kind}`]}`} key={item.id}>
-              <span>{item.kind === "friend" ? "Ami" : item.kind === "trade" ? "Trade" : item.kind === "duel" ? "Duel" : "Poker"}</span>
+              <span>{item.kind === "friend" ? "Ami" : item.kind === "trade" ? "Trade" : item.kind === "message" ? "Msg" : item.kind === "duel" ? "Duel" : "Poker"}</span>
               <div>
                 <strong>{item.title}</strong>
                 <p>{item.detail}</p>
@@ -2346,6 +2441,167 @@ function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null;
           ))
         )}
       </div>
+    </section>
+  );
+}
+
+function MessagesGame({
+  currentUser,
+  friendRequests,
+  leaderboard,
+  message,
+  messages,
+  onMarkRead,
+  onSend,
+}: {
+  currentUser: CasinoUser | null;
+  friendRequests: FriendRequestEntry[];
+  leaderboard: LeaderboardEntry[];
+  message: string;
+  messages: PrivateMessageEntry[];
+  onMarkRead: (messages: PrivateMessageEntry[]) => void;
+  onSend: (friend: { uid: string; displayName: string }, body: string) => Promise<boolean>;
+}) {
+  const currentUserId = currentUser?.uid ?? "";
+  const [selectedFriendUid, setSelectedFriendUid] = useState("");
+  const [draftMessage, setDraftMessage] = useState("");
+  const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
+  const friends = friendRequests
+    .filter((request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId))
+    .reduce<Array<{ uid: string; displayName: string; profile?: LeaderboardEntry }>>((items, request) => {
+      const isSender = request.fromUid === currentUserId;
+      const uid = isSender ? request.toUid : request.fromUid;
+
+      if (!items.some((item) => item.uid === uid)) {
+        items.push({
+          uid,
+          displayName: isSender ? request.toDisplayName : request.fromDisplayName,
+          profile: leaderboardById.get(uid),
+        });
+      }
+
+      return items;
+    }, []);
+  const selectedFriend = friends.find((friend) => friend.uid === selectedFriendUid) ?? friends[0];
+  const selectedConversation = selectedFriend
+    ? messages.filter(
+        (privateMessage) =>
+          (privateMessage.fromUid === currentUserId && privateMessage.toUid === selectedFriend.uid) ||
+          (privateMessage.fromUid === selectedFriend.uid && privateMessage.toUid === currentUserId),
+      )
+    : [];
+  const unreadByFriend = friends.reduce<Record<string, number>>((counts, friend) => {
+    counts[friend.uid] = messages.filter(
+      (privateMessage) => privateMessage.fromUid === friend.uid && privateMessage.toUid === currentUserId && !privateMessage.readBy.includes(currentUserId),
+    ).length;
+    return counts;
+  }, {});
+
+  useEffect(() => {
+    if (!currentUser || !selectedFriend) {
+      return;
+    }
+
+    const unreadMessages = selectedConversation.filter(
+      (privateMessage) => privateMessage.toUid === currentUser.uid && !privateMessage.readBy.includes(currentUser.uid),
+    );
+
+    if (unreadMessages.length > 0) {
+      onMarkRead(unreadMessages);
+    }
+  }, [currentUser?.uid, selectedFriend?.uid, messages.length]);
+
+  async function submitMessage() {
+    if (!selectedFriend || !draftMessage.trim()) {
+      return;
+    }
+
+    const sent = await onSend(selectedFriend, draftMessage);
+    if (sent) {
+      setDraftMessage("");
+      setSelectedFriendUid(selectedFriend.uid);
+    }
+  }
+
+  if (!currentUser) {
+    return (
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Messages</h2>
+            <p>Connecte-toi avec Google pour discuter avec tes amis.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={styles.machine}>
+      <div className={styles.shopHeader}>
+        <div>
+          <h2>Messages</h2>
+          <p>{message}</p>
+        </div>
+        <strong>{messages.length} message{messages.length > 1 ? "s" : ""}</strong>
+      </div>
+
+      {friends.length === 0 ? (
+        <p className={styles.empty}>Ajoute un ami pour commencer une conversation.</p>
+      ) : (
+        <div className={styles.messagesLayout}>
+          <aside className={styles.messagesFriends}>
+            {friends.map((friend) => (
+              <button
+                className={(selectedFriend?.uid === friend.uid ? styles.activeMessageFriend : "")}
+                key={friend.uid}
+                type="button"
+                onClick={() => setSelectedFriendUid(friend.uid)}
+              >
+                <span>{friend.displayName}</span>
+                {unreadByFriend[friend.uid] > 0 ? <strong>{unreadByFriend[friend.uid]}</strong> : null}
+              </button>
+            ))}
+          </aside>
+
+          <div className={styles.messagesConversation}>
+            <div className={styles.messagesThread}>
+              {selectedConversation.length === 0 ? (
+                <p className={styles.empty}>Aucun message avec {selectedFriend?.displayName}.</p>
+              ) : (
+                selectedConversation.map((privateMessage) => {
+                  const isMine = privateMessage.fromUid === currentUserId;
+
+                  return (
+                    <article className={`${styles.messageBubble} ${isMine ? styles.messageMine : styles.messageTheirs}`} key={privateMessage.id}>
+                      <strong>{isMine ? "Toi" : privateMessage.fromDisplayName}</strong>
+                      <p>{privateMessage.body}</p>
+                      <time>{formatActivityTime(privateMessage.createdAt)}</time>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+
+            <div className={styles.messageComposer}>
+              <input
+                maxLength={280}
+                placeholder={`Message pour ${selectedFriend?.displayName ?? "un ami"}`}
+                value={draftMessage}
+                onChange={(event) => setDraftMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    submitMessage();
+                  }
+                }}
+              />
+              <button className={styles.primaryButton} type="button" onClick={submitMessage} disabled={!draftMessage.trim()}>
+                Envoyer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

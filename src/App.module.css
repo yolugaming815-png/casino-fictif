@@ -439,6 +439,12 @@
     rgba(255, 255, 255, 0.05);
 }
 
+.activity-message {
+  background:
+    linear-gradient(90deg, rgba(94, 184, 241, 0.12), transparent 46%),
+    rgba(255, 255, 255, 0.05);
+}
+
 .activity-duel {
   background:
     linear-gradient(90deg, rgba(124, 238, 170, 0.12), transparent 46%),
@@ -463,6 +469,102 @@
 .socialActions {
   flex-wrap: wrap;
   justify-content: end;
+}
+
+.messagesLayout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.messagesFriends,
+.messagesThread,
+.messagesConversation {
+  display: grid;
+  gap: 10px;
+}
+
+.messagesFriends {
+  align-content: start;
+}
+
+.messagesFriends button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f9f7ef;
+  font: inherit;
+  font-weight: 900;
+}
+
+.messagesFriends .activeMessageFriend {
+  border-color: rgba(255, 209, 102, 0.7);
+  background: rgba(255, 209, 102, 0.14);
+}
+
+.messagesFriends strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #ffd166;
+  color: #101218;
+}
+
+.messagesThread {
+  align-content: end;
+  min-height: 360px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(16, 18, 24, 0.45);
+}
+
+.messageBubble {
+  display: grid;
+  gap: 4px;
+  max-width: min(76%, 560px);
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.messageMine {
+  justify-self: end;
+  background: rgba(255, 209, 102, 0.18);
+}
+
+.messageTheirs {
+  justify-self: start;
+}
+
+.messageBubble p {
+  margin: 0;
+  color: #f9f7ef;
+}
+
+.messageBubble time {
+  color: #aeb8b3;
+  font-size: 0.78rem;
+}
+
+.messageComposer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.messageComposer input {
+  width: 100%;
 }
 
 .tradeForm {
@@ -980,7 +1082,7 @@
 
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
@@ -3497,6 +3599,7 @@
   .onlineDuelGrid,
   .blackjackTable,
   .caseLayout,
+  .messagesLayout,
   .tradeForm,
   .tradeSummary,
   .inventoryGrid,
@@ -3537,6 +3640,10 @@
   .activityItem {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .messageComposer {
+    grid-template-columns: 1fr;
   }
 
   .shopGrid {
