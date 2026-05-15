@@ -909,10 +909,11 @@
   0%,
   32% {
     opacity: 0;
-    transform: translateX(18px) rotate(0deg);
+    transform: translateX(0) rotate(0deg);
   }
   33% {
     opacity: 1;
+    transform: translateX(0) rotate(0deg);
   }
   100% {
     opacity: 1;
@@ -924,10 +925,11 @@
   0%,
   32% {
     opacity: 0;
-    transform: translateX(-18px) rotate(0deg);
+    transform: translateX(0) rotate(0deg);
   }
   33% {
     opacity: 1;
+    transform: translateX(0) rotate(0deg);
   }
   100% {
     opacity: 1;
