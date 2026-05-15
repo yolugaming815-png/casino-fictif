@@ -626,10 +626,33 @@ export async function startDuelRoom(room: OnlineRoomEntry, user: CasinoUser) {
   const duelScores = Object.fromEntries(room.players.map((player) => [player.uid, { rounds: [], total: 0 }]));
 
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    type: "duel",
     status: "playing",
+    players: room.players,
+    playerIds: Array.from(new Set([...room.playerIds, ...room.players.map((player) => player.uid)])),
+    maxPlayers: room.maxPlayers,
     duelScores,
     winnerUid: "",
     winnerName: "",
+    pokerPhase: room.pokerPhase || "waiting",
+    pokerDeck: room.pokerDeck,
+    pokerHands: room.pokerHands,
+    communityCards: room.communityCards,
+    foldedPlayerIds: room.foldedPlayerIds,
+    pokerActions: room.pokerActions,
+    pokerPot: room.pokerPot,
+    pokerCurrentBet: room.pokerCurrentBet,
+    pokerContributions: room.pokerContributions,
+    pokerHandId: room.pokerHandId,
+    pokerTurnUid: room.pokerTurnUid ?? "",
+    pokerTurnName: room.pokerTurnName ?? "",
+    pokerWinnerUid: room.pokerWinnerUid ?? "",
+    pokerWinnerName: room.pokerWinnerName ?? "",
+    pokerWinnerUids: room.pokerWinnerUids,
+    pokerWinnerNames: room.pokerWinnerNames,
+    pokerWinnerHandLabel: room.pokerWinnerHandLabel ?? "",
+    pokerWinnerHandCards: room.pokerWinnerHandCards,
+    pokerShowdownResults: room.pokerShowdownResults,
     updatedAt: serverTimestamp(),
   });
 }
