@@ -400,7 +400,7 @@
 
 .tradeForm {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
 }
@@ -412,7 +412,8 @@
   font-weight: 800;
 }
 
-.tradeForm select {
+.tradeForm select,
+.tradeForm input {
   width: 100%;
 }
 
@@ -468,6 +469,29 @@
 .tradeWarning {
   color: #ff8f8f;
   font-weight: 800;
+}
+
+.tradeCreditPreview {
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  min-height: 76px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.35);
+  background:
+    radial-gradient(circle at 16px 18px, rgba(255, 209, 102, 0.28), transparent 24px),
+    rgba(255, 209, 102, 0.08);
+}
+
+.tradeCreditPreview span {
+  color: #ffd166;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.tradeCreditPreview strong {
+  color: #fff9df;
 }
 
 .onlineDuelGrid {

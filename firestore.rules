@@ -48,6 +48,12 @@ service cloud.firestore {
         && request.resource.data.offeredItemId is string
         && request.resource.data.requestedItemId is string
         && request.resource.data.reservedItemId == request.resource.data.offeredItemId
+        && request.resource.data.offeredCredits is number
+        && request.resource.data.offeredCredits >= 0
+        && request.resource.data.requestedCredits is number
+        && request.resource.data.requestedCredits >= 0
+        && (request.resource.data.offeredItemId != "" || request.resource.data.offeredCredits > 0)
+        && (request.resource.data.requestedItemId != "" || request.resource.data.requestedCredits > 0)
         && request.resource.data.status == "pending"
         && request.resource.data.appliedFromUid == false
         && request.resource.data.appliedToUid == false;
@@ -67,6 +73,7 @@ service cloud.firestore {
             && request.resource.data.status in ["accepted", "rejected"]
             && request.resource.data.appliedFromUid == resource.data.appliedFromUid
             && request.resource.data.appliedToUid == resource.data.appliedToUid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "respondedAt", "updatedAt"])
           )
           || (
             resource.data.status == "pending"
@@ -74,6 +81,7 @@ service cloud.firestore {
             && request.resource.data.status == "canceled"
             && request.resource.data.appliedFromUid == resource.data.appliedFromUid
             && request.resource.data.appliedToUid == resource.data.appliedToUid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "respondedAt", "updatedAt"])
           )
           || (
             resource.data.status in ["accepted", "rejected", "canceled"]
@@ -84,12 +92,14 @@ service cloud.firestore {
                 && resource.data.appliedFromUid == false
                 && request.resource.data.appliedFromUid == true
                 && request.resource.data.appliedToUid == resource.data.appliedToUid
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["appliedFromUid", "updatedAt"])
               )
               || (
                 resource.data.toUid == request.auth.uid
                 && resource.data.appliedToUid == false
                 && request.resource.data.appliedToUid == true
                 && request.resource.data.appliedFromUid == resource.data.appliedFromUid
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["appliedToUid", "updatedAt"])
               )
             )
           )

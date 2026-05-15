@@ -67,6 +67,8 @@ export type SkinTradeEntry = {
   offeredItemId: string;
   requestedItemId: string;
   reservedItemId?: string;
+  offeredCredits: number;
+  requestedCredits: number;
   status: SkinTradeStatus;
   appliedFromUid: boolean;
   appliedToUid: boolean;
@@ -393,6 +395,8 @@ function parseSkinTrade(id: string, data: Record<string, unknown>): SkinTradeEnt
     offeredItemId: typeof data.offeredItemId === "string" ? data.offeredItemId : "",
     requestedItemId: typeof data.requestedItemId === "string" ? data.requestedItemId : "",
     reservedItemId: typeof data.reservedItemId === "string" ? data.reservedItemId : undefined,
+    offeredCredits: typeof data.offeredCredits === "number" && Number.isFinite(data.offeredCredits) ? data.offeredCredits : 0,
+    requestedCredits: typeof data.requestedCredits === "number" && Number.isFinite(data.requestedCredits) ? data.requestedCredits : 0,
     status,
     appliedFromUid: data.appliedFromUid === true,
     appliedToUid: data.appliedToUid === true,
@@ -402,7 +406,14 @@ function parseSkinTrade(id: string, data: Record<string, unknown>): SkinTradeEnt
   };
 }
 
-export async function createSkinTrade(from: CasinoUser, to: { uid: string; displayName: string }, offeredItemId: string, requestedItemId: string) {
+export async function createSkinTrade(
+  from: CasinoUser,
+  to: { uid: string; displayName: string },
+  offeredItemId: string,
+  requestedItemId: string,
+  offeredCredits = 0,
+  requestedCredits = 0,
+) {
   const app = getFirebaseApp();
   if (!app || from.uid === to.uid) {
     return null;
@@ -416,6 +427,8 @@ export async function createSkinTrade(from: CasinoUser, to: { uid: string; displ
     offeredItemId,
     requestedItemId,
     reservedItemId: offeredItemId,
+    offeredCredits,
+    requestedCredits,
     status: "pending",
     appliedFromUid: false,
     appliedToUid: false,
@@ -442,7 +455,13 @@ export async function loadSkinTrades(userId: string): Promise<SkinTradeEntry[]> 
     trades.set(tradeDoc.id, parseSkinTrade(tradeDoc.id, tradeDoc.data()));
   });
 
-  return [...trades.values()].filter((trade) => trade.fromUid && trade.toUid && trade.offeredItemId && trade.requestedItemId);
+  return [...trades.values()].filter(
+    (trade) =>
+      trade.fromUid &&
+      trade.toUid &&
+      (trade.offeredItemId || trade.offeredCredits > 0) &&
+      (trade.requestedItemId || trade.requestedCredits > 0),
+  );
 }
 
 export async function answerSkinTrade(trade: SkinTradeEntry, user: CasinoUser, status: "accepted" | "rejected" | "canceled") {

@@ -298,6 +298,16 @@ function hasSkinCopy(ownedSkinIds: readonly string[], skinId: string) {
   return ownedSkinIds.includes(skinId);
 }
 
+function normalizeTradeCredits(value: string) {
+  const normalized = Number(value.replace(",", "."));
+
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return 0;
+  }
+
+  return Math.floor(normalized);
+}
+
 function sanitizeEquippedSkins(value: unknown): EquippedSkins {
   const saved = value && typeof value === "object" ? (value as Partial<EquippedSkins>) : {};
   return (Object.keys(DEFAULT_EQUIPPED_SKINS) as SkinCategory[]).reduce((skins, category) => {
@@ -746,25 +756,39 @@ function App() {
       if (trade.status === "accepted") {
         if (isSender) {
           rememberAppliedTrade(tradeApplyKey);
-          setOwnedSkinIds((current) => [...current, trade.requestedItemId]);
+          if (trade.requestedItemId) {
+            setOwnedSkinIds((current) => [...current, trade.requestedItemId]);
+          }
+          if (trade.requestedCredits > 0) {
+            setBalance((current) => current + trade.requestedCredits);
+          }
           markSkinTradeApplied(trade.id, "from").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
         }
 
         if (isReceiver) {
-          if (!hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
+          if (trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
             setTradesMessage("Un echange accepte n'a pas pu etre applique : skin manquant.");
             return;
           }
 
           rememberAppliedTrade(tradeApplyKey);
-          setOwnedSkinIds((current) => [...removeOneSkinCopy(current, trade.requestedItemId), trade.offeredItemId]);
+          setOwnedSkinIds((current) => {
+            const withoutRequested = trade.requestedItemId ? removeOneSkinCopy(current, trade.requestedItemId) : current;
+            return trade.offeredItemId ? [...withoutRequested, trade.offeredItemId] : withoutRequested;
+          });
+          setBalance((current) => Math.max(0, current - trade.requestedCredits) + trade.offeredCredits);
           markSkinTradeApplied(trade.id, "to").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
         }
       }
 
       if ((trade.status === "rejected" || trade.status === "canceled") && isSender) {
         rememberAppliedTrade(tradeApplyKey);
-        setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
+        if (trade.offeredItemId) {
+          setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
+        }
+        if (trade.offeredCredits > 0) {
+          setBalance((current) => current + trade.offeredCredits);
+        }
         markSkinTradeApplied(trade.id, "from").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
       }
 
@@ -1133,31 +1157,49 @@ function App() {
     }
   }
 
-  async function handleCreateSkinTrade(friend: { uid: string; displayName: string }, offeredItemId: string, requestedItemId: string) {
+  async function handleCreateSkinTrade(
+    friend: { uid: string; displayName: string },
+    offeredItemId: string,
+    requestedItemId: string,
+    offeredCredits: number,
+    requestedCredits: number,
+  ) {
     if (!accountUser) {
       setTradesMessage("Connecte-toi pour proposer un echange.");
       return;
     }
 
-    if (!offeredItemId || !requestedItemId) {
-      setTradesMessage("Choisis le skin donne et le skin demande.");
+    if ((!offeredItemId && offeredCredits <= 0) || (!requestedItemId && requestedCredits <= 0)) {
+      setTradesMessage("Choisis au moins un skin ou des credits de chaque cote.");
       return;
     }
 
-    if (!hasSkinCopy(ownedSkinIds, offeredItemId)) {
+    if (offeredItemId && !hasSkinCopy(ownedSkinIds, offeredItemId)) {
       setTradesMessage("Tu ne possedes plus ce skin.");
       return;
     }
 
+    if (offeredCredits > balance) {
+      setTradesMessage("Tu n'as pas assez de credits pour envoyer cette offre.");
+      return;
+    }
+
     const previousOwnedSkinIds = ownedSkinIds;
-    setOwnedSkinIds((current) => removeOneSkinCopy(current, offeredItemId));
+    const previousBalance = balance;
+    if (offeredItemId) {
+      setOwnedSkinIds((current) => removeOneSkinCopy(current, offeredItemId));
+    }
+    if (offeredCredits > 0) {
+      setBalance((current) => current - offeredCredits);
+    }
 
     try {
-      await createSkinTrade(accountUser, friend, offeredItemId, requestedItemId);
+      await createSkinTrade(accountUser, friend, offeredItemId, requestedItemId, offeredCredits, requestedCredits);
       setTradesMessage(`Offre envoyee a ${friend.displayName}.`);
       await refreshSkinTrades(accountUser.uid);
     } catch (error) {
       setOwnedSkinIds(previousOwnedSkinIds);
+      setBalance(previousBalance);
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setTradesMessage(`Echange impossible : ${message}`);
     }
@@ -1169,8 +1211,13 @@ function App() {
       return;
     }
 
-    if (status === "accepted" && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
+    if (status === "accepted" && trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
       setTradesMessage("Tu n'as plus le skin demande pour accepter cet echange.");
+      return;
+    }
+
+    if (status === "accepted" && trade.requestedCredits > balance) {
+      setTradesMessage("Tu n'as pas assez de credits pour accepter cet echange.");
       return;
     }
 
@@ -1911,6 +1958,7 @@ function App() {
           />
         ) : activeSection === "trades" ? (
           <TradesGame
+            balance={balance}
             currentUser={accountUser}
             friendRequests={friendRequests}
             leaderboard={leaderboard}
@@ -2319,6 +2367,7 @@ function FriendsGame({
 }
 
 function TradesGame({
+  balance,
   currentUser,
   friendRequests,
   leaderboard,
@@ -2328,6 +2377,7 @@ function TradesGame({
   onAnswer,
   onCreate,
 }: {
+  balance: number;
   currentUser: CasinoUser | null;
   friendRequests: FriendRequestEntry[];
   leaderboard: LeaderboardEntry[];
@@ -2335,12 +2385,20 @@ function TradesGame({
   ownedSkinIds: string[];
   trades: SkinTradeEntry[];
   onAnswer: (trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") => void;
-  onCreate: (friend: { uid: string; displayName: string }, offeredItemId: string, requestedItemId: string) => void;
+  onCreate: (
+    friend: { uid: string; displayName: string },
+    offeredItemId: string,
+    requestedItemId: string,
+    offeredCredits: number,
+    requestedCredits: number,
+  ) => void;
 }) {
   const currentUserId = currentUser?.uid ?? "";
   const [friendUid, setFriendUid] = useState("");
   const [offeredItemId, setOfferedItemId] = useState("");
   const [requestedItemId, setRequestedItemId] = useState("");
+  const [offeredCreditsText, setOfferedCreditsText] = useState("0");
+  const [requestedCreditsText, setRequestedCreditsText] = useState("0");
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
   const ownedCounts = countOwnedSkins(ownedSkinIds);
   const ownItems = SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0);
@@ -2368,9 +2426,26 @@ function TradesGame({
   const incoming = trades.filter((trade) => trade.status === "pending" && trade.toUid === currentUserId);
   const outgoing = trades.filter((trade) => trade.status === "pending" && trade.fromUid === currentUserId);
   const history = trades.filter((trade) => trade.status !== "pending").slice(0, 8);
+  const offeredCredits = normalizeTradeCredits(offeredCreditsText);
+  const requestedCredits = normalizeTradeCredits(requestedCreditsText);
 
   function tradeItemName(id: string) {
-    return SHOP_ITEMS.find((item) => item.id === id)?.name ?? id;
+    return id ? SHOP_ITEMS.find((item) => item.id === id)?.name ?? id : "Aucun skin";
+  }
+
+  function tradeCreditsLabel(credits: number) {
+    return `${credits.toLocaleString("fr-FR")} credits`;
+  }
+
+  function tradeAssetLabel(itemId: string, credits: number) {
+    const parts = [];
+    if (itemId) {
+      parts.push(tradeItemName(itemId));
+    }
+    if (credits > 0) {
+      parts.push(tradeCreditsLabel(credits));
+    }
+    return parts.join(" + ") || "Rien";
   }
 
   function tradeItem(id: string) {
@@ -2402,6 +2477,20 @@ function TradesGame({
         <div className={styles.inventoryPreview}>{item ? <SkinPreview item={item} /> : <strong>?</strong>}</div>
         <strong>{item?.name ?? id}</strong>
         <small>{item?.rarity ?? "Skin"}</small>
+      </div>
+    );
+  }
+
+  function TradeCreditsPreview({ credits, label }: { credits: number; label: string }) {
+    if (credits <= 0) {
+      return null;
+    }
+
+    return (
+      <div className={styles.tradeCreditPreview}>
+        <span>{label}</span>
+        <strong>{tradeCreditsLabel(credits)}</strong>
+        <small>Credits virtuels</small>
       </div>
     );
   }
@@ -2444,7 +2533,7 @@ function TradesGame({
           <label>
             Tu donnes
             <select value={offeredItemId} onChange={(event) => setOfferedItemId(event.target.value)}>
-              <option value="">Choisir un skin</option>
+              <option value="">Aucun skin</option>
               {ownItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name} x{ownedCounts[item.id]}
@@ -2453,9 +2542,20 @@ function TradesGame({
             </select>
           </label>
           <label>
+            Credits donnes
+            <input
+              type="number"
+              min="0"
+              max={balance}
+              step="1"
+              value={offeredCreditsText}
+              onChange={(event) => setOfferedCreditsText(event.target.value)}
+            />
+          </label>
+          <label>
             Tu demandes
             <select value={requestedItemId} onChange={(event) => setRequestedItemId(event.target.value)} disabled={!selectedFriend}>
-              <option value="">Choisir un skin</option>
+              <option value="">Aucun skin</option>
               {friendItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -2463,11 +2563,26 @@ function TradesGame({
               ))}
             </select>
           </label>
+          <label>
+            Credits demandes
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={requestedCreditsText}
+              onChange={(event) => setRequestedCreditsText(event.target.value)}
+            />
+          </label>
           <button
             className={styles.primaryButton}
             type="button"
-            onClick={() => selectedFriend && onCreate(selectedFriend, offeredItemId, requestedItemId)}
-            disabled={!selectedFriend || !offeredItemId || !requestedItemId}
+            onClick={() => selectedFriend && onCreate(selectedFriend, offeredItemId, requestedItemId, offeredCredits, requestedCredits)}
+            disabled={
+              !selectedFriend ||
+              offeredCredits > balance ||
+              (!offeredItemId && offeredCredits <= 0) ||
+              (!requestedItemId && requestedCredits <= 0)
+            }
           >
             Envoyer l'offre
           </button>
@@ -2491,19 +2606,22 @@ function TradesGame({
                     <small>Te propose un echange de skins.</small>
                   </div>
                   <div className={styles.tradeSummary}>
-                    <TradeSkinPreview id={trade.offeredItemId} label="Tu recois" />
-                    <TradeSkinPreview id={trade.requestedItemId} label="Tu donnes" />
+                    {trade.offeredItemId ? <TradeSkinPreview id={trade.offeredItemId} label="Tu recois" /> : null}
+                    <TradeCreditsPreview credits={trade.offeredCredits} label="Tu recois" />
+                    {trade.requestedItemId ? <TradeSkinPreview id={trade.requestedItemId} label="Tu donnes" /> : null}
+                    <TradeCreditsPreview credits={trade.requestedCredits} label="Tu donnes" />
                   </div>
-                  {!hasSkinCopy(ownedSkinIds, trade.requestedItemId) ? (
+                  {trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId) ? (
                     <small className={styles.tradeWarning}>Tu ne possedes plus le skin demande.</small>
                   ) : null}
+                  {trade.requestedCredits > balance ? <small className={styles.tradeWarning}>Tu n'as pas assez de credits.</small> : null}
                 </div>
                 <div className={styles.socialActions}>
                   <button
                     className={styles.primaryButton}
                     type="button"
                     onClick={() => onAnswer(trade, "accepted")}
-                    disabled={!hasSkinCopy(ownedSkinIds, trade.requestedItemId)}
+                    disabled={(trade.requestedItemId ? !hasSkinCopy(ownedSkinIds, trade.requestedItemId) : false) || trade.requestedCredits > balance}
                   >
                     Accepter
                   </button>
@@ -2534,8 +2652,10 @@ function TradesGame({
                     <small>Offre en attente. Ton skin est reserve.</small>
                   </div>
                   <div className={styles.tradeSummary}>
-                    <TradeSkinPreview id={trade.offeredItemId} label="Tu donnes" />
-                    <TradeSkinPreview id={trade.requestedItemId} label="Tu demandes" />
+                    {trade.offeredItemId ? <TradeSkinPreview id={trade.offeredItemId} label="Tu donnes" /> : null}
+                    <TradeCreditsPreview credits={trade.offeredCredits} label="Tu donnes" />
+                    {trade.requestedItemId ? <TradeSkinPreview id={trade.requestedItemId} label="Tu demandes" /> : null}
+                    <TradeCreditsPreview credits={trade.requestedCredits} label="Tu demandes" />
                   </div>
                 </div>
                 <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(trade, "canceled")}>
@@ -2552,7 +2672,8 @@ function TradesGame({
           <li key={trade.id}>
             <span>{tradeStatusLabel(trade.status)}</span>
             <small>
-              {trade.fromDisplayName} propose {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
+              {trade.fromDisplayName} propose {tradeAssetLabel(trade.offeredItemId, trade.offeredCredits)} contre{" "}
+              {tradeAssetLabel(trade.requestedItemId, trade.requestedCredits)}
             </small>
           </li>
         ))}
