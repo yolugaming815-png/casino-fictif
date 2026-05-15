@@ -1166,22 +1166,22 @@ function App() {
   ) {
     if (!accountUser) {
       setTradesMessage("Connecte-toi pour proposer un echange.");
-      return;
+      return false;
     }
 
     if ((!offeredItemId && offeredCredits <= 0) || (!requestedItemId && requestedCredits <= 0)) {
       setTradesMessage("Choisis au moins un skin ou des credits de chaque cote.");
-      return;
+      return false;
     }
 
     if (offeredItemId && !hasSkinCopy(ownedSkinIds, offeredItemId)) {
       setTradesMessage("Tu ne possedes plus ce skin.");
-      return;
+      return false;
     }
 
     if (offeredCredits > balance) {
       setTradesMessage("Tu n'as pas assez de credits pour envoyer cette offre.");
-      return;
+      return false;
     }
 
     const previousOwnedSkinIds = ownedSkinIds;
@@ -1197,37 +1197,72 @@ function App() {
       await createSkinTrade(accountUser, friend, offeredItemId, requestedItemId, offeredCredits, requestedCredits);
       setTradesMessage(`Offre envoyee a ${friend.displayName}.`);
       await refreshSkinTrades(accountUser.uid);
+      return true;
     } catch (error) {
       setOwnedSkinIds(previousOwnedSkinIds);
       setBalance(previousBalance);
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setTradesMessage(`Echange impossible : ${message}`);
+      return false;
+    }
+  }
+
+  async function handleCounterSkinTrade(
+    originalTrade: SkinTradeEntry,
+    friend: { uid: string; displayName: string },
+    offeredItemId: string,
+    requestedItemId: string,
+    offeredCredits: number,
+    requestedCredits: number,
+  ) {
+    if (!accountUser) {
+      setTradesMessage("Connecte-toi pour proposer une contre-offre.");
+      return false;
+    }
+
+    const created = await handleCreateSkinTrade(friend, offeredItemId, requestedItemId, offeredCredits, requestedCredits);
+
+    if (!created) {
+      return false;
+    }
+
+    try {
+      await answerSkinTrade(originalTrade, accountUser, "rejected");
+      setTradesMessage(`Contre-offre envoyee a ${friend.displayName}.`);
+      await refreshSkinTrades(accountUser.uid);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setTradesMessage(`Contre-offre envoyee, mais l'ancienne offre n'a pas pu etre fermee : ${message}`);
+      return true;
     }
   }
 
   async function handleAnswerSkinTrade(trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") {
     if (!accountUser) {
       setTradesMessage("Connecte-toi pour gerer tes echanges.");
-      return;
+      return false;
     }
 
     if (status === "accepted" && trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
       setTradesMessage("Tu n'as plus le skin demande pour accepter cet echange.");
-      return;
+      return false;
     }
 
     if (status === "accepted" && trade.requestedCredits > balance) {
       setTradesMessage("Tu n'as pas assez de credits pour accepter cet echange.");
-      return;
+      return false;
     }
 
     try {
       await answerSkinTrade(trade, accountUser, status);
       setTradesMessage(status === "accepted" ? "Echange accepte." : status === "rejected" ? "Echange refuse." : "Echange annule.");
       await refreshSkinTrades(accountUser.uid);
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setTradesMessage(`Action impossible : ${message}`);
+      return false;
     }
   }
 
@@ -1966,6 +2001,7 @@ function App() {
             ownedSkinIds={ownedSkinIds}
             trades={skinTrades}
             onAnswer={handleAnswerSkinTrade}
+            onCounter={handleCounterSkinTrade}
             onCreate={handleCreateSkinTrade}
           />
         ) : activeGame === "slots" ? (
@@ -2375,6 +2411,7 @@ function TradesGame({
   ownedSkinIds,
   trades,
   onAnswer,
+  onCounter,
   onCreate,
 }: {
   balance: number;
@@ -2384,14 +2421,22 @@ function TradesGame({
   message: string;
   ownedSkinIds: string[];
   trades: SkinTradeEntry[];
-  onAnswer: (trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") => void;
+  onAnswer: (trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") => Promise<boolean>;
+  onCounter: (
+    originalTrade: SkinTradeEntry,
+    friend: { uid: string; displayName: string },
+    offeredItemId: string,
+    requestedItemId: string,
+    offeredCredits: number,
+    requestedCredits: number,
+  ) => Promise<boolean>;
   onCreate: (
     friend: { uid: string; displayName: string },
     offeredItemId: string,
     requestedItemId: string,
     offeredCredits: number,
     requestedCredits: number,
-  ) => void;
+  ) => Promise<boolean>;
 }) {
   const currentUserId = currentUser?.uid ?? "";
   const [friendUid, setFriendUid] = useState("");
@@ -2399,6 +2444,7 @@ function TradesGame({
   const [requestedItemId, setRequestedItemId] = useState("");
   const [offeredCreditsText, setOfferedCreditsText] = useState("0");
   const [requestedCreditsText, setRequestedCreditsText] = useState("0");
+  const [counterTradeId, setCounterTradeId] = useState("");
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
   const ownedCounts = countOwnedSkins(ownedSkinIds);
   const ownItems = SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0);
@@ -2418,14 +2464,23 @@ function TradesGame({
 
       return items;
     }, []);
-  const selectedFriend = friends.find((friend) => friend.uid === friendUid);
+  const incoming = trades.filter((trade) => trade.status === "pending" && trade.toUid === currentUserId);
+  const outgoing = trades.filter((trade) => trade.status === "pending" && trade.fromUid === currentUserId);
+  const history = trades.filter((trade) => trade.status !== "pending").slice(0, 8);
+  const counterTrade = incoming.find((trade) => trade.id === counterTradeId);
+  const selectedFriend =
+    friends.find((friend) => friend.uid === friendUid) ??
+    (counterTrade && counterTrade.fromUid === friendUid
+      ? {
+          uid: counterTrade.fromUid,
+          displayName: counterTrade.fromDisplayName,
+          profile: leaderboardById.get(counterTrade.fromUid),
+        }
+      : undefined);
   const friendInventory = selectedFriend?.profile?.inventory ?? [];
   const friendItems = friendInventory
     .map((entry) => SHOP_ITEMS.find((item) => item.id === entry.id))
     .filter((item): item is ShopItem => Boolean(item));
-  const incoming = trades.filter((trade) => trade.status === "pending" && trade.toUid === currentUserId);
-  const outgoing = trades.filter((trade) => trade.status === "pending" && trade.fromUid === currentUserId);
-  const history = trades.filter((trade) => trade.status !== "pending").slice(0, 8);
   const offeredCredits = normalizeTradeCredits(offeredCreditsText);
   const requestedCredits = normalizeTradeCredits(requestedCreditsText);
 
@@ -2495,6 +2550,37 @@ function TradesGame({
     );
   }
 
+  function startCounterOffer(trade: SkinTradeEntry) {
+    setCounterTradeId(trade.id);
+    setFriendUid(trade.fromUid);
+    setOfferedItemId(trade.requestedItemId && hasSkinCopy(ownedSkinIds, trade.requestedItemId) ? trade.requestedItemId : "");
+    setRequestedItemId(trade.offeredItemId);
+    setOfferedCreditsText(trade.requestedCredits > 0 ? String(trade.requestedCredits) : "0");
+    setRequestedCreditsText(trade.offeredCredits > 0 ? String(trade.offeredCredits) : "0");
+  }
+
+  function clearCounterOffer() {
+    setCounterTradeId("");
+  }
+
+  async function submitTradeOffer() {
+    if (!selectedFriend) {
+      return;
+    }
+
+    const created = counterTrade
+      ? await onCounter(counterTrade, selectedFriend, offeredItemId, requestedItemId, offeredCredits, requestedCredits)
+      : await onCreate(selectedFriend, offeredItemId, requestedItemId, offeredCredits, requestedCredits);
+
+    if (created) {
+      setOfferedItemId("");
+      setRequestedItemId("");
+      setOfferedCreditsText("0");
+      setRequestedCreditsText("0");
+      clearCounterOffer();
+    }
+  }
+
   if (!currentUser) {
     return (
       <section className={styles.machine}>
@@ -2521,7 +2607,13 @@ function TradesGame({
         <div className={styles.tradeForm}>
           <label>
             Ami
-            <select value={friendUid} onChange={(event) => setFriendUid(event.target.value)}>
+            <select
+              value={friendUid}
+              onChange={(event) => {
+                setFriendUid(event.target.value);
+                clearCounterOffer();
+              }}
+            >
               <option value="">Choisir un ami</option>
               {friends.map((friend) => (
                 <option key={friend.uid} value={friend.uid}>
@@ -2576,7 +2668,7 @@ function TradesGame({
           <button
             className={styles.primaryButton}
             type="button"
-            onClick={() => selectedFriend && onCreate(selectedFriend, offeredItemId, requestedItemId, offeredCredits, requestedCredits)}
+            onClick={submitTradeOffer}
             disabled={
               !selectedFriend ||
               offeredCredits > balance ||
@@ -2584,9 +2676,19 @@ function TradesGame({
               (!requestedItemId && requestedCredits <= 0)
             }
           >
-            Envoyer l'offre
+            {counterTrade ? "Envoyer la contre-offre" : "Envoyer l'offre"}
           </button>
         </div>
+        {counterTrade ? (
+          <div className={styles.tradeCounterBanner}>
+            <span>
+              Contre-offre pour {counterTrade.fromDisplayName} : l'offre recue sera refusee automatiquement si la nouvelle offre part bien.
+            </span>
+            <button className={styles.secondaryButton} type="button" onClick={clearCounterOffer}>
+              Annuler la contre-offre
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section className={styles.panel}>
@@ -2627,6 +2729,9 @@ function TradesGame({
                   </button>
                   <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(trade, "rejected")}>
                     Refuser
+                  </button>
+                  <button className={styles.secondaryButton} type="button" onClick={() => startCounterOffer(trade)}>
+                    Contre-offre
                   </button>
                 </div>
               </article>
