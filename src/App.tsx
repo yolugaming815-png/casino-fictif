@@ -4949,7 +4949,7 @@ function drawSkinnedBall(context: CanvasRenderingContext2D, x: number, y: number
     context.lineTo(x - radius * 0.65, y);
     context.closePath();
     context.stroke();
-  } else if (skin.id.includes("mint") || skin.id.includes("jade")) {
+  } else if (skin.id.includes("mint") || skin.id.includes("jade") || skin.id.includes("emerald")) {
     for (let dot = 0; dot < 6; dot += 1) {
       const angle = (Math.PI * 2 * dot) / 6;
       context.beginPath();
@@ -4957,6 +4957,46 @@ function drawSkinnedBall(context: CanvasRenderingContext2D, x: number, y: number
       context.fillStyle = "rgba(255, 255, 255, 0.36)";
       context.fill();
     }
+  } else if (skin.id.includes("pearl") || skin.id.includes("cloud") || skin.id.includes("crystal") || skin.id.includes("opal")) {
+    context.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    for (let line = -1; line <= 1; line += 1) {
+      context.beginPath();
+      context.arc(x + line * radius * 0.18, y, radius * (0.44 + line * 0.08), Math.PI * 0.18, Math.PI * 1.3);
+      context.stroke();
+    }
+  } else if (skin.id.includes("copper") || skin.id.includes("amber")) {
+    context.strokeStyle = "rgba(90, 42, 18, 0.35)";
+    for (let offset = -radius * 2; offset <= radius * 2; offset += radius * 0.48) {
+      context.beginPath();
+      context.moveTo(x - radius + offset, y - radius);
+      context.lineTo(x + radius + offset, y + radius);
+      context.stroke();
+    }
+  } else if (skin.id.includes("prism") || skin.id.includes("azure") || skin.id.includes("laser") || skin.id.includes("comet")) {
+    const colors = ["#8fd3ff", "#c58cff", "#ffd166", "#79e29f"];
+    for (let index = 0; index < colors.length; index += 1) {
+      context.beginPath();
+      context.moveTo(x, y);
+      context.arc(x, y, radius, (Math.PI * 2 * index) / colors.length, (Math.PI * 2 * (index + 1)) / colors.length);
+      context.closePath();
+      context.fillStyle = colors[index];
+      context.globalAlpha = 0.48;
+      context.fill();
+    }
+    context.globalAlpha = 1;
+  } else if (skin.id.includes("eclipse") || skin.id.includes("storm")) {
+    context.beginPath();
+    context.arc(x + radius * 0.32, y + radius * 0.22, radius * 0.46, 0, Math.PI * 2);
+    context.fillStyle = "rgba(181, 140, 255, 0.5)";
+    context.fill();
+  } else if (skin.id.includes("galaxy") || skin.id.includes("starfall") || skin.id.includes("aurora") || skin.id.includes("supernova") || skin.id.includes("cosmic")) {
+    const colors = ["rgba(143, 211, 255, 0.64)", "rgba(197, 140, 255, 0.58)", "rgba(255, 209, 102, 0.48)"];
+    colors.forEach((color, index) => {
+      context.beginPath();
+      context.arc(x + Math.cos(index * 2.1) * radius * 0.34, y + Math.sin(index * 2.1) * radius * 0.34, radius * 0.22, 0, Math.PI * 2);
+      context.fillStyle = color;
+      context.fill();
+    });
   } else if (skin.id.includes("sun")) {
     for (let ray = 0; ray < 8; ray += 1) {
       const angle = (Math.PI * 2 * ray) / 8;
@@ -6352,7 +6392,7 @@ function ballGlow(id: string): string {
     return "rgba(181, 140, 255, 0.92)";
   }
 
-  if (id.includes("mint") || id.includes("jade")) {
+  if (id.includes("mint") || id.includes("jade") || id.includes("emerald")) {
     return "rgba(156, 243, 211, 0.92)";
   }
 
@@ -6472,7 +6512,7 @@ function ballSkinClass(id: string): string {
     return styles.ballLilac;
   }
 
-  if (id.includes("mint") || id.includes("jade")) {
+  if (id.includes("mint") || id.includes("jade") || id.includes("emerald")) {
     return styles.ballMint;
   }
 

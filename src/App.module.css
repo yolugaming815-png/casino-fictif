@@ -3309,6 +3309,93 @@
   box-shadow: 0 0 28px var(--shop-preview-glow);
 }
 
+.caseOrbPreview.ballGold {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(135deg, #ffe49a, #ffc94f 56%, #d79724);
+}
+
+.caseOrbPreview.ballNeon {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    repeating-linear-gradient(45deg, rgba(16, 18, 24, 0.2) 0 4px, transparent 4px 10px),
+    linear-gradient(135deg, #9effbe, #36d77d);
+}
+
+.caseOrbPreview.ballRuby {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    radial-gradient(circle at 68% 72%, #77171f, transparent 35%),
+    linear-gradient(135deg, #ff8b8b, #cc243b);
+}
+
+.caseOrbPreview.ballOcean {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(135deg, transparent 0 45%, rgba(255, 255, 255, 0.35) 46% 54%, transparent 55%),
+    linear-gradient(135deg, #9ee3ff, #2f8be6);
+}
+
+.caseOrbPreview.ballLilac {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 40deg, #c58cff, #8b6cff, #f3b7ff, #c58cff);
+}
+
+.caseOrbPreview.ballMint {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.32) 0 2px, transparent 2px 8px),
+    linear-gradient(135deg, #bcffe8, #45d7a0);
+}
+
+.caseOrbPreview.ballRose {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 18%, transparent 18% 36%, rgba(255, 255, 255, 0.2) 36% 54%, transparent 54%),
+    linear-gradient(135deg, #ffb4ca, #ef4f87);
+}
+
+.caseOrbPreview.ballSun {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 0deg, #fff0a8, #ffb83d, #fff0a8, #ff9e3d, #fff0a8);
+}
+
+.caseOrbPreview.ballPearl {
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.95) 0 12%, transparent 13%),
+    linear-gradient(135deg, #ffffff, #cde7ef 48%, #e8d8ff);
+}
+
+.caseOrbPreview.ballCopper {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.9) 0 10%, transparent 11%),
+    repeating-linear-gradient(120deg, rgba(90, 42, 18, 0.22) 0 4px, transparent 4px 11px),
+    linear-gradient(135deg, #ffc37d, #bf6735);
+}
+
+.caseOrbPreview.ballPrism {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
+    conic-gradient(from 30deg, #8fd3ff, #c58cff, #ffd166, #79e29f, #8fd3ff);
+}
+
+.caseOrbPreview.ballEclipse {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.86) 0 9%, transparent 10%),
+    radial-gradient(circle at 72% 70%, rgba(181, 140, 255, 0.55), transparent 38%),
+    linear-gradient(135deg, #1b1f29, #5a6070);
+}
+
+.caseOrbPreview.ballCosmic {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.96) 0 9%, transparent 10%),
+    radial-gradient(circle at 30% 68%, rgba(255, 209, 102, 0.65), transparent 18%),
+    radial-gradient(circle at 70% 34%, rgba(143, 211, 255, 0.7), transparent 22%),
+    conic-gradient(from 80deg, #17243b, #8fd3ff, #c58cff, #17243b);
+}
+
 .caseCardBackPreview {
   display: block;
   width: 68px;
