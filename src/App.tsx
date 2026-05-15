@@ -1996,12 +1996,12 @@ function App() {
   function playClawMachine() {
     if (paused) {
       setClawMessage("La pause responsable est active.");
-      return;
+      return null;
     }
 
     if (balance < CLAW_COST) {
       setClawMessage("Solde insuffisant pour tenter la machine a pince.");
-      return;
+      return null;
     }
 
     const chest = SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)];
@@ -2058,6 +2058,7 @@ function App() {
     }
     setClawHistory((items) => [outcome, ...items].slice(0, 10));
     setClawMessage(`${label} dans la boule.`);
+    return outcome;
   }
 
   function launchRocket() {
@@ -5853,11 +5854,12 @@ function ClawGame({
   message: string;
   paused: boolean;
   specialInventory: SpecialInventory;
-  onPlay: () => void;
+  onPlay: () => ClawOutcome | null;
 }) {
   const [clawPosition, setClawPosition] = useState(50);
   const [dropping, setDropping] = useState(false);
   const [grabbedBall, setGrabbedBall] = useState<number | null>(null);
+  const [reveal, setReveal] = useState<{ outcome: ClawOutcome; x: number; theme: string } | null>(null);
   const clawBalls = useMemo(
     () =>
       Array.from({ length: 34 }, (_, index) => {
@@ -5889,20 +5891,37 @@ function ClawGame({
       return;
     }
 
-    const closestBallIndex = clawBalls.reduce((closest, ball, index) => {
-      const currentDistance = Math.abs(ball.left - clawPosition);
-      const closestDistance = Math.abs(clawBalls[closest].left - clawPosition);
+    const candidateBalls = clawBalls
+      .map((ball, index) => ({ ball, index, distance: Math.abs(ball.left - clawPosition) }))
+      .filter((candidate) => candidate.distance <= 13)
+      .sort((left, right) => left.distance - right.distance)
+      .slice(0, 8);
+    const pool = candidateBalls.length > 0 ? candidateBalls : clawBalls.map((ball, index) => ({ ball, index, distance: 99 }));
+    const weightedPool = pool.flatMap((candidate) => {
+      const distanceWeight = Math.max(1, 7 - Math.round(candidate.distance));
+      const layerWeight = Math.max(1, Math.round(candidate.ball.bottom / 22));
 
-      return currentDistance < closestDistance ? index : closest;
-    }, 0);
+      return Array.from({ length: distanceWeight + layerWeight }, () => candidate);
+    });
+    const selectedCandidate = weightedPool[Math.floor(Math.random() * weightedPool.length)];
+    const closestBallIndex = selectedCandidate.index;
 
     setDropping(true);
+    setReveal(null);
     window.setTimeout(() => setGrabbedBall(closestBallIndex), 520);
-    window.setTimeout(() => onPlay(), 780);
+    window.setTimeout(() => {
+      const outcome = onPlay();
+      const ball = clawBalls[closestBallIndex];
+
+      if (outcome) {
+        setReveal({ outcome, x: ball.left, theme: getSpecialChestDefinition(outcome.chestId).theme });
+      }
+    }, 880);
     window.setTimeout(() => {
       setDropping(false);
       setGrabbedBall(null);
-    }, 1250);
+    }, 1450);
+    window.setTimeout(() => setReveal(null), 2850);
   }
 
   useEffect(() => {
@@ -5965,6 +5984,27 @@ function ClawGame({
                 }
               />
             ))}
+            {reveal && (
+              <div
+                className={styles.clawReveal}
+                style={{ "--reveal-x": `${reveal.x}%`, "--special-chest-color": reveal.theme } as CSSProperties}
+              >
+                <span className={styles.clawRevealHalfLeft} />
+                <span className={styles.clawRevealHalfRight} />
+                <strong>
+                  {reveal.outcome.rewardType === "credits" && `+${reveal.outcome.amount}`}
+                  {reveal.outcome.rewardType === "fragments" && (
+                    <>
+                      {Array.from({ length: reveal.outcome.amount }, (_, index) => (
+                        <i className={styles.clawFragmentIcon} key={index} />
+                      ))}
+                    </>
+                  )}
+                  {reveal.outcome.rewardType === "key" && <i className={styles.clawKeyIcon} />}
+                </strong>
+                <small>{reveal.outcome.label}</small>
+              </div>
+            )}
           </div>
           <div className={styles.clawControls}>
             <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(-1)} disabled={dropping}>

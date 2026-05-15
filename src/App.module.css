@@ -751,10 +751,172 @@
   z-index: 2;
 }
 
+.clawReveal {
+  position: absolute;
+  left: var(--reveal-x);
+  bottom: 92px;
+  display: grid;
+  place-items: center;
+  width: 136px;
+  min-height: 118px;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none;
+  animation: clawRevealPop 1.35s ease both;
+}
+
+.clawRevealHalfLeft,
+.clawRevealHalfRight {
+  position: absolute;
+  top: 18px;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px 0 0 999px;
+  background:
+    radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.9) 0 14%, transparent 15%),
+    radial-gradient(circle at 58% 62%, var(--special-chest-color), color-mix(in srgb, var(--special-chest-color) 58%, #101218));
+  border: 2px solid color-mix(in srgb, var(--special-chest-color) 70%, #ffffff);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--special-chest-color) 60%, transparent);
+}
+
+.clawRevealHalfLeft {
+  left: 17px;
+  clip-path: inset(0 50% 0 0);
+  animation: clawHalfLeft 1.35s ease both;
+}
+
+.clawRevealHalfRight {
+  right: 17px;
+  clip-path: inset(0 0 0 50%);
+  transform: scaleX(-1);
+  animation: clawHalfRight 1.35s ease both;
+}
+
+.clawReveal strong {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 70px;
+  min-height: 44px;
+  margin-top: 16px;
+  border-radius: 999px;
+  color: #101218;
+  background: #ffd166;
+  box-shadow: 0 0 28px rgba(255, 209, 102, 0.55);
+  font-size: 1.05rem;
+  opacity: 0;
+  animation: clawRewardShow 1.35s ease both;
+}
+
+.clawReveal small {
+  position: relative;
+  max-width: 130px;
+  margin-top: 72px;
+  color: #f9f7ef;
+  text-align: center;
+  font-weight: 900;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  animation: clawRewardShow 1.35s ease 0.14s both;
+}
+
+.clawFragmentIcon {
+  width: 15px;
+  height: 24px;
+  border-radius: 4px 8px 5px 10px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.75), transparent 38%),
+    var(--special-chest-color);
+  transform: rotate(18deg);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--special-chest-color) 70%, transparent);
+}
+
+.clawKeyIcon {
+  position: relative;
+  width: 56px;
+  height: 24px;
+}
+
+.clawKeyIcon::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  border: 5px solid var(--special-chest-color);
+  border-radius: 50%;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--special-chest-color) 70%, transparent);
+}
+
+.clawKeyIcon::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 10px;
+  width: 34px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--special-chest-color);
+  box-shadow:
+    18px 0 0 -1px var(--special-chest-color),
+    24px 8px 0 -1px var(--special-chest-color);
+}
+
 .clawControls {
   display: grid;
   grid-template-columns: minmax(100px, 0.35fr) minmax(180px, 1fr) minmax(100px, 0.35fr);
   gap: 10px;
+}
+
+@keyframes clawRevealPop {
+  0% {
+    transform: translateX(-50%) scale(0.45);
+    filter: brightness(0.85);
+  }
+  28% {
+    transform: translateX(-50%) scale(1.18);
+    filter: brightness(1.25);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes clawHalfLeft {
+  0%,
+  32% {
+    transform: translateX(28px) rotate(0deg);
+  }
+  100% {
+    transform: translateX(-18px) rotate(-24deg);
+  }
+}
+
+@keyframes clawHalfRight {
+  0%,
+  32% {
+    transform: translateX(-28px) scaleX(-1) rotate(0deg);
+  }
+  100% {
+    transform: translateX(18px) scaleX(-1) rotate(24deg);
+  }
+}
+
+@keyframes clawRewardShow {
+  0%,
+  34% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.8);
+  }
+  58%,
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .tradeForm label {
