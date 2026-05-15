@@ -10,6 +10,7 @@ export type ShopItem = {
   price: number;
   preview: string;
   rarity: SkinRarity;
+  source?: "shop" | "special";
 };
 
 export const SKIN_PRICES_BY_RARITY: Record<SkinRarity, number> = {
@@ -226,6 +227,46 @@ export const SHOP_ITEMS: ShopItem[] = [
     price: SKIN_PRICES_BY_RARITY.legendary,
     preview: "#f4f7fb",
     rarity: "legendary",
+  },
+  {
+    id: "plinko-galaxy-core",
+    category: "plinkoBall",
+    name: "Bille noyau galaxie",
+    description: "Skin exclusif de coffre Nebula, avec coeur cosmique.",
+    price: 0,
+    preview: "#8fd3ff",
+    rarity: "legendary",
+    source: "special",
+  },
+  {
+    id: "cards-joker-gold",
+    category: "cardBack",
+    name: "Dos joker dore",
+    description: "Skin exclusif de coffre Royal, grave comme une carte joker premium.",
+    price: 0,
+    preview: "#ffd166",
+    rarity: "legendary",
+    source: "special",
+  },
+  {
+    id: "roulette-prism",
+    category: "rouletteBall",
+    name: "Bille prisme",
+    description: "Skin exclusif de coffre Prism, avec reflets multicolores.",
+    price: 0,
+    preview: "#c58cff",
+    rarity: "epic",
+    source: "special",
+  },
+  {
+    id: "rocket-orbital-x",
+    category: "rocketShip",
+    name: "Vaisseau Orbital X",
+    description: "Skin exclusif de coffre Orbital, profil de navette elite.",
+    price: 0,
+    preview: "#79e29f",
+    rarity: "legendary",
+    source: "special",
   },
 ];
 

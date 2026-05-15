@@ -574,6 +574,77 @@
   align-items: end;
 }
 
+.specialChestPreview {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 120px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--special-chest-color) 38%, transparent), transparent 48%),
+    rgba(255, 255, 255, 0.06);
+}
+
+.specialChestPreview span {
+  width: 112px;
+  height: 62px;
+  border-radius: 8px;
+  border: 2px solid color-mix(in srgb, var(--special-chest-color) 70%, #ffffff);
+  background:
+    linear-gradient(135deg, transparent 0 18%, color-mix(in srgb, var(--special-chest-color) 55%, transparent) 18% 24%, transparent 24% 44%, color-mix(in srgb, var(--special-chest-color) 35%, transparent) 44% 52%, transparent 52%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(16, 18, 24, 0.5)),
+    color-mix(in srgb, var(--special-chest-color) 36%, #20242d);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--special-chest-color) 55%, transparent);
+}
+
+.clawStage {
+  display: grid;
+  gap: 16px;
+}
+
+.clawMachine {
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(94, 184, 241, 0.14), transparent 48%),
+    rgba(16, 18, 24, 0.58);
+}
+
+.clawArm {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 8px;
+  height: 112px;
+  border-radius: 999px;
+  background: #d5ddd9;
+}
+
+.clawHook {
+  position: absolute;
+  left: calc(50% - 28px);
+  top: 104px;
+  width: 64px;
+  height: 46px;
+  border: 6px solid #ffd166;
+  border-top: 0;
+  border-radius: 0 0 32px 32px;
+}
+
+.clawPrize {
+  position: relative;
+  display: inline-block;
+  width: 72px;
+  height: 44px;
+  margin: 184px 12px 0;
+  border-radius: 8px;
+  background: var(--special-chest-color);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--special-chest-color) 50%, transparent);
+}
+
 .tradeForm label {
   display: grid;
   gap: 6px;

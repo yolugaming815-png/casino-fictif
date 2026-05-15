@@ -1,5 +1,18 @@
 import type { ShopItem, SkinCategory, SkinRarity } from "./shopLogic";
 
+export type SpecialChestId = "nebula" | "royal" | "prism" | "orbital";
+
+export type SpecialChestDefinition = {
+  id: SpecialChestId;
+  title: string;
+  subtitle: string;
+  price: number;
+  keyName: string;
+  fragmentName: string;
+  theme: string;
+  itemIds: string[];
+};
+
 export type CaseDefinition = {
   id: SkinCategory;
   title: string;
@@ -42,6 +55,49 @@ export const CASES: CaseDefinition[] = [
   },
 ];
 
+export const SPECIAL_CHESTS: SpecialChestDefinition[] = [
+  {
+    id: "nebula",
+    title: "Coffre Nebula",
+    subtitle: "Skins exclusifs lumineux et cosmiques.",
+    price: 260,
+    keyName: "Cle Nebula",
+    fragmentName: "Fragment Nebula",
+    theme: "#8fd3ff",
+    itemIds: ["plinko-galaxy-core"],
+  },
+  {
+    id: "royal",
+    title: "Coffre Royal",
+    subtitle: "Skins exclusifs cartes et table premium.",
+    price: 280,
+    keyName: "Cle Royal",
+    fragmentName: "Fragment Royal",
+    theme: "#ffd166",
+    itemIds: ["cards-joker-gold"],
+  },
+  {
+    id: "prism",
+    title: "Coffre Prism",
+    subtitle: "Skins exclusifs brillants pour roulette.",
+    price: 240,
+    keyName: "Cle Prism",
+    fragmentName: "Fragment Prism",
+    theme: "#c58cff",
+    itemIds: ["roulette-prism"],
+  },
+  {
+    id: "orbital",
+    title: "Coffre Orbital",
+    subtitle: "Skins exclusifs pour Rocket Games.",
+    price: 320,
+    keyName: "Cle Orbital",
+    fragmentName: "Fragment Orbital",
+    theme: "#79e29f",
+    itemIds: ["rocket-orbital-x"],
+  },
+];
+
 export const RARITY_WEIGHTS: Record<SkinRarity, number> = {
   common: 62,
   rare: 25,
@@ -69,7 +125,7 @@ export function openCase(
     return null;
   }
 
-  const caseItems = items.filter((item) => item.category === category);
+  const caseItems = items.filter((item) => item.category === category && item.source !== "special");
   const item = pickCaseItem(caseItems, rng);
   const duplicate = ownedSkinIds.includes(item.id);
   const refund = 0;
@@ -79,6 +135,36 @@ export function openCase(
     duplicate,
     refund,
     balance: balance - definition.cost,
+    ownedSkinIds: [...ownedSkinIds, item.id],
+  };
+}
+
+export function getSpecialChestDefinition(id: SpecialChestId): SpecialChestDefinition {
+  const definition = SPECIAL_CHESTS.find((candidate) => candidate.id === id);
+
+  if (!definition) {
+    throw new Error(`Coffre special inconnu: ${id}`);
+  }
+
+  return definition;
+}
+
+export function openSpecialChest(
+  ownedSkinIds: readonly string[],
+  items: readonly ShopItem[],
+  chestId: SpecialChestId,
+  rng: () => number = Math.random,
+) {
+  const definition = getSpecialChestDefinition(chestId);
+  const chestItems = definition.itemIds
+    .map((itemId) => items.find((item) => item.id === itemId))
+    .filter((item): item is ShopItem => Boolean(item));
+  const item = pickCaseItem(chestItems, rng);
+  const duplicate = ownedSkinIds.includes(item.id);
+
+  return {
+    item,
+    duplicate,
     ownedSkinIds: [...ownedSkinIds, item.id],
   };
 }

@@ -57,9 +57,13 @@ import {
 import {
   CASES,
   RARITY_WEIGHTS,
+  SPECIAL_CHESTS,
   getCaseDefinition,
+  getSpecialChestDefinition,
   openCase,
+  openSpecialChest,
   type CaseDefinition,
+  type SpecialChestId,
 } from "./caseLogic";
 import { evaluatePokerHand } from "./pokerLogic";
 import {
@@ -171,6 +175,21 @@ type CaseHistoryItem = {
   balanceAfter: number;
 };
 
+type SpecialInventory = {
+  chests: Record<SpecialChestId, number>;
+  keys: Record<SpecialChestId, number>;
+  fragments: Record<SpecialChestId, number>;
+};
+
+type ClawOutcome = {
+  id: number;
+  chestId: SpecialChestId;
+  rewardType: "key" | "fragments" | "miss";
+  amount: number;
+  label: string;
+  balanceAfter: number;
+};
+
 type SavedGameState = {
   version: 1;
   balance: number;
@@ -182,6 +201,8 @@ type SavedGameState = {
   rouletteHistory: RouletteHistoryItem[];
   rocketHistory: RocketHistoryItem[];
   caseHistory: CaseHistoryItem[];
+  specialInventory: SpecialInventory;
+  clawHistory: ClawOutcome[];
 };
 
 type ActivityItem = {
@@ -198,6 +219,20 @@ const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
 const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 const MESSAGE_SEND_COOLDOWN_MS = 2500;
+const CLAW_COST = 35;
+const KEY_FRAGMENTS_REQUIRED = 9;
+
+function emptySpecialInventory(): SpecialInventory {
+  return SPECIAL_CHESTS.reduce(
+    (inventory, chest) => {
+      inventory.chests[chest.id] = 0;
+      inventory.keys[chest.id] = 0;
+      inventory.fragments[chest.id] = 0;
+      return inventory;
+    },
+    { chests: {}, keys: {}, fragments: {} } as SpecialInventory,
+  );
+}
 
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
@@ -270,6 +305,19 @@ function sanitizeOwnedSkinIds(value: unknown) {
   const counts = new Map(ids.map((id) => [id, true]));
   const missingDefaults = Object.values(DEFAULT_EQUIPPED_SKINS).filter((id) => !counts.has(id));
   return [...missingDefaults, ...ids];
+}
+
+function sanitizeSpecialInventory(value: unknown): SpecialInventory {
+  const base = emptySpecialInventory();
+  const raw = value && typeof value === "object" ? (value as Partial<SpecialInventory>) : {};
+
+  SPECIAL_CHESTS.forEach((chest) => {
+    base.chests[chest.id] = Math.max(0, Math.floor(Number(raw.chests?.[chest.id] ?? 0)));
+    base.keys[chest.id] = Math.max(0, Math.floor(Number(raw.keys?.[chest.id] ?? 0)));
+    base.fragments[chest.id] = Math.max(0, Math.floor(Number(raw.fragments?.[chest.id] ?? 0)));
+  });
+
+  return base;
 }
 
 function ensureEquippedSkinsAreOwned(ownedSkinIds: readonly string[], equippedSkins: EquippedSkins) {
@@ -409,6 +457,8 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     rouletteHistory: readArray<RouletteHistoryItem>(parsed.rouletteHistory).slice(0, 10),
     rocketHistory: readArray<RocketHistoryItem>(parsed.rocketHistory).slice(0, 10),
     caseHistory: sanitizeCaseHistory(parsed.caseHistory),
+    specialInventory: sanitizeSpecialInventory(parsed.specialInventory),
+    clawHistory: readArray<ClawOutcome>(parsed.clawHistory).slice(0, 10),
   };
 }
 
@@ -474,7 +524,7 @@ function App() {
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
   const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "messages" | "activity">("games");
-  const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
+  const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
 
@@ -521,6 +571,9 @@ function App() {
   const [caseReelItems, setCaseReelItems] = useState<ShopItem[]>([]);
   const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(savedGame?.caseHistory[0] ?? null);
   const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>(savedGame?.caseHistory ?? []);
+  const [specialInventory, setSpecialInventory] = useState<SpecialInventory>(savedGame?.specialInventory ?? emptySpecialInventory());
+  const [clawHistory, setClawHistory] = useState<ClawOutcome[]>(savedGame?.clawHistory ?? []);
+  const [clawMessage, setClawMessage] = useState("Tente d'attraper des cles ou des fragments de cles.");
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
@@ -565,6 +618,7 @@ function App() {
   const rouletteId = useRef(getNextHistoryId(savedGame?.rouletteHistory));
   const rocketId = useRef(getNextHistoryId(savedGame?.rocketHistory));
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
+  const clawId = useRef(getNextHistoryId(savedGame?.clawHistory));
 
   function rememberAppliedTrade(tradeApplyKey: string) {
     if (appliedTradeKeysRef.current.has(tradeApplyKey)) {
@@ -629,6 +683,8 @@ function App() {
       rouletteHistory,
       rocketHistory,
       caseHistory,
+      specialInventory,
+      clawHistory,
     });
   }, [
     balance,
@@ -640,6 +696,8 @@ function App() {
     rouletteHistory,
     rocketHistory,
     caseHistory,
+    specialInventory,
+    clawHistory,
   ]);
 
   useEffect(() => {
@@ -1420,6 +1478,8 @@ function App() {
       rouletteHistory,
       rocketHistory,
       caseHistory,
+      specialInventory,
+      clawHistory,
     };
   }
 
@@ -1433,6 +1493,8 @@ function App() {
     setRouletteHistory(importedSave.rouletteHistory);
     setRocketHistory(importedSave.rocketHistory);
     setCaseHistory(importedSave.caseHistory);
+    setSpecialInventory(importedSave.specialInventory);
+    setClawHistory(importedSave.clawHistory);
     setLastCaseDrop(importedSave.caseHistory[0] ?? null);
     setActivePlinkoLaunches([]);
     setRocketAnimating(false);
@@ -1445,6 +1507,7 @@ function App() {
     rouletteId.current = getNextHistoryId(importedSave.rouletteHistory);
     rocketId.current = getNextHistoryId(importedSave.rocketHistory);
     caseId.current = getNextHistoryId(importedSave.caseHistory);
+    clawId.current = getNextHistoryId(importedSave.clawHistory);
   }
 
   async function handleGoogleSignIn() {
@@ -1782,6 +1845,25 @@ function App() {
     setShopMessage(`${item.name} achete et equipe. Skin purement cosmetique.`);
   }
 
+  function buySpecialChest(chestId: SpecialChestId) {
+    const chest = getSpecialChestDefinition(chestId);
+
+    if (balance < chest.price) {
+      setShopMessage("Solde insuffisant pour acheter ce coffre special.");
+      return;
+    }
+
+    setBalance((current) => current - chest.price);
+    setSpecialInventory((current) => ({
+      ...current,
+      chests: {
+        ...current.chests,
+        [chestId]: current.chests[chestId] + 1,
+      },
+    }));
+    setShopMessage(`${chest.title} ajoute a ton inventaire.`);
+  }
+
   function handleOpenCase() {
     if (paused) {
       setCaseMessage("La pause est active. Reprends quand tu veux ouvrir une caisse.");
@@ -1843,6 +1925,120 @@ function App() {
       );
       setCaseOpening(false);
     }, CASE_BOX_OPEN_DURATION_MS + CASE_REEL_DURATION_MS);
+  }
+
+  function mergeKeyFragments(chestId: SpecialChestId) {
+    const chest = getSpecialChestDefinition(chestId);
+
+    if (specialInventory.fragments[chestId] < KEY_FRAGMENTS_REQUIRED) {
+      setCaseMessage(`Il faut ${KEY_FRAGMENTS_REQUIRED} fragments pour creer une ${chest.keyName}.`);
+      return;
+    }
+
+    setSpecialInventory((current) => ({
+      ...current,
+      fragments: {
+        ...current.fragments,
+        [chestId]: current.fragments[chestId] - KEY_FRAGMENTS_REQUIRED,
+      },
+      keys: {
+        ...current.keys,
+        [chestId]: current.keys[chestId] + 1,
+      },
+    }));
+    setCaseMessage(`${KEY_FRAGMENTS_REQUIRED} fragments fusionnes en ${chest.keyName}.`);
+  }
+
+  function openOwnedSpecialChest(chestId: SpecialChestId) {
+    const chest = getSpecialChestDefinition(chestId);
+
+    if (specialInventory.chests[chestId] <= 0) {
+      setCaseMessage(`Tu dois posseder un ${chest.title}.`);
+      return;
+    }
+
+    if (specialInventory.keys[chestId] <= 0) {
+      setCaseMessage(`Il faut une ${chest.keyName} pour ouvrir ce coffre.`);
+      return;
+    }
+
+    const outcome = openSpecialChest(ownedSkinIds, SHOP_ITEMS, chestId);
+    const historyItem: CaseHistoryItem = {
+      id: caseId.current++,
+      item: outcome.item,
+      caseTitle: chest.title,
+      duplicate: outcome.duplicate,
+      refund: 0,
+      balanceAfter: balance,
+    };
+
+    setSpecialInventory((current) => ({
+      ...current,
+      chests: {
+        ...current.chests,
+        [chestId]: current.chests[chestId] - 1,
+      },
+      keys: {
+        ...current.keys,
+        [chestId]: current.keys[chestId] - 1,
+      },
+    }));
+    setOwnedSkinIds(outcome.ownedSkinIds);
+    setLastCaseDrop(historyItem);
+    setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
+    if (!outcome.duplicate) {
+      setEquippedSkins((current) => equipSkin(current, outcome.item));
+    }
+    setCaseMessage(outcome.duplicate ? `Doublon exclusif : ${outcome.item.name} ajoute.` : `${outcome.item.name} exclusif debloque et equipe.`);
+  }
+
+  function playClawMachine() {
+    if (paused) {
+      setClawMessage("La pause responsable est active.");
+      return;
+    }
+
+    if (balance < CLAW_COST) {
+      setClawMessage("Solde insuffisant pour tenter la machine a pince.");
+      return;
+    }
+
+    const chest = SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)];
+    const roll = Math.random();
+    const rewardType: ClawOutcome["rewardType"] = roll < 0.08 ? "key" : roll < 0.78 ? "fragments" : "miss";
+    const amount = rewardType === "key" ? 1 : rewardType === "fragments" ? (roll < 0.28 ? 3 : roll < 0.52 ? 2 : 1) : 0;
+    const nextBalance = balance - CLAW_COST;
+    const label =
+      rewardType === "key"
+        ? `${chest.keyName} attrapee`
+        : rewardType === "fragments"
+          ? `${amount} ${chest.fragmentName}${amount > 1 ? "s" : ""}`
+          : "La pince a glisse";
+    const outcome: ClawOutcome = {
+      id: clawId.current++,
+      chestId: chest.id,
+      rewardType,
+      amount,
+      label,
+      balanceAfter: nextBalance,
+    };
+
+    setBalance(nextBalance);
+    if (rewardType !== "miss") {
+      setSpecialInventory((current) => ({
+        ...current,
+        keys: {
+          ...current.keys,
+          [chest.id]: current.keys[chest.id] + (rewardType === "key" ? amount : 0),
+        },
+        fragments: {
+          ...current.fragments,
+          [chest.id]: current.fragments[chest.id] + (rewardType === "fragments" ? amount : 0),
+        },
+      }));
+    }
+    setClawHistory((items) => [outcome, ...items].slice(0, 10));
+    setClawMessage(rewardType === "miss" ? "Rate : la pince a lache le lot." : `${label} gagne.`);
   }
 
   function launchRocket() {
@@ -2079,6 +2275,13 @@ function App() {
           >
             Rocket Games
           </button>
+          <button
+            className={activeGame === "claw" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveGame("claw")}
+          >
+            Machine a pince
+          </button>
           </nav>
         )}
 
@@ -2139,8 +2342,11 @@ function App() {
             paused={paused}
             reelItems={caseReelItems}
             selectedCase={selectedCase}
+            specialInventory={specialInventory}
             onCloseModal={() => setCaseModalVisible(false)}
+            onMergeFragments={mergeKeyFragments}
             onOpen={handleOpenCase}
+            onOpenSpecialChest={openOwnedSpecialChest}
             onSelectCase={setSelectedCase}
           />
         ) : activeSection === "shop" ? (
@@ -2149,7 +2355,9 @@ function App() {
             equippedSkins={equippedSkins}
             message={shopMessage}
             ownedSkinIds={ownedSkinIds}
+            specialInventory={specialInventory}
             onAction={handleShopAction}
+            onBuySpecialChest={buySpecialChest}
           />
         ) : activeSection === "inventory" ? (
           <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleShopAction} />
@@ -2255,7 +2463,7 @@ function App() {
             onNumberChange={setRouletteNumber}
             onSpin={spinRoulette}
           />
-        ) : (
+        ) : activeGame === "rocket" ? (
           <RocketGame
             animating={rocketAnimating}
             bet={rocketBet}
@@ -2269,6 +2477,15 @@ function App() {
             onBetChange={setRocketBet}
             onLaunch={launchRocket}
             onTargetChange={setRocketTarget}
+          />
+        ) : (
+          <ClawGame
+            balance={balance}
+            history={clawHistory}
+            message={clawMessage}
+            paused={paused}
+            specialInventory={specialInventory}
+            onPlay={playClawMachine}
           />
         )}
       </section>
@@ -5067,8 +5284,11 @@ function CaseOpeningGame({
   paused,
   reelItems,
   selectedCase,
+  specialInventory,
   onCloseModal,
+  onMergeFragments,
   onOpen,
+  onOpenSpecialChest,
   onSelectCase,
 }: {
   balance: number;
@@ -5082,12 +5302,15 @@ function CaseOpeningGame({
   paused: boolean;
   reelItems: ShopItem[];
   selectedCase: SkinCategory;
+  specialInventory: SpecialInventory;
   onCloseModal: () => void;
+  onMergeFragments: (chestId: SpecialChestId) => void;
   onOpen: () => void;
+  onOpenSpecialChest: (chestId: SpecialChestId) => void;
   onSelectCase: (category: SkinCategory) => void;
 }) {
   const selectedDefinition = getCaseDefinition(selectedCase);
-  const selectedItems = SHOP_ITEMS.filter((item) => item.category === selectedCase);
+  const selectedItems = SHOP_ITEMS.filter((item) => item.category === selectedCase && item.source !== "special");
   const canOpen = balance >= selectedDefinition.cost && !opening && !paused;
 
   return (
@@ -5108,7 +5331,7 @@ function CaseOpeningGame({
               const ownedCount = SHOP_ITEMS.filter(
                 (item) => item.category === caseDefinition.id && ownedSkinIds.includes(item.id),
               ).length;
-              const totalCount = SHOP_ITEMS.filter((item) => item.category === caseDefinition.id).length;
+              const totalCount = SHOP_ITEMS.filter((item) => item.category === caseDefinition.id && item.source !== "special").length;
 
               return (
                 <button
@@ -5156,6 +5379,48 @@ function CaseOpeningGame({
               {opening ? "Ouverture..." : `Ouvrir pour ${selectedDefinition.cost} credits`}
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Coffres speciaux</h2>
+            <p>Fusionne 9 fragments pour creer une cle, puis ouvre le coffre correspondant.</p>
+          </div>
+        </div>
+        <div className={styles.shopGrid}>
+          {SPECIAL_CHESTS.map((chest) => {
+            const ownedChests = specialInventory.chests[chest.id];
+            const ownedKeys = specialInventory.keys[chest.id];
+            const ownedFragments = specialInventory.fragments[chest.id];
+            const canMerge = ownedFragments >= KEY_FRAGMENTS_REQUIRED;
+            const canOpenSpecial = ownedChests > 0 && ownedKeys > 0 && !opening;
+
+            return (
+              <article className={styles.shopItem} key={chest.id}>
+                <div className={styles.specialChestPreview} style={{ "--chest-theme": chest.theme } as CSSProperties}>
+                  <CaseThemePreview category={SHOP_ITEMS.find((item) => item.id === chest.itemIds[0])?.category ?? "plinkoBall"} />
+                </div>
+                <div>
+                  <h3>{chest.title}</h3>
+                  <p>{chest.subtitle}</p>
+                  <small>
+                    Coffres : {ownedChests} | Cles : {ownedKeys} | Fragments : {ownedFragments}/
+                    {KEY_FRAGMENTS_REQUIRED}
+                  </small>
+                </div>
+                <div className={styles.shopActions}>
+                  <button className={styles.secondaryButton} type="button" onClick={() => onMergeFragments(chest.id)} disabled={!canMerge}>
+                    Fusionner
+                  </button>
+                  <button className={styles.primaryButton} type="button" onClick={() => onOpenSpecialChest(chest.id)} disabled={!canOpenSpecial}>
+                    Ouvrir
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -5423,13 +5688,17 @@ function ShopGame({
   equippedSkins,
   message,
   ownedSkinIds,
+  specialInventory,
   onAction,
+  onBuySpecialChest,
 }: {
   balance: number;
   equippedSkins: EquippedSkins;
   message: string;
   ownedSkinIds: string[];
+  specialInventory: SpecialInventory;
   onAction: (item: ShopItem) => void;
+  onBuySpecialChest: (chestId: SpecialChestId) => void;
 }) {
   const shopSections: Array<{ title: string; subtitle: string; category: ShopItem["category"] }> = [
     {
@@ -5475,7 +5744,7 @@ function ShopGame({
                 <small>{skinCategoryLabel(section.category)}</small>
               </header>
               <div className={styles.shopGrid}>
-                {SHOP_ITEMS.filter((item) => item.category === section.category).map((item) => {
+                {SHOP_ITEMS.filter((item) => item.category === section.category && item.source !== "special").map((item) => {
                   const owned = ownedSkinIds.includes(item.id);
                   const equipped = equippedSkins[item.category] === item.id;
 
@@ -5504,11 +5773,112 @@ function ShopGame({
         </div>
       </section>
       <section className={styles.panel}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Coffres speciaux</h2>
+            <p>Achete les coffres ici. Les cles se gagnent dans la machine a pince.</p>
+          </div>
+        </div>
+        <div className={styles.shopGrid}>
+          {SPECIAL_CHESTS.map((chest) => (
+            <article className={styles.shopItem} key={chest.id}>
+              <div className={styles.specialChestPreview} style={{ "--special-chest-color": chest.theme } as CSSProperties}>
+                <span />
+                <strong>{chest.title}</strong>
+              </div>
+              <div>
+                <h3>{chest.title}</h3>
+                <p>{chest.subtitle}</p>
+                <small>
+                  Possedes : {specialInventory.chests[chest.id]} | Cle : {specialInventory.keys[chest.id]} | Fragments :{" "}
+                  {specialInventory.fragments[chest.id]}
+                </small>
+              </div>
+              <footer className={styles.shopFooter}>
+                <strong>{chest.price} credits</strong>
+                <button className={styles.primaryButton} type="button" onClick={() => onBuySpecialChest(chest.id)} disabled={balance < chest.price}>
+                  Acheter coffre
+                </button>
+              </footer>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className={styles.panel}>
         <h2>Transparence</h2>
         <p>
           Les skins modifient seulement l'apparence. Ils n'augmentent ni les gains, ni les probabilites,
           ni les multiplicateurs.
         </p>
+      </section>
+    </>
+  );
+}
+
+function ClawGame({
+  balance,
+  history,
+  message,
+  paused,
+  specialInventory,
+  onPlay,
+}: {
+  balance: number;
+  history: ClawOutcome[];
+  message: string;
+  paused: boolean;
+  specialInventory: SpecialInventory;
+  onPlay: () => void;
+}) {
+  return (
+    <>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Machine a pince</h2>
+            <p>{message}</p>
+          </div>
+          <strong>{CLAW_COST} credits / tentative</strong>
+        </div>
+        <div className={styles.clawStage}>
+          <div className={styles.clawMachine}>
+            <span className={styles.clawArm} />
+            <span className={styles.clawHook} />
+            {SPECIAL_CHESTS.map((chest) => (
+              <span className={styles.clawPrize} key={chest.id} style={{ "--special-chest-color": chest.theme } as CSSProperties} />
+            ))}
+          </div>
+          <button className={styles.primaryButton} type="button" onClick={onPlay} disabled={paused || balance < CLAW_COST}>
+            Tenter la pince
+          </button>
+        </div>
+      </section>
+
+      <section className={styles.columns}>
+        <article className={styles.panel}>
+          <h2>Ressources speciales</h2>
+          <div className={styles.rulesTable}>
+            {SPECIAL_CHESTS.map((chest) => (
+              <div className={styles.ruleRow} key={chest.id}>
+                <span>{chest.title}</span>
+                <strong>{specialInventory.keys[chest.id]} cle(s)</strong>
+                <small>
+                  {specialInventory.fragments[chest.id]}/{KEY_FRAGMENTS_REQUIRED} fragments | {specialInventory.chests[chest.id]} coffre(s)
+                </small>
+              </div>
+            ))}
+          </div>
+        </article>
+        <HistoryPanel title="10 dernieres pinces" empty="Aucune tentative pour le moment.">
+          {history.map((item) => (
+            <li key={item.id}>
+              <span>{item.label}</span>
+              <small>
+                {getSpecialChestDefinition(item.chestId).title} | solde {item.balanceAfter}
+              </small>
+            </li>
+          ))}
+        </HistoryPanel>
       </section>
     </>
   );
@@ -5942,7 +6312,7 @@ function rarityLabel(rarity: SkinRarity): string {
 }
 
 function buildCaseReel(category: SkinCategory, winningItem: ShopItem): ShopItem[] {
-  const items = SHOP_ITEMS.filter((item) => item.category === category);
+  const items = SHOP_ITEMS.filter((item) => item.category === category && item.source !== "special");
 
   return Array.from({ length: 44 }, (_, index) => {
     if (index === CASE_REEL_WINNER_INDEX) {
