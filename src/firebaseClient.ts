@@ -56,6 +56,23 @@ export type FriendRequestEntry = {
   respondedAt?: unknown;
 };
 
+export type SkinTradeStatus = "pending" | "accepted" | "rejected" | "canceled";
+
+export type SkinTradeEntry = {
+  id: string;
+  fromUid: string;
+  fromDisplayName: string;
+  toUid: string;
+  toDisplayName: string;
+  offeredItemId: string;
+  requestedItemId: string;
+  status: SkinTradeStatus;
+  appliedFromUid: boolean;
+  appliedToUid: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
 export type OnlineRoomType = "duel" | "poker";
 export type OnlineRoomStatus = "waiting" | "playing" | "finished";
 
@@ -358,6 +375,100 @@ export async function answerFriendRequest(requestId: string, status: "accepted" 
   await updateDoc(doc(getFirestore(app), "friendRequests", requestId), {
     status,
     respondedAt: serverTimestamp(),
+  });
+}
+
+function parseSkinTrade(id: string, data: Record<string, unknown>): SkinTradeEntry {
+  const status =
+    data.status === "accepted" || data.status === "rejected" || data.status === "canceled" ? data.status : "pending";
+
+  return {
+    id,
+    fromUid: typeof data.fromUid === "string" ? data.fromUid : "",
+    fromDisplayName: typeof data.fromDisplayName === "string" ? data.fromDisplayName : "Joueur anonyme",
+    toUid: typeof data.toUid === "string" ? data.toUid : "",
+    toDisplayName: typeof data.toDisplayName === "string" ? data.toDisplayName : "Joueur anonyme",
+    offeredItemId: typeof data.offeredItemId === "string" ? data.offeredItemId : "",
+    requestedItemId: typeof data.requestedItemId === "string" ? data.requestedItemId : "",
+    status,
+    appliedFromUid: data.appliedFromUid === true,
+    appliedToUid: data.appliedToUid === true,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
+}
+
+export async function createSkinTrade(from: CasinoUser, to: { uid: string; displayName: string }, offeredItemId: string, requestedItemId: string) {
+  const app = getFirebaseApp();
+  if (!app || from.uid === to.uid) {
+    return null;
+  }
+
+  const trade = await addDoc(collection(getFirestore(app), "skinTrades"), {
+    fromUid: from.uid,
+    fromDisplayName: from.displayName || "Joueur anonyme",
+    toUid: to.uid,
+    toDisplayName: to.displayName,
+    offeredItemId,
+    requestedItemId,
+    status: "pending",
+    appliedFromUid: false,
+    appliedToUid: false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return trade.id;
+}
+
+export async function loadSkinTrades(userId: string): Promise<SkinTradeEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const db = getFirestore(app);
+  const sentQuery = query(collection(db, "skinTrades"), where("fromUid", "==", userId), limit(50));
+  const receivedQuery = query(collection(db, "skinTrades"), where("toUid", "==", userId), limit(50));
+  const [sentSnapshot, receivedSnapshot] = await Promise.all([getDocs(sentQuery), getDocs(receivedQuery)]);
+  const trades = new Map<string, SkinTradeEntry>();
+
+  [...sentSnapshot.docs, ...receivedSnapshot.docs].forEach((tradeDoc) => {
+    trades.set(tradeDoc.id, parseSkinTrade(tradeDoc.id, tradeDoc.data()));
+  });
+
+  return [...trades.values()].filter((trade) => trade.fromUid && trade.toUid && trade.offeredItemId && trade.requestedItemId);
+}
+
+export async function answerSkinTrade(trade: SkinTradeEntry, user: CasinoUser, status: "accepted" | "rejected" | "canceled") {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (status === "canceled" && trade.fromUid !== user.uid) {
+    throw new Error("Seul l'envoyeur peut annuler l'echange.");
+  }
+
+  if ((status === "accepted" || status === "rejected") && trade.toUid !== user.uid) {
+    throw new Error("Seul le destinataire peut repondre a l'echange.");
+  }
+
+  await updateDoc(doc(getFirestore(app), "skinTrades", trade.id), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function markSkinTradeApplied(tradeId: string, userRole: "from" | "to") {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  await updateDoc(doc(getFirestore(app), "skinTrades", tradeId), {
+    [userRole === "from" ? "appliedFromUid" : "appliedToUid"]: true,
+    updatedAt: serverTimestamp(),
   });
 }
 

@@ -38,6 +38,29 @@ service cloud.firestore {
         );
     }
 
+    match /skinTrades/{tradeId} {
+      allow read: if request.auth != null
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if request.auth != null
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.offeredItemId is string
+        && request.resource.data.requestedItemId is string
+        && request.resource.data.status == "pending"
+        && request.resource.data.appliedFromUid == false
+        && request.resource.data.appliedToUid == false;
+      allow update: if request.auth != null
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid)
+        && request.resource.data.fromUid == resource.data.fromUid
+        && request.resource.data.toUid == resource.data.toUid
+        && request.resource.data.offeredItemId == resource.data.offeredItemId
+        && request.resource.data.requestedItemId == resource.data.requestedItemId
+        && request.resource.data.status in ["pending", "accepted", "rejected", "canceled"]
+        && request.resource.data.appliedFromUid is bool
+        && request.resource.data.appliedToUid is bool;
+    }
+
     match /onlineRooms/{roomId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null

@@ -398,6 +398,24 @@
   justify-content: end;
 }
 
+.tradeForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.tradeForm label {
+  display: grid;
+  gap: 6px;
+  color: #d5ddd9;
+  font-weight: 800;
+}
+
+.tradeForm select {
+  width: 100%;
+}
+
 .onlineDuelGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -74,9 +74,11 @@ import {
 import {
   advancePokerPhase,
   answerFriendRequest,
+  answerSkinTrade,
   callPokerPlayer,
   checkPokerPlayer,
   createOnlineRoom,
+  createSkinTrade,
   foldPokerPlayer,
   isFirebaseConfigured,
   joinOnlineRoom,
@@ -87,6 +89,8 @@ import {
   loadLeaderboard,
   loadCloudSave,
   loadOnlineRooms,
+  loadSkinTrades,
+  markSkinTradeApplied,
   playDuelRound,
   raisePokerPlayer,
   sendFriendRequest,
@@ -104,6 +108,7 @@ import {
   type OnlineRoomEntry,
   type OnlineRoomPlayer,
   type OnlineRoomType,
+  type SkinTradeEntry,
 } from "./firebaseClient";
 
 type SlotHistoryItem = SpinOutcome & {
@@ -275,6 +280,22 @@ function buildPublicInventory(ownedSkinIds: readonly string[]) {
   }));
 }
 
+function removeOneSkinCopy(ownedSkinIds: readonly string[], skinId: string) {
+  let removed = false;
+  return ownedSkinIds.filter((id) => {
+    if (!removed && id === skinId) {
+      removed = true;
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function hasSkinCopy(ownedSkinIds: readonly string[], skinId: string) {
+  return ownedSkinIds.includes(skinId);
+}
+
 function sanitizeEquippedSkins(value: unknown): EquippedSkins {
   const saved = value && typeof value === "object" ? (value as Partial<EquippedSkins>) : {};
   return (Object.keys(DEFAULT_EQUIPPED_SKINS) as SkinCategory[]).reduce((skins, category) => {
@@ -384,7 +405,7 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends">("games");
+  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades">("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
@@ -451,6 +472,8 @@ function App() {
   const [friendRequestMessage, setFriendRequestMessage] = useState("");
   const [friendRequests, setFriendRequests] = useState<FriendRequestEntry[]>([]);
   const [friendsMessage, setFriendsMessage] = useState("Connecte-toi pour voir tes amis.");
+  const [skinTrades, setSkinTrades] = useState<SkinTradeEntry[]>([]);
+  const [tradesMessage, setTradesMessage] = useState("Connecte-toi pour echanger des skins.");
   const [onlineRooms, setOnlineRooms] = useState<OnlineRoomEntry[]>([]);
   const [onlineMessage, setOnlineMessage] = useState("Connecte-toi pour creer ou rejoindre un salon.");
   const [duelHistory, setDuelHistory] = useState<OnlineRoomEntry[]>([]);
@@ -458,6 +481,7 @@ function App() {
   const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
   const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
   const paidPokerAnteRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-paid-poker-ante") ?? "[]") as string[]));
+  const appliedTradeKeysRef = useRef(new Set<string>());
   const [now, setNow] = useState(Date.now());
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
@@ -530,6 +554,8 @@ function App() {
       if (!user) {
         setFriendRequests([]);
         setFriendsMessage("Connecte-toi pour voir tes amis.");
+        setSkinTrades([]);
+        setTradesMessage("Connecte-toi pour echanger des skins.");
         setOnlineRooms([]);
         setDuelHistory([]);
         setOnlineMessage("Connecte-toi pour creer ou rejoindre un salon.");
@@ -560,6 +586,7 @@ function App() {
 
         await refreshLeaderboard();
         await refreshFriendRequests(user.uid);
+        await refreshSkinTrades(user.uid);
         await refreshOnlineRooms();
         await refreshDuelHistory(user.uid);
         cloudSaveReadyRef.current = true;
@@ -619,6 +646,7 @@ function App() {
   useEffect(() => {
     if (accountUser) {
       refreshFriendRequests(accountUser.uid);
+      refreshSkinTrades(accountUser.uid);
       refreshOnlineRooms();
       refreshDuelHistory(accountUser.uid);
     }
@@ -676,6 +704,59 @@ function App() {
     });
   }, [accountUser, onlineRooms]);
 
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    skinTrades.forEach((trade) => {
+      const isSender = trade.fromUid === accountUser.uid;
+      const isReceiver = trade.toUid === accountUser.uid;
+
+      if (!isSender && !isReceiver) {
+        return;
+      }
+
+      if (isSender && trade.appliedFromUid) {
+        return;
+      }
+
+      if (isReceiver && trade.appliedToUid) {
+        return;
+      }
+
+      const tradeApplyKey = `${trade.id}:${isSender ? "from" : "to"}`;
+      if (appliedTradeKeysRef.current.has(tradeApplyKey)) {
+        return;
+      }
+
+      if (trade.status === "accepted") {
+        if (isSender) {
+          appliedTradeKeysRef.current.add(tradeApplyKey);
+          setOwnedSkinIds((current) => [...current, trade.requestedItemId]);
+          markSkinTradeApplied(trade.id, "from").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
+        }
+
+        if (isReceiver) {
+          if (!hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
+            setTradesMessage("Un echange accepte n'a pas pu etre applique : skin manquant.");
+            return;
+          }
+
+          appliedTradeKeysRef.current.add(tradeApplyKey);
+          setOwnedSkinIds((current) => [...removeOneSkinCopy(current, trade.requestedItemId), trade.offeredItemId]);
+          markSkinTradeApplied(trade.id, "to").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
+        }
+      }
+
+      if ((trade.status === "rejected" || trade.status === "canceled") && isSender) {
+        appliedTradeKeysRef.current.add(tradeApplyKey);
+        setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
+        markSkinTradeApplied(trade.id, "from").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
+      }
+    });
+  }, [accountUser, ownedSkinIds, skinTrades]);
+
   async function refreshLeaderboard() {
     if (!isFirebaseConfigured()) {
       setLeaderboard([]);
@@ -706,6 +787,22 @@ function App() {
       setFriendsMessage(requests.length ? "Demandes et amis synchronises." : "Aucune demande d'ami pour le moment.");
     } catch {
       setFriendsMessage("Impossible de charger les amis pour le moment.");
+    }
+  }
+
+  async function refreshSkinTrades(userId: string) {
+    if (!isFirebaseConfigured()) {
+      setSkinTrades([]);
+      setTradesMessage("Firebase doit etre configure pour les echanges.");
+      return;
+    }
+
+    try {
+      const trades = await loadSkinTrades(userId);
+      setSkinTrades(trades);
+      setTradesMessage(trades.length ? "Echanges synchronises." : "Aucun echange pour le moment.");
+    } catch {
+      setTradesMessage("Impossible de charger les echanges pour le moment.");
     }
   }
 
@@ -1015,6 +1112,57 @@ function App() {
       setOnlineMessage(`Action poker impossible : ${message}`);
     } finally {
       setOnlineActionRoomId(null);
+    }
+  }
+
+  async function handleCreateSkinTrade(friend: { uid: string; displayName: string }, offeredItemId: string, requestedItemId: string) {
+    if (!accountUser) {
+      setTradesMessage("Connecte-toi pour proposer un echange.");
+      return;
+    }
+
+    if (!offeredItemId || !requestedItemId) {
+      setTradesMessage("Choisis le skin donne et le skin demande.");
+      return;
+    }
+
+    if (!hasSkinCopy(ownedSkinIds, offeredItemId)) {
+      setTradesMessage("Tu ne possedes plus ce skin.");
+      return;
+    }
+
+    const previousOwnedSkinIds = ownedSkinIds;
+    setOwnedSkinIds((current) => removeOneSkinCopy(current, offeredItemId));
+
+    try {
+      await createSkinTrade(accountUser, friend, offeredItemId, requestedItemId);
+      setTradesMessage(`Offre envoyee a ${friend.displayName}.`);
+      await refreshSkinTrades(accountUser.uid);
+    } catch (error) {
+      setOwnedSkinIds(previousOwnedSkinIds);
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setTradesMessage(`Echange impossible : ${message}`);
+    }
+  }
+
+  async function handleAnswerSkinTrade(trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") {
+    if (!accountUser) {
+      setTradesMessage("Connecte-toi pour gerer tes echanges.");
+      return;
+    }
+
+    if (status === "accepted" && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
+      setTradesMessage("Tu n'as plus le skin demande pour accepter cet echange.");
+      return;
+    }
+
+    try {
+      await answerSkinTrade(trade, accountUser, status);
+      setTradesMessage(status === "accepted" ? "Echange accepte." : status === "rejected" ? "Echange refuse." : "Echange annule.");
+      await refreshSkinTrades(accountUser.uid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setTradesMessage(`Action impossible : ${message}`);
     }
   }
 
@@ -1614,6 +1762,13 @@ function App() {
           >
             Amis
           </button>
+          <button
+            className={activeSection === "trades" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("trades")}
+          >
+            Echanges
+          </button>
         </nav>
 
         {activeSection === "games" && (
@@ -1735,6 +1890,17 @@ function App() {
             message={friendsMessage}
             onAnswer={handleAnswerFriendRequest}
             onOpenProfile={handleOpenPlayerProfile}
+          />
+        ) : activeSection === "trades" ? (
+          <TradesGame
+            currentUser={accountUser}
+            friendRequests={friendRequests}
+            leaderboard={leaderboard}
+            message={tradesMessage}
+            ownedSkinIds={ownedSkinIds}
+            trades={skinTrades}
+            onAnswer={handleAnswerSkinTrade}
+            onCreate={handleCreateSkinTrade}
           />
         ) : activeGame === "slots" ? (
           <SlotGame
@@ -2131,6 +2297,200 @@ function FriendsGame({
         </section>
       </div>
     </>
+  );
+}
+
+function TradesGame({
+  currentUser,
+  friendRequests,
+  leaderboard,
+  message,
+  ownedSkinIds,
+  trades,
+  onAnswer,
+  onCreate,
+}: {
+  currentUser: CasinoUser | null;
+  friendRequests: FriendRequestEntry[];
+  leaderboard: LeaderboardEntry[];
+  message: string;
+  ownedSkinIds: string[];
+  trades: SkinTradeEntry[];
+  onAnswer: (trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") => void;
+  onCreate: (friend: { uid: string; displayName: string }, offeredItemId: string, requestedItemId: string) => void;
+}) {
+  const currentUserId = currentUser?.uid ?? "";
+  const [friendUid, setFriendUid] = useState("");
+  const [offeredItemId, setOfferedItemId] = useState("");
+  const [requestedItemId, setRequestedItemId] = useState("");
+  const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
+  const ownedCounts = countOwnedSkins(ownedSkinIds);
+  const ownItems = SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0);
+  const friends = friendRequests
+    .filter((request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId))
+    .reduce<Array<{ uid: string; displayName: string; profile?: LeaderboardEntry }>>((items, request) => {
+      const isSender = request.fromUid === currentUserId;
+      const uid = isSender ? request.toUid : request.fromUid;
+
+      if (!items.some((item) => item.uid === uid)) {
+        items.push({
+          uid,
+          displayName: isSender ? request.toDisplayName : request.fromDisplayName,
+          profile: leaderboardById.get(uid),
+        });
+      }
+
+      return items;
+    }, []);
+  const selectedFriend = friends.find((friend) => friend.uid === friendUid);
+  const friendInventory = selectedFriend?.profile?.inventory ?? [];
+  const friendItems = friendInventory
+    .map((entry) => SHOP_ITEMS.find((item) => item.id === entry.id))
+    .filter((item): item is ShopItem => Boolean(item));
+  const incoming = trades.filter((trade) => trade.status === "pending" && trade.toUid === currentUserId);
+  const outgoing = trades.filter((trade) => trade.status === "pending" && trade.fromUid === currentUserId);
+  const history = trades.filter((trade) => trade.status !== "pending").slice(0, 8);
+
+  function tradeItemName(id: string) {
+    return SHOP_ITEMS.find((item) => item.id === id)?.name ?? id;
+  }
+
+  if (!currentUser) {
+    return (
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Echanges</h2>
+            <p>Connecte-toi avec Google pour echanger des skins avec tes amis.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <div className={styles.socialSections}>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Echanges de skins</h2>
+            <p>{message}</p>
+          </div>
+          <strong>{trades.length} echange{trades.length > 1 ? "s" : ""}</strong>
+        </div>
+        <div className={styles.tradeForm}>
+          <label>
+            Ami
+            <select value={friendUid} onChange={(event) => setFriendUid(event.target.value)}>
+              <option value="">Choisir un ami</option>
+              {friends.map((friend) => (
+                <option key={friend.uid} value={friend.uid}>
+                  {friend.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tu donnes
+            <select value={offeredItemId} onChange={(event) => setOfferedItemId(event.target.value)}>
+              <option value="">Choisir un skin</option>
+              {ownItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} x{ownedCounts[item.id]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tu demandes
+            <select value={requestedItemId} onChange={(event) => setRequestedItemId(event.target.value)} disabled={!selectedFriend}>
+              <option value="">Choisir un skin</option>
+              {friendItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className={styles.primaryButton}
+            type="button"
+            onClick={() => selectedFriend && onCreate(selectedFriend, offeredItemId, requestedItemId)}
+            disabled={!selectedFriend || !offeredItemId || !requestedItemId}
+          >
+            Envoyer l'offre
+          </button>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.socialSectionHeader}>
+          <h2>Offres recues</h2>
+          <span>{incoming.length}</span>
+        </div>
+        <div className={styles.socialList}>
+          {incoming.length === 0 ? (
+            <p className={styles.empty}>Aucune offre recue.</p>
+          ) : (
+            incoming.map((trade) => (
+              <article className={styles.socialItem} key={trade.id}>
+                <div>
+                  <strong>{trade.fromDisplayName}</strong>
+                  <small>
+                    Donne {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
+                  </small>
+                </div>
+                <div className={styles.socialActions}>
+                  <button className={styles.primaryButton} type="button" onClick={() => onAnswer(trade, "accepted")}>
+                    Accepter
+                  </button>
+                  <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(trade, "rejected")}>
+                    Refuser
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.socialSectionHeader}>
+          <h2>Offres envoyees</h2>
+          <span>{outgoing.length}</span>
+        </div>
+        <div className={styles.socialList}>
+          {outgoing.length === 0 ? (
+            <p className={styles.empty}>Aucune offre envoyee.</p>
+          ) : (
+            outgoing.map((trade) => (
+              <article className={styles.socialItem} key={trade.id}>
+                <div>
+                  <strong>{trade.toDisplayName}</strong>
+                  <small>
+                    Tu donnes {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
+                  </small>
+                </div>
+                <button className={styles.secondaryButton} type="button" onClick={() => onAnswer(trade, "canceled")}>
+                  Annuler
+                </button>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+      <HistoryPanel title="Historique des echanges" empty="Aucun echange termine.">
+        {history.map((trade) => (
+          <li key={trade.id}>
+            <span>{trade.status === "accepted" ? "Accepte" : trade.status === "rejected" ? "Refuse" : "Annule"}</span>
+            <small>
+              {trade.fromDisplayName} propose {tradeItemName(trade.offeredItemId)} contre {tradeItemName(trade.requestedItemId)}
+            </small>
+          </li>
+        ))}
+      </HistoryPanel>
+    </div>
   );
 }
 
