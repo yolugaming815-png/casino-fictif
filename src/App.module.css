@@ -771,43 +771,27 @@
   top: 20px;
   width: 36px;
   height: 72px;
-  overflow: hidden;
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--special-chest-color) 58%, transparent));
-}
-
-.clawRevealHalfLeft::before,
-.clawRevealHalfRight::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--special-chest-color) 70%, #ffffff);
   background:
-    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.9) 0 12%, transparent 13%),
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.9) 0 10%, transparent 11%),
     radial-gradient(circle at 55% 62%, var(--special-chest-color), color-mix(in srgb, var(--special-chest-color) 58%, #101218));
-  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.22);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--special-chest-color) 60%, transparent),
+    inset -8px -10px 18px rgba(0, 0, 0, 0.22);
 }
 
 .clawRevealHalfLeft {
   left: 31px;
+  border-radius: 72px 0 0 72px;
   transform-origin: right center;
   animation: clawHalfLeft 1.35s ease both;
 }
 
-.clawRevealHalfLeft::before {
-  left: 0;
-}
-
 .clawRevealHalfRight {
   right: 31px;
+  border-radius: 0 72px 72px 0;
   transform-origin: left center;
   animation: clawHalfRight 1.35s ease both;
-}
-
-.clawRevealHalfRight::before {
-  right: 0;
 }
 
 .clawReveal strong {
