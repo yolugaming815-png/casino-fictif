@@ -113,11 +113,19 @@ service cloud.firestore {
         && request.resource.data.fromUid == request.auth.uid
         && request.resource.data.toUid is string
         && request.resource.data.toUid != request.auth.uid
+        && (
+          exists(/databases/$(database)/documents/friendRequests/$(request.auth.uid + "_" + request.resource.data.toUid))
+          && get(/databases/$(database)/documents/friendRequests/$(request.auth.uid + "_" + request.resource.data.toUid)).data.status == "accepted"
+          || exists(/databases/$(database)/documents/friendRequests/$(request.resource.data.toUid + "_" + request.auth.uid))
+          && get(/databases/$(database)/documents/friendRequests/$(request.resource.data.toUid + "_" + request.auth.uid)).data.status == "accepted"
+        )
         && request.resource.data.conversationId is string
         && request.resource.data.participants is list
         && request.resource.data.participants.size() == 2
         && request.auth.uid in request.resource.data.participants
         && request.resource.data.toUid in request.resource.data.participants
+        && request.resource.data.fromDisplayName is string
+        && request.resource.data.toDisplayName is string
         && request.resource.data.body is string
         && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 280

@@ -197,6 +197,7 @@ const CASE_BOX_OPEN_DURATION_MS = 1200;
 const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
 const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
+const MESSAGE_SEND_COOLDOWN_MS = 2500;
 
 const slotRules = [
   { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
@@ -318,6 +319,18 @@ function normalizeTradeCredits(value: string) {
   }
 
   return Math.floor(normalized);
+}
+
+function normalizePrivateMessageBody(value: string) {
+  return value.replace(/\s+/g, " ").trim().slice(0, 280);
+}
+
+function areUsersFriends(friendRequests: readonly FriendRequestEntry[], firstUid: string, secondUid: string) {
+  return friendRequests.some(
+    (request) =>
+      request.status === "accepted" &&
+      ((request.fromUid === firstUid && request.toUid === secondUid) || (request.fromUid === secondUid && request.toUid === firstUid)),
+  );
 }
 
 function getActivityMillis(value: unknown) {
@@ -539,6 +552,7 @@ function App() {
   const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
   const paidPokerAnteRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-paid-poker-ante") ?? "[]") as string[]));
   const appliedTradeKeysRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(APPLIED_TRADE_KEYS_STORAGE_KEY) ?? "[]") as string[]));
+  const lastPrivateMessageSentAtRef = useRef(0);
   const [now, setNow] = useState(Date.now());
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
@@ -1012,8 +1026,27 @@ function App() {
       return false;
     }
 
+    const cleanBody = normalizePrivateMessageBody(body);
+
+    if (!cleanBody) {
+      setMessagesMessage("Ecris un message avant de l'envoyer.");
+      return false;
+    }
+
+    if (!areUsersFriends(friendRequests, accountUser.uid, friend.uid)) {
+      setMessagesMessage("Tu peux envoyer des messages uniquement a tes amis.");
+      return false;
+    }
+
+    const nowMs = Date.now();
+    if (nowMs - lastPrivateMessageSentAtRef.current < MESSAGE_SEND_COOLDOWN_MS) {
+      setMessagesMessage("Attends un petit instant avant d'envoyer un autre message.");
+      return false;
+    }
+
     try {
-      await sendPrivateMessage(accountUser, friend, body);
+      lastPrivateMessageSentAtRef.current = nowMs;
+      await sendPrivateMessage(accountUser, friend, cleanBody);
       setMessagesMessage(`Message envoye a ${friend.displayName}.`);
       await refreshPrivateMessages(accountUser.uid);
       return true;
@@ -2512,11 +2545,13 @@ function MessagesGame({
   }, [currentUser?.uid, selectedFriend?.uid, messages.length]);
 
   async function submitMessage() {
-    if (!selectedFriend || !draftMessage.trim()) {
+    const cleanMessage = normalizePrivateMessageBody(draftMessage);
+
+    if (!selectedFriend || !cleanMessage) {
       return;
     }
 
-    const sent = await onSend(selectedFriend, draftMessage);
+    const sent = await onSend(selectedFriend, cleanMessage);
     if (sent) {
       setDraftMessage("");
       setSelectedFriendUid(selectedFriend.uid);

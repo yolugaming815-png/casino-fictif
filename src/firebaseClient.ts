@@ -435,7 +435,7 @@ export async function loadPrivateMessages(userId: string): Promise<PrivateMessag
 
 export async function sendPrivateMessage(from: CasinoUser, to: { uid: string; displayName: string }, body: string) {
   const app = getFirebaseApp();
-  const trimmedBody = body.trim().slice(0, 280);
+  const trimmedBody = body.replace(/\s+/g, " ").trim().slice(0, 280);
 
   if (!app || from.uid === to.uid || !trimmedBody) {
     return null;
