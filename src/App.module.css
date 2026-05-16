@@ -2622,6 +2622,13 @@
     conic-gradient(from 80deg, #17243b, #8fd3ff, #c58cff, #17243b);
 }
 
+.shopCardPreview {
+  display: block;
+  width: 54px;
+  height: 76px;
+  border-radius: 8px;
+}
+
 .shopCardPreviewPair,
 .caseCardPreviewPair {
   position: relative;

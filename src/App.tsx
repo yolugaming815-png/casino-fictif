@@ -5852,7 +5852,7 @@ function ShopGame({
                   return (
                     <article className={styles.shopItem} key={item.id}>
                       <div className={styles.shopPreview}>
-                        <SkinPreview item={item} />
+                        <SkinPreview item={item} showCardFace />
                       </div>
                       <div>
                         <h3>{item.name}</h3>
@@ -6510,8 +6510,17 @@ function formatCredits(value: number): string {
   return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
 }
 
-function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean }) {
+function SkinPreview({ item, large = false, showCardFace = false }: { item: ShopItem; large?: boolean; showCardFace?: boolean }) {
   if (item.category === "cardBack") {
+    if (!showCardFace) {
+      return (
+        <span
+          className={`${large ? styles.caseCardBackPreview : styles.shopCardPreview} ${cardBackClass(item.id)}`}
+          aria-hidden="true"
+        />
+      );
+    }
+
     return (
       <span
         className={large ? styles.caseCardPreviewPair : styles.shopCardPreviewPair}
