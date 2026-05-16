@@ -2,6 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
+import blackjackAquaImage from "./assets/blackjack/cards-aqua.png";
+import blackjackClubImage from "./assets/blackjack/cards-club.png";
+import blackjackEmeraldImage from "./assets/blackjack/cards-emerald.png";
+import blackjackLinenImage from "./assets/blackjack/cards-linen.png";
+import blackjackMidnightImage from "./assets/blackjack/cards-midnight.png";
+import blackjackObsidianImage from "./assets/blackjack/cards-obsidian.png";
+import blackjackRoyalImage from "./assets/blackjack/cards-royal.png";
+import blackjackRubyImage from "./assets/blackjack/cards-ruby.png";
+import blackjackSilverImage from "./assets/blackjack/cards-silver.png";
+import blackjackSunsetImage from "./assets/blackjack/cards-sunset.png";
 import {
   BET_OPTIONS,
   INITIAL_BALANCE,
@@ -4496,13 +4506,18 @@ function CardHand({
       </div>
       <div className={styles.cards}>
         {cards.length === 0 ? (
-          <div className={`${styles.cardBack} ${styles.cardPlaceholder} ${cardBackClass(cardBackSkin.id)}`}>?</div>
+          <div
+            className={`${styles.cardBack} ${styles.cardBackImage} ${styles.cardPlaceholder} ${cardBackClass(cardBackSkin.id)}`}
+            style={blackjackSkinImageStyle(cardBackSkin.id)}
+          >
+            ?
+          </div>
         ) : (
           cards.map((card, index) =>
             hiddenSecondCard && index === 1 ? (
               <div
-                className={`${styles.cardBack} ${styles.cardAnimated} ${styles.cardHidden} ${cardBackClass(cardBackSkin.id)}`}
-                style={{ "--card-index": index } as CSSProperties}
+                className={`${styles.cardBack} ${styles.cardBackImage} ${styles.cardAnimated} ${styles.cardHidden} ${cardBackClass(cardBackSkin.id)}`}
+                style={{ "--card-index": index, ...blackjackSkinImageStyle(cardBackSkin.id) } as CSSProperties}
                 key="hidden"
               >
                 ?
@@ -6314,6 +6329,29 @@ function formatRouletteColor(color: RouletteOutcome["color"]): string {
   return "vert";
 }
 
+const BLACKJACK_SKIN_IMAGES: Record<string, string> = {
+  "cards-aqua": blackjackAquaImage,
+  "cards-club": blackjackClubImage,
+  "cards-emerald": blackjackEmeraldImage,
+  "cards-linen": blackjackLinenImage,
+  "cards-midnight": blackjackMidnightImage,
+  "cards-obsidian": blackjackObsidianImage,
+  "cards-royal": blackjackRoyalImage,
+  "cards-ruby": blackjackRubyImage,
+  "cards-silver": blackjackSilverImage,
+  "cards-sunset": blackjackSunsetImage,
+};
+
+function blackjackSkinImage(id: string): string | undefined {
+  return BLACKJACK_SKIN_IMAGES[id];
+}
+
+function blackjackSkinImageStyle(id: string): CSSProperties {
+  const image = blackjackSkinImage(id);
+
+  return image ? ({ "--blackjack-skin-image": `url(${image})` } as CSSProperties) : {};
+}
+
 function cardBackClass(id: string): string {
   if (id === "cards-linen") {
     return styles.cardBackLinen;
@@ -6512,6 +6550,19 @@ function formatCredits(value: number): string {
 
 function SkinPreview({ item, large = false, showCardFace = false }: { item: ShopItem; large?: boolean; showCardFace?: boolean }) {
   if (item.category === "cardBack") {
+    const image = blackjackSkinImage(item.id);
+
+    if (image) {
+      return (
+        <span
+          className={showCardFace ? styles.blackjackSkinPairPreview : large ? styles.blackjackSkinBackPreviewLarge : styles.blackjackSkinBackPreview}
+          aria-hidden="true"
+        >
+          <img src={image} alt="" />
+        </span>
+      );
+    }
+
     if (!showCardFace) {
       return (
         <span

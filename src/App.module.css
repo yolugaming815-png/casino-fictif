@@ -2056,6 +2056,15 @@
   font-size: 2rem;
 }
 
+.cardBackImage {
+  color: transparent;
+  background-image: var(--blackjack-skin-image) !important;
+  background-position: right center !important;
+  background-repeat: no-repeat !important;
+  background-size: 200% 100% !important;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
 .cardAnimated {
   animation: blackjackCardDeal 520ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
   animation-delay: calc(var(--card-index, 0) * 90ms);
@@ -2627,6 +2636,52 @@
   width: 54px;
   height: 76px;
   border-radius: 8px;
+}
+
+.blackjackSkinPairPreview,
+.blackjackSkinBackPreview,
+.blackjackSkinBackPreviewLarge {
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.blackjackSkinPairPreview {
+  width: min(100%, 280px);
+  aspect-ratio: 1456 / 1024;
+}
+
+.blackjackSkinBackPreview,
+.blackjackSkinBackPreviewLarge {
+  width: 54px;
+  aspect-ratio: 728 / 1024;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.26);
+}
+
+.blackjackSkinBackPreviewLarge {
+  width: 68px;
+}
+
+.blackjackSkinPairPreview img,
+.blackjackSkinBackPreview img,
+.blackjackSkinBackPreviewLarge img {
+  display: block;
+  height: 100%;
+  user-select: none;
+  pointer-events: none;
+}
+
+.blackjackSkinPairPreview img {
+  width: 100%;
+  object-fit: contain;
+}
+
+.blackjackSkinBackPreview img,
+.blackjackSkinBackPreviewLarge img {
+  width: 200%;
+  max-width: none;
+  object-fit: fill;
+  transform: translateX(-50%);
 }
 
 .shopCardPreviewPair,
