@@ -6371,6 +6371,22 @@ function cardBackClass(id: string): string {
 }
 
 function cardFaceClass(id: string): string {
+  if (id === "cards-linen") {
+    return styles.cardFaceLinen;
+  }
+
+  if (id === "cards-club") {
+    return styles.cardFaceClub;
+  }
+
+  if (id === "cards-ruby") {
+    return styles.cardFaceRuby;
+  }
+
+  if (id === "cards-silver") {
+    return styles.cardFaceSilver;
+  }
+
   if (id === "cards-midnight") {
     return styles.cardFaceMidnight;
   }
@@ -6392,6 +6408,30 @@ function cardFaceClass(id: string): string {
   }
 
   return styles.cardFaceEmerald;
+}
+
+function cardSkinSuit(id: string): string {
+  if (id === "cards-linen" || id === "cards-ruby" || id === "cards-silver" || id === "cards-aqua") {
+    return "♦";
+  }
+
+  if (id === "cards-club") {
+    return "♣";
+  }
+
+  if (id === "cards-midnight") {
+    return "☾";
+  }
+
+  if (id === "cards-royal") {
+    return "♥";
+  }
+
+  if (id === "cards-sunset") {
+    return "☀";
+  }
+
+  return "♠";
 }
 
 function ballGlow(id: string): string {
@@ -6474,9 +6514,15 @@ function SkinPreview({ item, large = false }: { item: ShopItem; large?: boolean 
   if (item.category === "cardBack") {
     return (
       <span
-        className={`${large ? styles.caseCardBackPreview : styles.shopCardPreview} ${cardBackClass(item.id)}`}
+        className={large ? styles.caseCardPreviewPair : styles.shopCardPreviewPair}
         aria-hidden="true"
-      />
+      >
+        <span className={`${styles.shopCardMiniFace} ${cardFaceClass(item.id)}`}>
+          <strong>A</strong>
+          <em>{cardSkinSuit(item.id)}</em>
+        </span>
+        <span className={`${styles.shopCardMiniBack} ${cardBackClass(item.id)}`} />
+      </span>
     );
   }
 

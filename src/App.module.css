@@ -1952,6 +1952,104 @@
     conic-gradient(from 180deg, rgba(42, 157, 183, 0.1), transparent, rgba(42, 157, 183, 0.1));
 }
 
+.cardFaceLinen {
+  background:
+    linear-gradient(180deg, rgba(181, 151, 92, 0.18), transparent 48%),
+    #f8f1dd;
+  border-color: rgba(181, 151, 92, 0.38);
+}
+
+.cardFaceLinen::before {
+  background:
+    linear-gradient(135deg, transparent 34%, rgba(181, 151, 92, 0.14) 35% 37%, transparent 38%),
+    linear-gradient(225deg, transparent 34%, rgba(181, 151, 92, 0.14) 35% 37%, transparent 38%);
+}
+
+.cardFaceLinen::after {
+  border: 1px solid rgba(181, 151, 92, 0.28);
+}
+
+.cardFaceLinen .cardOrnament,
+.cardFaceLinen .cardMedallion {
+  border-radius: 0;
+  rotate: 45deg;
+  background: linear-gradient(135deg, rgba(181, 151, 92, 0.3), rgba(255, 209, 102, 0.08));
+}
+
+.cardFaceClub {
+  background:
+    linear-gradient(180deg, rgba(47, 95, 83, 0.16), transparent 48%),
+    #f7f0dd;
+  border-color: rgba(47, 95, 83, 0.36);
+}
+
+.cardFaceClub::before {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(47, 95, 83, 0.16) 0 9%, transparent 10%),
+    radial-gradient(circle at 42% 48%, rgba(47, 95, 83, 0.14) 0 7%, transparent 8%),
+    radial-gradient(circle at 58% 48%, rgba(47, 95, 83, 0.14) 0 7%, transparent 8%);
+}
+
+.cardFaceClub::after {
+  border: 1px solid rgba(47, 95, 83, 0.28);
+}
+
+.cardFaceClub .cardOrnament,
+.cardFaceClub .cardMedallion {
+  background:
+    radial-gradient(circle at 50% 34%, rgba(47, 95, 83, 0.28) 0 28%, transparent 29%),
+    radial-gradient(circle at 36% 52%, rgba(47, 95, 83, 0.2) 0 20%, transparent 21%),
+    radial-gradient(circle at 64% 52%, rgba(47, 95, 83, 0.2) 0 20%, transparent 21%);
+}
+
+.cardFaceRuby {
+  background:
+    linear-gradient(180deg, rgba(168, 63, 75, 0.2), transparent 48%),
+    #fff1e5;
+  border-color: rgba(168, 63, 75, 0.42);
+}
+
+.cardFaceRuby::before {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 209, 102, 0.18), transparent 20%),
+    linear-gradient(135deg, transparent 36%, rgba(168, 63, 75, 0.14) 37% 40%, transparent 41%);
+}
+
+.cardFaceRuby::after {
+  border: 1px solid rgba(168, 63, 75, 0.3);
+}
+
+.cardFaceRuby .cardOrnament,
+.cardFaceRuby .cardMedallion {
+  clip-path: polygon(50% 0, 86% 50%, 50% 100%, 14% 50%);
+  border-radius: 0;
+  background: linear-gradient(135deg, rgba(168, 63, 75, 0.32), rgba(255, 209, 102, 0.1));
+}
+
+.cardFaceSilver {
+  background:
+    linear-gradient(180deg, rgba(105, 119, 135, 0.18), transparent 48%),
+    #f2f5f7;
+  border-color: rgba(105, 119, 135, 0.42);
+}
+
+.cardFaceSilver::before {
+  background:
+    repeating-linear-gradient(135deg, rgba(105, 119, 135, 0.08), rgba(105, 119, 135, 0.08) 2px, transparent 2px, transparent 12px),
+    linear-gradient(135deg, rgba(105, 119, 135, 0.12), transparent 42%);
+}
+
+.cardFaceSilver::after {
+  border: 1px solid rgba(105, 119, 135, 0.32);
+}
+
+.cardFaceSilver .cardOrnament,
+.cardFaceSilver .cardMedallion {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: linear-gradient(135deg, rgba(105, 119, 135, 0.34), rgba(221, 232, 242, 0.18));
+}
+
 .cardBack {
   place-items: center;
   color: #f9f7ef;
@@ -2007,55 +2105,65 @@
 }
 
 .cardBackEmerald {
-  background: repeating-linear-gradient(
-    45deg,
-    #2f5f53,
-    #2f5f53 8px,
-    #244940 8px,
-    #244940 16px
-  );
-  border: 2px solid rgba(255, 255, 255, 0.36);
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 209, 102, 0.22) 0 12%, transparent 13%),
+    linear-gradient(135deg, transparent 0 44%, rgba(255, 209, 102, 0.22) 45% 48%, transparent 49%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 3px, transparent 3px 16px),
+    linear-gradient(135deg, #0c2f2a, #1d6c51);
+  border: 2px solid rgba(121, 226, 159, 0.62);
 }
 
 .cardBackMidnight {
   background:
-    linear-gradient(135deg, rgba(124, 199, 255, 0.24), transparent),
-    repeating-linear-gradient(90deg, #1b2558, #1b2558 8px, #263a80 8px, #263a80 16px);
+    radial-gradient(circle at 52% 42%, #ffd166 0 9%, transparent 10%),
+    radial-gradient(circle at 58% 36%, #1d255a 0 10%, transparent 11%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 12px),
+    linear-gradient(135deg, #071331, #263a80);
   border: 2px solid rgba(124, 199, 255, 0.52);
 }
 
 .cardBackRoyal {
   background:
-    linear-gradient(135deg, rgba(255, 209, 102, 0.32), transparent),
-    repeating-linear-gradient(45deg, #43276f, #43276f 10px, #6541a5 10px, #6541a5 20px);
+    radial-gradient(circle at 50% 42%, #ffd166 0 13%, transparent 14%),
+    conic-gradient(from 180deg at 50% 36%, transparent 0 13%, rgba(255, 209, 102, 0.46) 13% 20%, transparent 20% 32%, rgba(255, 209, 102, 0.46) 32% 40%, transparent 40%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 3px, transparent 3px 16px),
+    linear-gradient(135deg, #2c174a, #6541a5);
   border: 2px solid rgba(255, 209, 102, 0.52);
 }
 
 .cardBackSunset {
   background:
-    linear-gradient(135deg, rgba(255, 209, 102, 0.24), transparent),
-    repeating-linear-gradient(135deg, #8d3f2f, #8d3f2f 10px, #d86642 10px, #d86642 20px);
+    radial-gradient(circle at 50% 42%, #ffd166 0 10%, transparent 11%),
+    radial-gradient(circle at 50% 42%, transparent 0 18%, rgba(255, 209, 102, 0.3) 19% 21%, transparent 22%),
+    linear-gradient(135deg, rgba(255, 209, 102, 0.18), transparent 42%),
+    linear-gradient(135deg, #4a2118, #d86642);
   border: 2px solid rgba(255, 180, 120, 0.58);
 }
 
 .cardBackObsidian {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent),
-    repeating-linear-gradient(90deg, #171d27, #171d27 8px, #2a3445 8px, #2a3445 16px);
+    radial-gradient(circle at 50% 42%, #8a96a6 0 11%, transparent 12%),
+    linear-gradient(135deg, transparent 0 44%, rgba(206, 218, 232, 0.2) 45% 48%, transparent 49%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 14px),
+    linear-gradient(135deg, #0d1118, #2a3445);
   border: 2px solid rgba(206, 218, 232, 0.38);
 }
 
 .cardBackAqua {
   background:
-    linear-gradient(135deg, rgba(124, 229, 255, 0.24), transparent),
-    repeating-linear-gradient(45deg, #176174, #176174 10px, #2a9db7 10px, #2a9db7 20px);
+    radial-gradient(circle at 50% 42%, #7ce5ff 0 10%, transparent 11%),
+    linear-gradient(135deg, transparent 0 44%, rgba(124, 229, 255, 0.42) 45% 48%, transparent 49%),
+    radial-gradient(circle at 50% 75%, rgba(124, 229, 255, 0.22), transparent 32%),
+    linear-gradient(135deg, #053242, #2a9db7);
   border: 2px solid rgba(124, 229, 255, 0.52);
 }
 
 .cardBackLinen {
   background:
-    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.45), transparent 20%),
-    repeating-linear-gradient(0deg, #cbd7c0, #cbd7c0 5px, #b4c5b0 5px, #b4c5b0 10px);
+    radial-gradient(circle at 50% 42%, #b8842c 0 10%, transparent 11%),
+    linear-gradient(135deg, transparent 0 44%, rgba(158, 126, 73, 0.22) 45% 48%, transparent 49%),
+    repeating-linear-gradient(45deg, rgba(102, 93, 70, 0.1) 0 2px, transparent 2px 13px),
+    linear-gradient(135deg, #e5dfcb, #b6b9a2);
   border: 2px solid rgba(245, 247, 232, 0.55);
 }
 
@@ -2064,22 +2172,26 @@
     radial-gradient(circle at 50% 34%, #101218 0 7px, transparent 8px),
     radial-gradient(circle at 42% 42%, #101218 0 5px, transparent 6px),
     radial-gradient(circle at 58% 42%, #101218 0 5px, transparent 6px),
-    repeating-linear-gradient(45deg, #2f5f53, #2f5f53 8px, #3c8f67 8px, #3c8f67 16px);
+    linear-gradient(135deg, transparent 0 44%, rgba(255, 209, 102, 0.18) 45% 48%, transparent 49%),
+    linear-gradient(135deg, #0f342c, #3c8f67);
   border: 2px solid rgba(121, 226, 159, 0.5);
 }
 
 .cardBackRuby {
   background:
-    radial-gradient(circle at 50% 36%, #ffd166 0 7px, transparent 8px),
+    radial-gradient(circle at 50% 36%, #ffd166 0 9px, transparent 10px),
+    linear-gradient(135deg, transparent 0 44%, rgba(255, 209, 102, 0.26) 45% 48%, transparent 49%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent),
-    repeating-linear-gradient(135deg, #6f2230, #6f2230 9px, #a83f4b 9px, #a83f4b 18px);
+    linear-gradient(135deg, #4b101c, #a83f4b);
   border: 2px solid rgba(255, 107, 107, 0.58);
 }
 
 .cardBackSilver {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.36), transparent 40%),
-    repeating-linear-gradient(90deg, #697787, #697787 7px, #9aa7b5 7px, #9aa7b5 14px);
+    radial-gradient(circle at 50% 42%, #202936 0 10%, transparent 11%),
+    linear-gradient(135deg, transparent 0 44%, rgba(255, 255, 255, 0.26) 45% 48%, transparent 49%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 2px, transparent 2px 14px),
+    linear-gradient(135deg, #384554, #9aa7b5);
   border: 2px solid rgba(221, 232, 242, 0.62);
 }
 
@@ -2510,11 +2622,103 @@
     conic-gradient(from 80deg, #17243b, #8fd3ff, #c58cff, #17243b);
 }
 
-.shopCardPreview {
+.shopCardPreviewPair,
+.caseCardPreviewPair {
+  position: relative;
   display: block;
-  width: 54px;
-  height: 76px;
+  width: 116px;
+  height: 82px;
+}
+
+.caseCardPreviewPair {
+  width: 144px;
+  height: 106px;
+}
+
+.shopCardMiniFace,
+.shopCardMiniBack {
+  position: absolute;
+  top: 5px;
+  display: grid;
+  align-content: space-between;
+  width: 46px;
+  height: 66px;
+  border-radius: 7px;
+  padding: 6px;
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.caseCardPreviewPair .shopCardMiniFace,
+.caseCardPreviewPair .shopCardMiniBack {
+  width: 58px;
+  height: 84px;
   border-radius: 8px;
+  padding: 8px;
+}
+
+.shopCardMiniFace {
+  left: 9px;
+  color: #101218;
+  transform: rotate(-1deg);
+}
+
+.shopCardMiniFace::before,
+.shopCardMiniFace::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.shopCardMiniFace::before {
+  inset: 0;
+  opacity: 0.82;
+}
+
+.shopCardMiniFace::after {
+  inset: 6px;
+  border-radius: 5px;
+}
+
+.shopCardMiniBack {
+  left: 58px;
+  transform: rotate(1deg);
+}
+
+.shopCardMiniBack::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+.caseCardPreviewPair .shopCardMiniFace {
+  left: 12px;
+}
+
+.caseCardPreviewPair .shopCardMiniBack {
+  left: 74px;
+}
+
+.shopCardMiniFace strong,
+.shopCardMiniFace em {
+  position: relative;
+  z-index: 2;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.shopCardMiniFace em {
+  justify-self: center;
+  align-self: center;
+  font-size: 1.7rem;
+}
+
+.caseCardPreviewPair .shopCardMiniFace em {
+  font-size: 2.1rem;
 }
 
 .shopFooter {
@@ -2655,6 +2859,8 @@
 .inventoryPreview .caseOrbPreview,
 .inventoryPreview .shopCardPreview,
 .inventoryPreview .caseCardBackPreview,
+.inventoryPreview .shopCardPreviewPair,
+.inventoryPreview .caseCardPreviewPair,
 .inventoryPreview .vehiclePreviewSmall,
 .inventoryPreview .vehiclePreviewLarge,
 .inventoryPreview .vehicleSvgSmall,
