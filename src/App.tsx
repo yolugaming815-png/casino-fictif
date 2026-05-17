@@ -4514,8 +4514,8 @@ function CardHand({
               </div>
             ) : (
               <div
-                className={`${styles.card} ${styles.cardAnimated} ${cardFaceClass(cardBackSkin.id)}`}
-                style={{ "--card-index": index } as CSSProperties}
+                className={`${styles.card} ${styles.cardFaceImage} ${styles.cardAnimated} ${cardFaceClass(cardBackSkin.id)}`}
+                style={{ "--card-index": index, ...blackjackFaceImageStyle(cardBackSkin.id) } as CSSProperties}
                 key={`${card.rank}-${card.suit}-${index}`}
               >
                 <strong>{card.rank}</strong>
@@ -6375,6 +6375,12 @@ function blackjackSkinImageStyle(id: string): CSSProperties {
   const image = blackjackSkinImages(id)?.back;
 
   return image ? ({ "--blackjack-skin-image": `url(${image})` } as CSSProperties) : {};
+}
+
+function blackjackFaceImageStyle(id: string): CSSProperties {
+  const image = blackjackSkinImages(id)?.face;
+
+  return image ? ({ "--blackjack-face-image": `url(${image})` } as CSSProperties) : {};
 }
 
 function cardBackClass(id: string): string {
