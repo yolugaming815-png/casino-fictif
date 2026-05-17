@@ -2,16 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
-import blackjackAquaImage from "./assets/blackjack/cards-aqua.png";
-import blackjackClubImage from "./assets/blackjack/cards-club.png";
-import blackjackEmeraldImage from "./assets/blackjack/cards-emerald.png";
-import blackjackLinenImage from "./assets/blackjack/cards-linen.png";
-import blackjackMidnightImage from "./assets/blackjack/cards-midnight.png";
-import blackjackObsidianImage from "./assets/blackjack/cards-obsidian.png";
-import blackjackRoyalImage from "./assets/blackjack/cards-royal.png";
-import blackjackRubyImage from "./assets/blackjack/cards-ruby.png";
-import blackjackSilverImage from "./assets/blackjack/cards-silver.png";
-import blackjackSunsetImage from "./assets/blackjack/cards-sunset.png";
 import {
   BET_OPTIONS,
   INITIAL_BALANCE,
@@ -6329,25 +6319,60 @@ function formatRouletteColor(color: RouletteOutcome["color"]): string {
   return "vert";
 }
 
-const BLACKJACK_SKIN_IMAGES: Record<string, string> = {
-  "cards-aqua": blackjackAquaImage,
-  "cards-club": blackjackClubImage,
-  "cards-emerald": blackjackEmeraldImage,
-  "cards-linen": blackjackLinenImage,
-  "cards-midnight": blackjackMidnightImage,
-  "cards-obsidian": blackjackObsidianImage,
-  "cards-royal": blackjackRoyalImage,
-  "cards-ruby": blackjackRubyImage,
-  "cards-silver": blackjackSilverImage,
-  "cards-sunset": blackjackSunsetImage,
+type BlackjackSkinImages = {
+  back: string;
+  face: string;
 };
 
-function blackjackSkinImage(id: string): string | undefined {
+const BLACKJACK_SKIN_IMAGES: Record<string, BlackjackSkinImages> = {
+  "cards-aqua": {
+    back: new URL("./assets/blackjack/cards-aqua-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-aqua-face.png", import.meta.url).href,
+  },
+  "cards-club": {
+    back: new URL("./assets/blackjack/cards-club-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-club-face.png", import.meta.url).href,
+  },
+  "cards-emerald": {
+    back: new URL("./assets/blackjack/cards-emerald-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-emerald-face.png", import.meta.url).href,
+  },
+  "cards-linen": {
+    back: new URL("./assets/blackjack/cards-linen-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-linen-face.png", import.meta.url).href,
+  },
+  "cards-midnight": {
+    back: new URL("./assets/blackjack/cards-midnight-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-midnight-face.png", import.meta.url).href,
+  },
+  "cards-obsidian": {
+    back: new URL("./assets/blackjack/cards-obsidian-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-obsidian-face.png", import.meta.url).href,
+  },
+  "cards-royal": {
+    back: new URL("./assets/blackjack/cards-royal-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-royal-face.png", import.meta.url).href,
+  },
+  "cards-ruby": {
+    back: new URL("./assets/blackjack/cards-ruby-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-ruby-face.png", import.meta.url).href,
+  },
+  "cards-silver": {
+    back: new URL("./assets/blackjack/cards-silver-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-silver-face.png", import.meta.url).href,
+  },
+  "cards-sunset": {
+    back: new URL("./assets/blackjack/cards-sunset-back.png", import.meta.url).href,
+    face: new URL("./assets/blackjack/cards-sunset-face.png", import.meta.url).href,
+  },
+};
+
+function blackjackSkinImages(id: string): BlackjackSkinImages | undefined {
   return BLACKJACK_SKIN_IMAGES[id];
 }
 
 function blackjackSkinImageStyle(id: string): CSSProperties {
-  const image = blackjackSkinImage(id);
+  const image = blackjackSkinImages(id)?.back;
 
   return image ? ({ "--blackjack-skin-image": `url(${image})` } as CSSProperties) : {};
 }
@@ -6550,15 +6575,22 @@ function formatCredits(value: number): string {
 
 function SkinPreview({ item, large = false, showCardFace = false }: { item: ShopItem; large?: boolean; showCardFace?: boolean }) {
   if (item.category === "cardBack") {
-    const image = blackjackSkinImage(item.id);
+    const images = blackjackSkinImages(item.id);
 
-    if (image) {
+    if (images) {
       return (
         <span
           className={showCardFace ? styles.blackjackSkinPairPreview : large ? styles.blackjackSkinBackPreviewLarge : styles.blackjackSkinBackPreview}
           aria-hidden="true"
         >
-          <img src={image} alt="" />
+          {showCardFace ? (
+            <>
+              <img src={images.face} alt="" />
+              <img src={images.back} alt="" />
+            </>
+          ) : (
+            <img src={images.back} alt="" />
+          )}
         </span>
       );
     }
