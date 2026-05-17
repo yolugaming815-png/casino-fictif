@@ -108,6 +108,8 @@ import {
   signOutGoogle,
   startDuelRoom,
   startPokerRoom,
+  subscribeDuelHistory,
+  subscribeOnlineRooms,
   watchCasinoUser,
   type CasinoUser,
   type FriendRequestEntry,
@@ -812,9 +814,48 @@ function App() {
     if (accountUser) {
       refreshFriendRequests(accountUser.uid);
       refreshSkinTrades(accountUser.uid);
-      refreshOnlineRooms();
-      refreshDuelHistory(accountUser.uid);
     }
+  }, [accountUser]);
+
+  useEffect(() => {
+    if (!accountUser) {
+      setOnlineRooms([]);
+      setDuelHistory([]);
+      return;
+    }
+
+    if (!isFirebaseConfigured()) {
+      setOnlineRooms([]);
+      setDuelHistory([]);
+      setOnlineMessage("Firebase doit etre configure pour les jeux en ligne.");
+      return;
+    }
+
+    setOnlineMessage("Synchronisation des salons en ligne...");
+
+    const unsubscribeRooms = subscribeOnlineRooms(
+      (rooms) => {
+        setOnlineRooms(rooms);
+        setOnlineMessage(rooms.length ? "Salons en ligne synchronises." : "Aucun salon ouvert pour le moment.");
+      },
+      () => {
+        setOnlineMessage("Synchronisation des salons impossible pour le moment.");
+      },
+    );
+    const unsubscribeHistory = subscribeDuelHistory(
+      accountUser.uid,
+      (history) => {
+        setDuelHistory(history);
+      },
+      () => {
+        setDuelHistory([]);
+      },
+    );
+
+    return () => {
+      unsubscribeRooms();
+      unsubscribeHistory();
+    };
   }, [accountUser]);
 
   useEffect(() => {

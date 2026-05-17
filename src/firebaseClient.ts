@@ -18,8 +18,10 @@ import {
   getDocs,
   getFirestore,
   limit,
+  onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -778,6 +780,37 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
     .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker"));
 }
 
+function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[]) {
+  const now = Date.now();
+
+  return rooms
+    .filter((room) => {
+      const createdAt = timestampToMillis(room.createdAt);
+      return !(room.status === "waiting" && createdAt !== null && now - createdAt > STALE_WAITING_ROOM_MS);
+    })
+    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker"));
+}
+
+export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => void, onError?: () => void) {
+  const app = getFirebaseApp();
+  if (!app) {
+    onChange([]);
+    return () => undefined;
+  }
+
+  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), limit(50));
+
+  return onSnapshot(
+    roomsQuery,
+    (snapshot) => {
+      onChange(filterVisibleOnlineRooms(snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data()))));
+    },
+    () => {
+      onError?.();
+    },
+  );
+}
+
 export async function loadDuelHistory(userId: string): Promise<OnlineRoomEntry[]> {
   const app = getFirebaseApp();
   if (!app) {
@@ -790,6 +823,30 @@ export async function loadDuelHistory(userId: string): Promise<OnlineRoomEntry[]
   return snapshot.docs
     .map((room) => parseOnlineRoom(room.id, room.data()))
     .filter((room) => room.status === "finished" && room.playerIds.includes(userId));
+}
+
+export function subscribeDuelHistory(userId: string, onChange: (rooms: OnlineRoomEntry[]) => void, onError?: () => void) {
+  const app = getFirebaseApp();
+  if (!app) {
+    onChange([]);
+    return () => undefined;
+  }
+
+  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), where("type", "==", "duel"), limit(50));
+
+  return onSnapshot(
+    roomsQuery,
+    (snapshot) => {
+      onChange(
+        snapshot.docs
+          .map((room) => parseOnlineRoom(room.id, room.data()))
+          .filter((room) => room.status === "finished" && room.playerIds.includes(userId)),
+      );
+    },
+    () => {
+      onError?.();
+    },
+  );
 }
 
 export async function loadDuelStats(userId: string): Promise<DuelStats> {
@@ -1261,38 +1318,50 @@ export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser) {
     return;
   }
 
-  if (room.type !== "duel" || room.status !== "playing") {
-    throw new Error("Ce duel n'est pas lance.");
-  }
-
-  if (!room.players.some((player) => player.uid === user.uid)) {
-    throw new Error("Tu n'es pas dans ce duel.");
-  }
-
-  const currentScore = room.duelScores[user.uid] ?? { rounds: [], total: 0 };
-  if (currentScore.rounds.length >= 3) {
-    throw new Error("Tu as deja joue tes 3 manches.");
-  }
-
   const roundScore = createDuelRoundScore(room.game);
-  const nextScores = {
-    ...room.duelScores,
-    [user.uid]: {
-      rounds: [...currentScore.rounds, roundScore],
-      total: currentScore.total + roundScore,
-    },
-  };
-  const finished = room.players.every((player) => (nextScores[player.uid]?.rounds.length ?? 0) >= 3);
-  const winner = finished
-    ? [...room.players].sort((left, right) => (nextScores[right.uid]?.total ?? 0) - (nextScores[left.uid]?.total ?? 0))[0]
-    : undefined;
 
-  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
-    duelScores: nextScores,
-    status: finished ? "finished" : "playing",
-    winnerUid: winner?.uid ?? "",
-    winnerName: winner?.displayName ?? "",
-    updatedAt: serverTimestamp(),
+  await runTransaction(getFirestore(app), async (transaction) => {
+    const roomRef = doc(getFirestore(app), "onlineRooms", room.id);
+    const snapshot = await transaction.get(roomRef);
+
+    if (!snapshot.exists()) {
+      throw new Error("Ce duel n'existe plus.");
+    }
+
+    const freshRoom = parseOnlineRoom(snapshot.id, snapshot.data());
+
+    if (freshRoom.type !== "duel" || freshRoom.status !== "playing") {
+      throw new Error("Ce duel n'est pas lance.");
+    }
+
+    if (!freshRoom.players.some((player) => player.uid === user.uid)) {
+      throw new Error("Tu n'es pas dans ce duel.");
+    }
+
+    const currentScore = freshRoom.duelScores[user.uid] ?? { rounds: [], total: 0 };
+    if (currentScore.rounds.length >= 3) {
+      throw new Error("Tu as deja joue tes 3 manches.");
+    }
+
+    const nextScores = {
+      ...freshRoom.duelScores,
+      [user.uid]: {
+        rounds: [...currentScore.rounds, roundScore],
+        total: currentScore.total + roundScore,
+      },
+    };
+    const finished = freshRoom.players.every((player) => (nextScores[player.uid]?.rounds.length ?? 0) >= 3);
+    const winner = finished
+      ? [...freshRoom.players].sort((left, right) => (nextScores[right.uid]?.total ?? 0) - (nextScores[left.uid]?.total ?? 0))[0]
+      : undefined;
+
+    transaction.update(roomRef, {
+      duelScores: nextScores,
+      status: finished ? "finished" : "playing",
+      winnerUid: winner?.uid ?? "",
+      winnerName: winner?.displayName ?? "",
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
