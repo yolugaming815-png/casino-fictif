@@ -2082,10 +2082,7 @@
 
 .cardFaceImage strong,
 .cardFaceImage span {
-  color: #f9f7ef;
-  text-shadow:
-    0 2px 3px rgba(0, 0, 0, 0.86),
-    0 0 8px rgba(0, 0, 0, 0.72);
+  display: none;
 }
 
 .cardAnimated {
