@@ -2061,16 +2061,20 @@
   background-image: var(--blackjack-skin-image) !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
-  background-size: cover !important;
-  border-color: rgba(255, 255, 255, 0.28);
+  background-size: contain !important;
+  background-color: transparent;
+  border: 0 !important;
+  padding: 0;
 }
 
 .cardFaceImage {
   background-image: var(--blackjack-face-image) !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
-  background-size: cover !important;
-  border-color: rgba(255, 255, 255, 0.28);
+  background-size: contain !important;
+  background-color: transparent;
+  border: 0 !important;
+  padding: 0;
 }
 
 .cardFaceImage::before,
