@@ -26,6 +26,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { comparePokerHands, evaluatePokerHand } from "./pokerLogic";
 
@@ -42,7 +43,19 @@ export type LeaderboardEntry = {
   balance: number;
   inventory: Array<{ id: string; count: number }>;
   equippedSkins: Record<string, string>;
+  banned?: boolean;
   updatedAt?: unknown;
+};
+
+export type AdminPriceOverrides = {
+  skins: Record<string, number>;
+  cases: Record<string, number>;
+  chests: Record<string, number>;
+};
+
+export type AdminCommandResult = {
+  ok: boolean;
+  message: string;
 };
 
 export type FriendRequestStatus = "pending" | "accepted" | "rejected";
@@ -272,6 +285,9 @@ export async function loadCloudSave(userId: string) {
   }
 
   const snapshot = await getDoc(doc(getFirestore(app), "players", userId));
+  if (snapshot.data()?.banned === true) {
+    throw new Error("Compte banni par un administrateur.");
+  }
   return snapshot.exists() ? snapshot.data().gameSave ?? null : null;
 }
 
@@ -1444,7 +1460,328 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
             .filter((item) => item.id && item.count > 0)
         : [],
       equippedSkins: data.equippedSkins && typeof data.equippedSkins === "object" ? (data.equippedSkins as Record<string, string>) : {},
+      banned: data.banned === true,
       updatedAt: data.updatedAt,
     };
   });
+}
+
+function parseLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
+  return {
+    uid: typeof data.uid === "string" ? data.uid : id,
+    displayName: typeof data.displayName === "string" ? data.displayName : "Joueur anonyme",
+    balance: typeof data.balance === "number" && Number.isFinite(data.balance) ? data.balance : 0,
+    inventory: Array.isArray(data.inventory)
+      ? data.inventory
+          .map((item) => ({
+            id: typeof item?.id === "string" ? item.id : "",
+            count: typeof item?.count === "number" && Number.isFinite(item.count) ? item.count : 0,
+          }))
+          .filter((item) => item.id && item.count > 0)
+      : [],
+    equippedSkins: data.equippedSkins && typeof data.equippedSkins === "object" ? (data.equippedSkins as Record<string, string>) : {},
+    banned: data.banned === true,
+    updatedAt: data.updatedAt,
+  };
+}
+
+function emptyAdminPriceOverrides(): AdminPriceOverrides {
+  return { skins: {}, cases: {}, chests: {} };
+}
+
+function parseAdminPriceOverrides(data: Record<string, unknown> | undefined): AdminPriceOverrides {
+  const parseMap = (value: unknown): Record<string, number> => {
+    if (!value || typeof value !== "object") {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).filter(([, price]) => typeof price === "number" && Number.isFinite(price) && price >= 0),
+    ) as Record<string, number>;
+  };
+
+  return {
+    skins: parseMap(data?.skins),
+    cases: parseMap(data?.cases),
+    chests: parseMap(data?.chests),
+  };
+}
+
+export function watchAdminStatus(userId: string, onChange: (isAdmin: boolean) => void) {
+  const app = getFirebaseApp();
+  if (!app) {
+    onChange(false);
+    return () => undefined;
+  }
+
+  return onSnapshot(
+    doc(getFirestore(app), "admins", userId),
+    (snapshot) => onChange(snapshot.exists() && snapshot.data()?.enabled !== false),
+    () => onChange(false),
+  );
+}
+
+export function subscribeAdminPriceOverrides(onChange: (overrides: AdminPriceOverrides) => void) {
+  const app = getFirebaseApp();
+  if (!app) {
+    onChange(emptyAdminPriceOverrides());
+    return () => undefined;
+  }
+
+  return onSnapshot(
+    doc(getFirestore(app), "adminSettings", "shopOverrides"),
+    (snapshot) => onChange(parseAdminPriceOverrides(snapshot.data())),
+    () => onChange(emptyAdminPriceOverrides()),
+  );
+}
+
+export async function loadAdminPlayers(): Promise<LeaderboardEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const snapshot = await getDocs(query(collection(getFirestore(app), "leaderboard"), orderBy("balance", "desc"), limit(100)));
+  return snapshot.docs.map((entry) => parseLeaderboardEntry(entry.id, entry.data()));
+}
+
+export async function loadAdminTrades(): Promise<SkinTradeEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const snapshot = await getDocs(query(collection(getFirestore(app), "skinTrades"), limit(80)));
+  return snapshot.docs.map((tradeDoc) => parseSkinTrade(tradeDoc.id, tradeDoc.data()));
+}
+
+export async function loadAdminRooms(): Promise<OnlineRoomEntry[]> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return [];
+  }
+
+  const snapshot = await getDocs(query(collection(getFirestore(app), "onlineRooms"), limit(80)));
+  return snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data()));
+}
+
+function normalizeAdminTarget(target: string) {
+  return target.trim().replace(/^@/, "").toLowerCase();
+}
+
+function findAdminTarget(players: LeaderboardEntry[], target: string) {
+  const normalized = normalizeAdminTarget(target);
+  return players.find((player) => player.uid.toLowerCase() === normalized || player.displayName.toLowerCase() === normalized);
+}
+
+function coerceGameSave(data: Record<string, unknown>) {
+  const gameSave = data.gameSave && typeof data.gameSave === "object" ? ({ ...(data.gameSave as Record<string, unknown>) } as Record<string, unknown>) : {};
+  gameSave.ownedSkinIds = Array.isArray(gameSave.ownedSkinIds) ? [...gameSave.ownedSkinIds] : [];
+  gameSave.equippedSkins = gameSave.equippedSkins && typeof gameSave.equippedSkins === "object" ? { ...(gameSave.equippedSkins as Record<string, string>) } : {};
+  gameSave.specialInventory =
+    gameSave.specialInventory && typeof gameSave.specialInventory === "object"
+      ? {
+          chests: { ...(((gameSave.specialInventory as Record<string, unknown>).chests as Record<string, number>) ?? {}) },
+          keys: { ...(((gameSave.specialInventory as Record<string, unknown>).keys as Record<string, number>) ?? {}) },
+          fragments: { ...(((gameSave.specialInventory as Record<string, unknown>).fragments as Record<string, number>) ?? {}) },
+        }
+      : { chests: {}, keys: {}, fragments: {} };
+  return gameSave;
+}
+
+function publicInventoryFromIds(ids: unknown[]) {
+  const counts = new Map<string, number>();
+  ids.forEach((id) => {
+    if (typeof id === "string" && id) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  });
+  return [...counts.entries()].map(([id, count]) => ({ id, count }));
+}
+
+async function writeAdminLog(admin: CasinoUser, command: string, message: string) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  await addDoc(collection(getFirestore(app), "adminLogs"), {
+    adminUid: admin.uid,
+    adminName: admin.displayName || admin.email || "Admin",
+    command,
+    message,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function executeAdminCommand(admin: CasinoUser, command: string): Promise<AdminCommandResult> {
+  const app = getFirebaseApp();
+  const trimmed = command.replace(/\s+/g, " ").trim();
+
+  if (!app) {
+    return { ok: false, message: "Firebase n'est pas configure." };
+  }
+
+  if (!trimmed.startsWith("/")) {
+    return { ok: false, message: "Une commande admin commence par /." };
+  }
+
+  const db = getFirestore(app);
+  const parts = trimmed.split(" ");
+  const action = parts[0].toLowerCase();
+  const players = await loadAdminPlayers();
+  const targetToken = parts.find((part) => part.startsWith("@"));
+  const allTargets = targetToken === "@all";
+  const target = targetToken && !allTargets ? findAdminTarget(players, targetToken) : null;
+
+  const targetPlayers = allTargets ? players : target ? [target] : [];
+  const requireTargets = () => {
+    if (!targetToken || targetPlayers.length === 0) {
+      throw new Error("Joueur introuvable. Utilise @NomExact ou @all.");
+    }
+  };
+  const numberAt = (index: number, label: string) => {
+    const value = Number(parts[index]);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`${label} invalide.`);
+    }
+    return value;
+  };
+
+  try {
+    let message = "";
+
+    if (action === "/help") {
+      return {
+        ok: true,
+        message:
+          "/add money 500 @Lucas | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150",
+      };
+    }
+
+    if (action === "/add" || action === "/remove" || action === "/set" || action === "/reset") {
+      const subject = parts[1]?.toLowerCase();
+
+      if (subject === "price") {
+        const kind = parts[2]?.toLowerCase();
+        const id = parts[3];
+        const price = numberAt(4, "Prix");
+        const field = kind === "skin" ? "skins" : kind === "case" ? "cases" : kind === "chest" || kind === "coffre" ? "chests" : "";
+        if (!field || !id) {
+          throw new Error("Commande prix invalide.");
+        }
+        await setDoc(doc(db, "adminSettings", "shopOverrides"), { [field]: { [id]: price }, updatedAt: serverTimestamp() }, { merge: true });
+        message = `Prix ${kind} ${id} defini a ${price} credits.`;
+      } else if (subject === "money") {
+        requireTargets();
+        const amount = action === "/reset" ? 1000 : numberAt(2, "Montant");
+        await Promise.all(
+          targetPlayers.map((player) =>
+            runTransaction(db, async (transaction) => {
+              const playerRef = doc(db, "players", player.uid);
+              const leaderboardRef = doc(db, "leaderboard", player.uid);
+              const playerSnapshot = await transaction.get(playerRef);
+              const playerData = playerSnapshot.exists() ? playerSnapshot.data() : {};
+              const gameSave = coerceGameSave(playerData);
+              const current = typeof gameSave.balance === "number" && Number.isFinite(gameSave.balance) ? gameSave.balance : player.balance;
+              const nextBalance = action === "/add" ? current + amount : action === "/remove" ? Math.max(0, current - amount) : amount;
+              gameSave.balance = nextBalance;
+              transaction.set(playerRef, { gameSave, updatedAt: serverTimestamp() }, { merge: true });
+              transaction.set(leaderboardRef, { balance: nextBalance, updatedAt: serverTimestamp() }, { merge: true });
+            }),
+          ),
+        );
+        message = `${targetPlayers.length} compte(s) mis a jour cote credits.`;
+      } else if (subject === "skin" || subject === "skins") {
+        requireTargets();
+        const skinId = subject === "skins" ? "" : parts[2];
+        if (subject === "skin" && !skinId) {
+          throw new Error("Skin manquant.");
+        }
+        await Promise.all(
+          targetPlayers.map((player) =>
+            runTransaction(db, async (transaction) => {
+              const playerRef = doc(db, "players", player.uid);
+              const leaderboardRef = doc(db, "leaderboard", player.uid);
+              const playerSnapshot = await transaction.get(playerRef);
+              const playerData = playerSnapshot.exists() ? playerSnapshot.data() : {};
+              const gameSave = coerceGameSave(playerData);
+              const ids = Array.isArray(gameSave.ownedSkinIds) ? [...gameSave.ownedSkinIds] : [];
+              if (action === "/reset") {
+                gameSave.ownedSkinIds = ["plinko-gold", "cards-emerald", "roulette-ivory", "rocket-classic"];
+                gameSave.equippedSkins = {
+                  plinkoBall: "plinko-gold",
+                  cardBack: "cards-emerald",
+                  rouletteBall: "roulette-ivory",
+                  rocketShip: "rocket-classic",
+                };
+              } else if (action === "/add") {
+                gameSave.ownedSkinIds = [...ids, skinId];
+              } else {
+                const index = ids.indexOf(skinId);
+                if (index >= 0) ids.splice(index, 1);
+                gameSave.ownedSkinIds = ids;
+              }
+              transaction.set(playerRef, { gameSave, updatedAt: serverTimestamp() }, { merge: true });
+              transaction.set(leaderboardRef, { inventory: publicInventoryFromIds(gameSave.ownedSkinIds as unknown[]), updatedAt: serverTimestamp() }, { merge: true });
+            }),
+          ),
+        );
+        message = `${targetPlayers.length} inventaire(s) skin mis a jour.`;
+      } else if (subject === "key" || subject === "cle" || subject === "fragments" || subject === "fragment" || subject === "chest" || subject === "coffre") {
+        requireTargets();
+        const chestId = parts[2];
+        const amount = numberAt(3, "Quantite");
+        const bucket = subject === "key" || subject === "cle" ? "keys" : subject === "chest" || subject === "coffre" ? "chests" : "fragments";
+        await Promise.all(
+          targetPlayers.map((player) =>
+            runTransaction(db, async (transaction) => {
+              const playerRef = doc(db, "players", player.uid);
+              const playerSnapshot = await transaction.get(playerRef);
+              const gameSave = coerceGameSave(playerSnapshot.exists() ? playerSnapshot.data() : {});
+              const specialInventory = gameSave.specialInventory as { chests: Record<string, number>; keys: Record<string, number>; fragments: Record<string, number> };
+              specialInventory[bucket][chestId] = Math.max(0, (specialInventory[bucket][chestId] ?? 0) + (action === "/remove" ? -amount : amount));
+              gameSave.specialInventory = specialInventory;
+              transaction.set(playerRef, { gameSave, updatedAt: serverTimestamp() }, { merge: true });
+            }),
+          ),
+        );
+        message = `${bucket} ${chestId} mis a jour pour ${targetPlayers.length} joueur(s).`;
+      }
+    } else if (action === "/ban" || action === "/unban") {
+      requireTargets();
+      const banned = action === "/ban";
+      const batch = writeBatch(db);
+      targetPlayers.forEach((player) => {
+        batch.set(doc(db, "players", player.uid), { banned, updatedAt: serverTimestamp() }, { merge: true });
+        batch.set(doc(db, "leaderboard", player.uid), { banned, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await batch.commit();
+      message = banned ? `${targetPlayers.length} joueur(s) banni(s).` : `${targetPlayers.length} joueur(s) debanni(s).`;
+    } else if (action === "/delete" && parts[1]?.toLowerCase() === "room") {
+      const roomId = parts[2];
+      if (!roomId) throw new Error("ID du salon manquant.");
+      await deleteDoc(doc(db, "onlineRooms", roomId));
+      message = `Salon ${roomId} supprime.`;
+    } else if ((action === "/finish" || action === "/reset") && parts[1]?.toLowerCase() === "room") {
+      const roomId = parts[2];
+      if (!roomId) throw new Error("ID du salon manquant.");
+      await updateDoc(doc(db, "onlineRooms", roomId), {
+        status: action === "/finish" ? "finished" : "waiting",
+        updatedAt: serverTimestamp(),
+      });
+      message = action === "/finish" ? `Salon ${roomId} termine.` : `Salon ${roomId} remis en attente.`;
+    }
+
+    if (!message) {
+      throw new Error("Commande inconnue. Tape /help pour voir les commandes.");
+    }
+
+    await writeAdminLog(admin, trimmed, message);
+    return { ok: true, message };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Commande impossible.";
+    await writeAdminLog(admin, trimmed, message);
+    return { ok: false, message };
+  }
 }

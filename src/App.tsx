@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
 import {
@@ -85,11 +85,15 @@ import {
   createOnlineRoom,
   createSkinTrade,
   deleteInactivePokerRoom,
+  executeAdminCommand,
   foldPokerPlayer,
   isFirebaseConfigured,
   isInactivePokerRoom,
   joinOnlineRoom,
   leaveOnlineRoom,
+  loadAdminPlayers,
+  loadAdminRooms,
+  loadAdminTrades,
   loadDuelHistory,
   loadDuelStats,
   loadFriendRequests,
@@ -110,8 +114,12 @@ import {
   signOutGoogle,
   startDuelRoom,
   startPokerRoom,
+  subscribeAdminPriceOverrides,
   subscribeDuelHistory,
   subscribeOnlineRooms,
+  watchAdminStatus,
+  type AdminCommandResult,
+  type AdminPriceOverrides,
   watchCasinoUser,
   type CasinoUser,
   type FriendRequestEntry,
@@ -219,6 +227,8 @@ type ActivityItem = {
   kind: "friend" | "trade" | "message" | "duel" | "poker";
   timestamp?: unknown;
 };
+
+type MainSection = "games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "messages" | "activity" | "admin";
 
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
@@ -536,7 +546,7 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<"games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "messages" | "activity">("games");
+  const [activeSection, setActiveSection] = useState<MainSection>("games");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
@@ -596,6 +606,13 @@ function App() {
   const [rocketFlight, setRocketFlight] = useState<RocketOutcome | null>(null);
   const [accountUser, setAccountUser] = useState<CasinoUser | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminMessage, setAdminMessage] = useState("Connecte-toi avec un compte admin.");
+  const [adminPlayers, setAdminPlayers] = useState<LeaderboardEntry[]>([]);
+  const [adminRooms, setAdminRooms] = useState<OnlineRoomEntry[]>([]);
+  const [adminTrades, setAdminTrades] = useState<SkinTradeEntry[]>([]);
+  const [adminPriceOverrides, setAdminPriceOverrides] = useState<AdminPriceOverrides>({ skins: {}, cases: {}, chests: {} });
+  const [lastAdminResult, setLastAdminResult] = useState<AdminCommandResult | null>(null);
   const [accountMessage, setAccountMessage] = useState(
     isFirebaseConfigured()
       ? "Connecte-toi avec Google pour sauvegarder en ligne."
@@ -711,6 +728,14 @@ function App() {
   const activityItems = useMemo(
     () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, privateMessages, duelHistory, visibleOnlineRooms),
     [accountUser, friendRequests, skinTrades, privateMessages, duelHistory, visibleOnlineRooms],
+  );
+  const priceTools = useMemo(
+    () => ({
+      skin: (item: ShopItem) => adminPriceOverrides.skins[item.id] ?? item.price,
+      caseCost: (category: SkinCategory) => adminPriceOverrides.cases[category] ?? getCaseDefinition(category).cost,
+      chest: (chest: SpecialChestDefinition) => adminPriceOverrides.chests[chest.id] ?? chest.price,
+    }),
+    [adminPriceOverrides],
   );
 
   useEffect(() => {
@@ -848,6 +873,30 @@ function App() {
       refreshSkinTrades(accountUser.uid);
     }
   }, [accountUser]);
+
+  useEffect(() => {
+    if (!accountUser) {
+      setIsAdmin(false);
+      setAdminPlayers([]);
+      setAdminRooms([]);
+      setAdminTrades([]);
+      setAdminMessage("Connecte-toi avec un compte admin.");
+      return;
+    }
+
+    return watchAdminStatus(accountUser.uid, (enabled) => {
+      setIsAdmin(enabled);
+      setAdminMessage(enabled ? "Console admin active." : "Ce compte n'a pas les droits admin.");
+    });
+  }, [accountUser]);
+
+  useEffect(() => subscribeAdminPriceOverrides(setAdminPriceOverrides), []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      refreshAdminData();
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!accountUser) {
@@ -1188,6 +1237,36 @@ function App() {
     } catch {
       setDuelHistory([]);
     }
+  }
+
+  async function refreshAdminData() {
+    if (!isAdmin) {
+      return;
+    }
+
+    try {
+      const [players, rooms, trades] = await Promise.all([loadAdminPlayers(), loadAdminRooms(), loadAdminTrades()]);
+      setAdminPlayers(players);
+      setAdminRooms(rooms);
+      setAdminTrades(trades);
+      setAdminMessage("Donnees admin synchronisees.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setAdminMessage(`Admin indisponible : ${message}`);
+    }
+  }
+
+  async function handleAdminCommand(command: string) {
+    if (!accountUser || !isAdmin) {
+      setAdminMessage("Compte admin requis.");
+      return false;
+    }
+
+    const result = await executeAdminCommand(accountUser, command);
+    setLastAdminResult(result);
+    setAdminMessage(result.message);
+    await Promise.allSettled([refreshAdminData(), refreshLeaderboard(), refreshOnlineRooms()]);
+    return result.ok;
   }
 
   async function handleOpenPlayerProfile(entry: LeaderboardEntry) {
@@ -2032,7 +2111,8 @@ function App() {
       return;
     }
 
-    const result = buySkin(balance, ownedSkinIds, item);
+    const pricedItem = { ...item, price: priceTools.skin(item) };
+    const result = buySkin(balance, ownedSkinIds, pricedItem);
 
     if (!result.purchased) {
       setShopMessage("Solde virtuel insuffisant pour ce skin.");
@@ -2041,19 +2121,20 @@ function App() {
 
     setBalance(result.balance);
     setOwnedSkinIds(result.ownedSkinIds);
-    setEquippedSkins((current) => equipSkin(current, item));
+    setEquippedSkins((current) => equipSkin(current, pricedItem));
     setShopMessage(`${item.name} achete et equipe. Skin purement cosmetique.`);
   }
 
   function buySpecialChest(chestId: SpecialChestId) {
     const chest = getSpecialChestDefinition(chestId);
+    const chestPrice = priceTools.chest(chest);
 
-    if (balance < chest.price) {
+    if (balance < chestPrice) {
       setShopMessage("Solde insuffisant pour acheter ce coffre special.");
       return;
     }
 
-    setBalance((current) => current - chest.price);
+    setBalance((current) => current - chestPrice);
     setSpecialInventory((current) => ({
       ...current,
       chests: {
@@ -2075,13 +2156,15 @@ function App() {
     }
 
     const definition = getCaseDefinition(selectedCase);
+    const caseCost = priceTools.caseCost(selectedCase);
 
-    if (balance < definition.cost) {
+    if (balance < caseCost) {
       setCaseMessage(`Solde insuffisant pour ouvrir ${definition.title}.`);
       return;
     }
 
-    const outcome = openCase(balance, ownedSkinIds, SHOP_ITEMS, selectedCase);
+    const balanceAdjustedForAdminPrice = balance + definition.cost - caseCost;
+    const outcome = openCase(balanceAdjustedForAdminPrice, ownedSkinIds, SHOP_ITEMS, selectedCase);
 
     if (!outcome) {
       setCaseMessage("Solde insuffisant pour ouvrir cette caisse.");
@@ -2466,6 +2549,15 @@ function App() {
             <span>Activite</span>
             {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
           </button>
+          {isAdmin ? (
+            <button
+              className={activeSection === "admin" ? styles.activeTab : ""}
+              type="button"
+              onClick={() => setActiveSection("admin")}
+            >
+              Admin
+            </button>
+          ) : null}
         </nav>
 
         {activityBadgeCount > 0 && activeSection !== "activity" ? (
@@ -2574,6 +2666,7 @@ function App() {
         ) : activeSection === "cases" ? (
           <CaseOpeningGame
             balance={balance}
+            priceOverrides={adminPriceOverrides}
             history={caseHistory}
             lastDrop={lastCaseDrop}
             message={caseMessage}
@@ -2598,6 +2691,7 @@ function App() {
             equippedSkins={equippedSkins}
             message={shopMessage}
             ownedSkinIds={ownedSkinIds}
+            priceOverrides={adminPriceOverrides}
             specialInventory={specialInventory}
             onAction={handleShopAction}
             onBuySpecialChest={buySpecialChest}
@@ -2638,6 +2732,19 @@ function App() {
           />
         ) : activeSection === "activity" ? (
           <ActivityPanel currentUser={accountUser} items={activityItems} />
+        ) : activeSection === "admin" ? (
+          <AdminPanel
+            currentUser={accountUser}
+            isAdmin={isAdmin}
+            lastResult={lastAdminResult}
+            message={adminMessage}
+            players={adminPlayers}
+            priceOverrides={adminPriceOverrides}
+            rooms={adminRooms}
+            trades={adminTrades}
+            onCommand={handleAdminCommand}
+            onRefresh={refreshAdminData}
+          />
         ) : activeGame === "slots" ? (
           <SlotGame
             bet={slotBet}
@@ -2935,6 +3042,170 @@ function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null;
         )}
       </div>
     </section>
+  );
+}
+
+function AdminPanel({
+  currentUser,
+  isAdmin,
+  lastResult,
+  message,
+  players,
+  priceOverrides,
+  rooms,
+  trades,
+  onCommand,
+  onRefresh,
+}: {
+  currentUser: CasinoUser | null;
+  isAdmin: boolean;
+  lastResult: AdminCommandResult | null;
+  message: string;
+  players: LeaderboardEntry[];
+  priceOverrides: AdminPriceOverrides;
+  rooms: OnlineRoomEntry[];
+  trades: SkinTradeEntry[];
+  onCommand: (command: string) => Promise<boolean>;
+  onRefresh: () => void;
+}) {
+  const [command, setCommand] = useState("");
+  const [running, setRunning] = useState(false);
+  const examples = [
+    "/add money 500 @Lucas",
+    "/remove money 100 @Daniel",
+    "/set money 1000 @Yoann_H92",
+    "/reset money @all",
+    "/add skin cards-aqua @Lucas",
+    "/remove skin cards-aqua @Lucas",
+    "/reset skins @Lucas",
+    "/add key nebula 1 @Lucas",
+    "/add fragments orbital 3 @Lucas",
+    "/add chest royal 1 @Lucas",
+    "/set price skin cards-aqua 500",
+    "/set price case plinkoBall 150",
+    "/set price chest nebula 1200",
+    "/ban @Lucas",
+    "/unban @Lucas",
+    "/delete room ROOM_ID",
+    "/finish room ROOM_ID",
+  ];
+
+  async function submitCommand(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!command.trim() || running) {
+      return;
+    }
+
+    setRunning(true);
+    const ok = await onCommand(command);
+    setRunning(false);
+    if (ok) {
+      setCommand("");
+    }
+  }
+
+  if (!currentUser || !isAdmin) {
+    return (
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Admin</h2>
+            <p>{message}</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className={styles.machine}>
+        <div className={styles.shopHeader}>
+          <div>
+            <h2>Console admin</h2>
+            <p>{message}</p>
+          </div>
+          <button className={styles.secondaryButton} type="button" onClick={onRefresh}>
+            Actualiser
+          </button>
+        </div>
+        <form className={styles.adminConsole} onSubmit={submitCommand}>
+          <input
+            type="text"
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            placeholder="/add money 500 @Lucas"
+            spellCheck={false}
+          />
+          <button className={styles.primaryButton} type="submit" disabled={running || !command.trim()}>
+            Executer
+          </button>
+        </form>
+        {lastResult ? (
+          <p className={lastResult.ok ? styles.adminSuccess : styles.adminError}>{lastResult.message}</p>
+        ) : null}
+        <div className={styles.adminExamples}>
+          {examples.map((example) => (
+            <button type="button" key={example} onClick={() => setCommand(example)}>
+              {example}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.columns}>
+        <article className={styles.panel}>
+          <h2>Joueurs</h2>
+          <ul className={styles.adminList}>
+            {players.map((player) => (
+              <li key={player.uid}>
+                <strong>{player.displayName}</strong>
+                <span>{player.balance.toLocaleString("fr-FR")} credits</span>
+                <small>{player.banned ? "Banni" : player.uid}</small>
+              </li>
+            ))}
+          </ul>
+        </article>
+        <article className={styles.panel}>
+          <h2>Salons</h2>
+          <ul className={styles.adminList}>
+            {rooms.map((room) => (
+              <li key={room.id}>
+                <strong>{room.game}</strong>
+                <span>{room.type} | {room.status}</span>
+                <small>{room.id}</small>
+              </li>
+            ))}
+          </ul>
+        </article>
+      </section>
+
+      <section className={styles.columns}>
+        <article className={styles.panel}>
+          <h2>Trades recents</h2>
+          <ul className={styles.adminList}>
+            {trades.map((trade) => (
+              <li key={trade.id}>
+                <strong>{trade.fromDisplayName} vers {trade.toDisplayName}</strong>
+                <span>{trade.status}</span>
+                <small>{getTradeAssetLabel(trade.offeredItemId, trade.offeredCredits)} contre {getTradeAssetLabel(trade.requestedItemId, trade.requestedCredits)}</small>
+              </li>
+            ))}
+          </ul>
+        </article>
+        <article className={styles.panel}>
+          <h2>Prix modifies</h2>
+          <div className={styles.rulesTable}>
+            {Object.entries(priceOverrides.skins).map(([id, price]) => <div className={styles.ruleRow} key={`skin-${id}`}><span>Skin {id}</span><strong>{price} credits</strong></div>)}
+            {Object.entries(priceOverrides.cases).map(([id, price]) => <div className={styles.ruleRow} key={`case-${id}`}><span>Caisse {id}</span><strong>{price} credits</strong></div>)}
+            {Object.entries(priceOverrides.chests).map(([id, price]) => <div className={styles.ruleRow} key={`chest-${id}`}><span>Coffre {id}</span><strong>{price} credits</strong></div>)}
+            {Object.keys(priceOverrides.skins).length + Object.keys(priceOverrides.cases).length + Object.keys(priceOverrides.chests).length === 0 ? (
+              <p className={styles.empty}>Aucun prix admin modifie.</p>
+            ) : null}
+          </div>
+        </article>
+      </section>
+    </>
   );
 }
 
@@ -5574,6 +5845,7 @@ function smoothstep(progress: number): number {
 
 function CaseOpeningGame({
   balance,
+  priceOverrides,
   history,
   lastDrop,
   message,
@@ -5593,6 +5865,7 @@ function CaseOpeningGame({
   onSelectCase,
 }: {
   balance: number;
+  priceOverrides: AdminPriceOverrides;
   history: CaseHistoryItem[];
   lastDrop: CaseHistoryItem | null;
   message: string;
@@ -5612,8 +5885,9 @@ function CaseOpeningGame({
   onSelectCase: (category: SkinCategory) => void;
 }) {
   const selectedDefinition = getCaseDefinition(selectedCase);
+  const selectedCaseCost = priceOverrides.cases[selectedCase] ?? selectedDefinition.cost;
   const selectedItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === selectedCase && item.source !== "special"));
-  const canOpen = balance >= selectedDefinition.cost && !opening && !paused;
+  const canOpen = balance >= selectedCaseCost && !opening && !paused;
 
   return (
     <>
@@ -5646,7 +5920,7 @@ function CaseOpeningGame({
                   <CaseThemePreview category={caseDefinition.id} />
                   <span>{caseDefinition.title}</span>
                   <small>{caseDefinition.subtitle}</small>
-                  <strong>{caseDefinition.cost} credits</strong>
+                  <strong>{priceOverrides.cases[caseDefinition.id] ?? caseDefinition.cost} credits</strong>
                   <em>{ownedCount}/{totalCount} modeles</em>
                 </button>
               );
@@ -5678,7 +5952,7 @@ function CaseOpeningGame({
             )}
 
             <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
-              {opening ? "Ouverture..." : `Ouvrir pour ${selectedDefinition.cost} credits`}
+              {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
             </button>
           </div>
         </div>
@@ -5999,6 +6273,7 @@ function ShopGame({
   equippedSkins,
   message,
   ownedSkinIds,
+  priceOverrides,
   specialInventory,
   onAction,
   onBuySpecialChest,
@@ -6007,6 +6282,7 @@ function ShopGame({
   equippedSkins: EquippedSkins;
   message: string;
   ownedSkinIds: string[];
+  priceOverrides: AdminPriceOverrides;
   specialInventory: SpecialInventory;
   onAction: (item: ShopItem) => void;
   onBuySpecialChest: (chestId: SpecialChestId) => void;
@@ -6058,6 +6334,7 @@ function ShopGame({
                 {sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === section.category && item.source !== "special")).map((item) => {
                   const owned = ownedSkinIds.includes(item.id);
                   const equipped = equippedSkins[item.category] === item.id;
+                  const itemPrice = priceOverrides.skins[item.id] ?? item.price;
 
                   return (
                     <article className={styles.shopItem} key={item.id}>
@@ -6070,7 +6347,7 @@ function ShopGame({
                         <small>{rarityLabel(item.rarity)}</small>
                       </div>
                       <footer className={styles.shopFooter}>
-                        <strong>{item.price === 0 ? "Inclus" : `${item.price} credits`}</strong>
+                        <strong>{itemPrice === 0 ? "Inclus" : `${itemPrice} credits`}</strong>
                         <button className={equipped ? styles.secondaryButton : styles.primaryButton} type="button" onClick={() => onAction(item)} disabled={equipped}>
                           {equipped ? "Equipe" : owned ? "Equiper" : "Acheter"}
                         </button>
@@ -6103,8 +6380,8 @@ function ShopGame({
                 </small>
               </div>
               <footer className={styles.shopFooter}>
-                <strong>{chest.price} credits</strong>
-                <button className={styles.primaryButton} type="button" onClick={() => onBuySpecialChest(chest.id)} disabled={balance < chest.price}>
+                <strong>{priceOverrides.chests[chest.id] ?? chest.price} credits</strong>
+                <button className={styles.primaryButton} type="button" onClick={() => onBuySpecialChest(chest.id)} disabled={balance < (priceOverrides.chests[chest.id] ?? chest.price)}>
                   Acheter coffre
                 </button>
               </footer>

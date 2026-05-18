@@ -4508,6 +4508,99 @@
   min-width: 92px;
 }
 
+.adminConsole {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.adminConsole input {
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fffaf0;
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.adminConsole input:focus {
+  border-color: #ffd166;
+  outline: 2px solid rgba(255, 209, 102, 0.22);
+}
+
+.adminSuccess,
+.adminError {
+  margin: 12px 0 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.adminSuccess {
+  background: rgba(116, 236, 158, 0.14);
+  color: #8cf0ae;
+}
+
+.adminError {
+  background: rgba(255, 99, 99, 0.14);
+  color: #ff9d9d;
+}
+
+.adminExamples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.adminExamples button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #e9efec;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.adminExamples button:hover,
+.adminExamples button:focus-visible {
+  border-color: rgba(255, 209, 102, 0.78);
+  color: #ffd166;
+}
+
+.adminList {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.adminList li {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+}
+
+.adminList span {
+  color: #ffd166;
+  font-weight: 800;
+}
+
+.adminList small {
+  color: #b8c2bd;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 780px) {
   .app {
     padding: 14px;
@@ -4564,6 +4657,10 @@
   }
 
   .messageComposer {
+    grid-template-columns: 1fr;
+  }
+
+  .adminConsole {
     grid-template-columns: 1fr;
   }
 
