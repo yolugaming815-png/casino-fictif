@@ -2549,7 +2549,7 @@ function App() {
             <span>Activite</span>
             {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
           </button>
-          {isAdmin ? (
+          {accountUser ? (
             <button
               className={activeSection === "admin" ? styles.activeTab : ""}
               type="button"
@@ -3113,6 +3113,22 @@ function AdminPanel({
             <p>{message}</p>
           </div>
         </div>
+        {currentUser ? (
+          <div className={styles.rulesTable}>
+            <div className={styles.ruleRow}>
+              <span>UID utilise par le site</span>
+              <strong>{currentUser.uid}</strong>
+            </div>
+            <div className={styles.ruleRow}>
+              <span>Document attendu dans Firestore</span>
+              <strong>admins/{currentUser.uid}</strong>
+            </div>
+            <div className={styles.ruleRow}>
+              <span>Champ attendu</span>
+              <strong>enabled = true</strong>
+            </div>
+          </div>
+        ) : null}
       </section>
     );
   }
