@@ -1507,17 +1507,30 @@ function parseAdminPriceOverrides(data: Record<string, unknown> | undefined): Ad
   };
 }
 
-export function watchAdminStatus(userId: string, onChange: (isAdmin: boolean) => void) {
+export function watchAdminStatus(userId: string, onChange: (isAdmin: boolean, message: string) => void) {
   const app = getFirebaseApp();
   if (!app) {
-    onChange(false);
+    onChange(false, "Firebase n'est pas configure sur ce site.");
     return () => undefined;
   }
 
   return onSnapshot(
     doc(getFirestore(app), "admins", userId),
-    (snapshot) => onChange(snapshot.exists() && snapshot.data()?.enabled !== false),
-    () => onChange(false),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onChange(false, `Document admin introuvable : admins/${userId}`);
+        return;
+      }
+
+      const enabled = snapshot.data()?.enabled;
+      if (enabled !== true) {
+        onChange(false, `Document trouve, mais le champ enabled doit etre un booleen true. Valeur actuelle : ${String(enabled)}`);
+        return;
+      }
+
+      onChange(true, "Console admin active.");
+    },
+    (error) => onChange(false, `Lecture admin refusee par Firebase : ${error.message}`),
   );
 }
 

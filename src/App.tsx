@@ -884,9 +884,9 @@ function App() {
       return;
     }
 
-    return watchAdminStatus(accountUser.uid, (enabled) => {
+    return watchAdminStatus(accountUser.uid, (enabled, statusMessage) => {
       setIsAdmin(enabled);
-      setAdminMessage(enabled ? "Console admin active." : "Ce compte n'a pas les droits admin.");
+      setAdminMessage(statusMessage);
     });
   }, [accountUser]);
 
