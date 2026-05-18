@@ -140,6 +140,7 @@ export type OnlineRoomEntry = {
   pokerPot: number;
   pokerCurrentBet: number;
   pokerContributions: Record<string, number>;
+  pokerPaidByPlayer: Record<string, number>;
   pokerHandId: number;
   pokerTurnUid?: string;
   pokerTurnName?: string;
@@ -161,6 +162,7 @@ export type DuelStats = {
 };
 
 const STALE_WAITING_ROOM_MS = 30 * 60 * 1000;
+const INACTIVE_POKER_ROOM_MS = 30 * 60 * 1000;
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA95a2M9sm2EXwQNU3KFeMShp3tLYqmtCo",
@@ -608,7 +610,26 @@ function timestampToMillis(value: unknown) {
     return value.toMillis();
   }
 
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (value && typeof value === "object" && "seconds" in value && typeof value.seconds === "number") {
+    return value.seconds * 1000;
+  }
+
   return null;
+}
+
+export function isInactivePokerRoom(room: OnlineRoomEntry, now = Date.now()) {
+  const lastActivityAt = timestampToMillis(room.updatedAt) ?? timestampToMillis(room.createdAt);
+  const isLegacyPokerHand = room.type === "poker" && room.status === "playing" && room.pokerPot > 0 && Object.keys(room.pokerPaidByPlayer).length === 0;
+
+  return isLegacyPokerHand || (room.type === "poker" && room.status === "playing" && lastActivityAt !== null && now - lastActivityAt > INACTIVE_POKER_ROOM_MS);
 }
 
 function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomEntry {
@@ -652,6 +673,12 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     Object.entries(rawPokerContributions)
       .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
       .map(([uid, contribution]) => [uid, contribution]),
+  );
+  const rawPokerPaidByPlayer = data.pokerPaidByPlayer && typeof data.pokerPaidByPlayer === "object" ? (data.pokerPaidByPlayer as Record<string, unknown>) : {};
+  const pokerPaidByPlayer = Object.fromEntries(
+    Object.entries(rawPokerPaidByPlayer)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
+      .map(([uid, amount]) => [uid, amount]),
   );
   const pokerPhase =
     data.pokerPhase === "preflop" || data.pokerPhase === "flop" || data.pokerPhase === "turn" || data.pokerPhase === "river" || data.pokerPhase === "showdown"
@@ -697,6 +724,7 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     pokerPot: typeof data.pokerPot === "number" && Number.isFinite(data.pokerPot) ? data.pokerPot : 0,
     pokerCurrentBet: typeof data.pokerCurrentBet === "number" && Number.isFinite(data.pokerCurrentBet) ? data.pokerCurrentBet : 0,
     pokerContributions,
+    pokerPaidByPlayer,
     pokerHandId: typeof data.pokerHandId === "number" && Number.isFinite(data.pokerHandId) ? data.pokerHandId : 0,
     pokerTurnUid: typeof data.pokerTurnUid === "string" ? data.pokerTurnUid : undefined,
     pokerTurnName: typeof data.pokerTurnName === "string" ? data.pokerTurnName : undefined,
@@ -741,6 +769,7 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     pokerPot: 0,
     pokerCurrentBet: 0,
     pokerContributions: {},
+    pokerPaidByPlayer: {},
     pokerHandId: 0,
     pokerTurnUid: "",
     pokerTurnName: "",
@@ -809,6 +838,19 @@ export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => voi
       onError?.();
     },
   );
+}
+
+export async function deleteInactivePokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (!isInactivePokerRoom(room) || !room.players.some((player) => player.uid === user.uid)) {
+    throw new Error("Cette table de poker n'est pas inactive.");
+  }
+
+  await deleteDoc(doc(getFirestore(app), "onlineRooms", room.id));
 }
 
 export async function loadDuelHistory(userId: string): Promise<OnlineRoomEntry[]> {
@@ -933,6 +975,7 @@ export async function startDuelRoom(room: OnlineRoomEntry, user: CasinoUser) {
     pokerPot: room.pokerPot,
     pokerCurrentBet: room.pokerCurrentBet,
     pokerContributions: room.pokerContributions,
+    pokerPaidByPlayer: room.pokerPaidByPlayer,
     pokerHandId: room.pokerHandId,
     pokerTurnUid: room.pokerTurnUid ?? "",
     pokerTurnName: room.pokerTurnName ?? "",
@@ -1070,6 +1113,7 @@ export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
     pokerPot: room.players.length * 25,
     pokerCurrentBet: 0,
     pokerContributions: Object.fromEntries(room.players.map((player) => [player.uid, 0])),
+    pokerPaidByPlayer: Object.fromEntries(room.players.map((player) => [player.uid, 25])),
     pokerHandId: room.pokerHandId + 1,
     pokerTurnUid: room.players[0]?.uid ?? "",
     pokerTurnName: room.players[0]?.displayName ?? "",
@@ -1138,6 +1182,7 @@ export async function advancePokerPhase(room: OnlineRoomEntry, user: CasinoUser)
     pokerActions: {},
     pokerCurrentBet: 0,
     pokerContributions: Object.fromEntries(activePokerPlayers(room).map((player) => [player.uid, 0])),
+    pokerPaidByPlayer: room.pokerPaidByPlayer,
     pokerTurnUid: nextStatus === "playing" ? activePokerPlayers(room)[0]?.uid ?? "" : "",
     pokerTurnName: nextStatus === "playing" ? activePokerPlayers(room)[0]?.displayName ?? "" : "",
     pokerWinnerUid: winner?.uid ?? "",
@@ -1209,6 +1254,10 @@ export async function callPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
     ...room.pokerContributions,
     [user.uid]: room.pokerCurrentBet,
   };
+  const pokerPaidByPlayer = {
+    ...room.pokerPaidByPlayer,
+    [user.uid]: (room.pokerPaidByPlayer[user.uid] ?? 0) + amountToCall,
+  };
   const pokerActions = {
     ...room.pokerActions,
     [user.uid]: "called",
@@ -1219,6 +1268,7 @@ export async function callPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
   await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
     pokerActions,
     pokerContributions,
+    pokerPaidByPlayer,
     pokerPot: room.pokerPot + amountToCall,
     pokerTurnUid: phaseDone ? "" : nextTurn?.uid ?? "",
     pokerTurnName: phaseDone ? "" : nextTurn?.displayName ?? "",
@@ -1247,6 +1297,10 @@ export async function raisePokerPlayer(room: OnlineRoomEntry, user: CasinoUser) 
     ...room.pokerContributions,
     [user.uid]: newBet,
   };
+  const pokerPaidByPlayer = {
+    ...room.pokerPaidByPlayer,
+    [user.uid]: (room.pokerPaidByPlayer[user.uid] ?? 0) + amountToPay,
+  };
   const pokerActions = {
     ...foldedPokerActions(room.foldedPlayerIds),
     [user.uid]: "raised",
@@ -1257,6 +1311,7 @@ export async function raisePokerPlayer(room: OnlineRoomEntry, user: CasinoUser) 
     pokerActions,
     pokerCurrentBet: newBet,
     pokerContributions,
+    pokerPaidByPlayer,
     pokerPot: room.pokerPot + amountToPay,
     pokerTurnUid: nextTurn?.uid ?? "",
     pokerTurnName: nextTurn?.displayName ?? "",

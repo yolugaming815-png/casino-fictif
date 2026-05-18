@@ -156,6 +156,7 @@ service cloud.firestore {
         && request.resource.data.pokerPot is number
         && request.resource.data.pokerCurrentBet is number
         && request.resource.data.pokerContributions is map
+        && request.resource.data.pokerPaidByPlayer is map
         && request.resource.data.pokerHandId is number
         && request.resource.data.pokerWinnerUids is list
         && request.resource.data.pokerWinnerNames is list
@@ -183,6 +184,7 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(["pokerPot"]) || request.resource.data.pokerPot is number)
         && (!request.resource.data.keys().hasAny(["pokerCurrentBet"]) || request.resource.data.pokerCurrentBet is number)
         && (!request.resource.data.keys().hasAny(["pokerContributions"]) || request.resource.data.pokerContributions is map)
+        && (!request.resource.data.keys().hasAny(["pokerPaidByPlayer"]) || request.resource.data.pokerPaidByPlayer is map)
         && (!request.resource.data.keys().hasAny(["pokerHandId"]) || request.resource.data.pokerHandId is number)
         && (!request.resource.data.keys().hasAny(["pokerWinnerUids"]) || request.resource.data.pokerWinnerUids is list)
         && (!request.resource.data.keys().hasAny(["pokerWinnerNames"]) || request.resource.data.pokerWinnerNames is list)
@@ -190,8 +192,18 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(["pokerWinnerHandCards"]) || request.resource.data.pokerWinnerHandCards is list)
         && (!request.resource.data.keys().hasAny(["pokerShowdownResults"]) || request.resource.data.pokerShowdownResults is list);
       allow delete: if request.auth != null
-        && resource.data.status == "waiting"
-        && request.time > resource.data.createdAt + duration.value(30, "m");
+        && (
+          (
+            resource.data.status == "waiting"
+            && request.time > resource.data.createdAt + duration.value(30, "m")
+          )
+          || (
+            resource.data.type == "poker"
+            && resource.data.status == "playing"
+            && request.auth.uid in resource.data.playerIds
+            && request.time > resource.data.updatedAt + duration.value(30, "m")
+          )
+        );
     }
   }
 }

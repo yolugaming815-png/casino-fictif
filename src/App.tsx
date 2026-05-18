@@ -84,8 +84,10 @@ import {
   checkPokerPlayer,
   createOnlineRoom,
   createSkinTrade,
+  deleteInactivePokerRoom,
   foldPokerPlayer,
   isFirebaseConfigured,
+  isInactivePokerRoom,
   joinOnlineRoom,
   leaveOnlineRoom,
   loadDuelHistory,
@@ -123,6 +125,8 @@ import {
 } from "./firebaseClient";
 
 const APPLIED_TRADE_KEYS_STORAGE_KEY = "casino-fictif-applied-trades";
+const REFUNDED_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-refunded-inactive-poker";
+const HIDDEN_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-hidden-inactive-poker";
 
 type SlotHistoryItem = SpinOutcome & {
   id: number;
@@ -614,6 +618,8 @@ function App() {
   const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
   const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
   const paidPokerAnteRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-paid-poker-ante") ?? "[]") as string[]));
+  const refundedInactivePokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(REFUNDED_INACTIVE_POKER_STORAGE_KEY) ?? "[]") as string[]));
+  const hiddenInactivePokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(HIDDEN_INACTIVE_POKER_STORAGE_KEY) ?? "[]") as string[]));
   const appliedTradeKeysRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(APPLIED_TRADE_KEYS_STORAGE_KEY) ?? "[]") as string[]));
   const lastPrivateMessageSentAtRef = useRef(0);
   const [now, setNow] = useState(Date.now());
@@ -641,6 +647,28 @@ function App() {
     localStorage.setItem(APPLIED_TRADE_KEYS_STORAGE_KEY, JSON.stringify(recentKeys));
   }
 
+  function rememberInactivePokerRefund(refundKey: string) {
+    if (refundedInactivePokerRoomsRef.current.has(refundKey)) {
+      return;
+    }
+
+    refundedInactivePokerRoomsRef.current.add(refundKey);
+    const recentKeys = [...refundedInactivePokerRoomsRef.current].slice(-300);
+    refundedInactivePokerRoomsRef.current = new Set(recentKeys);
+    localStorage.setItem(REFUNDED_INACTIVE_POKER_STORAGE_KEY, JSON.stringify(recentKeys));
+  }
+
+  function rememberHiddenInactivePokerRoom(roomId: string) {
+    if (hiddenInactivePokerRoomsRef.current.has(roomId)) {
+      return;
+    }
+
+    hiddenInactivePokerRoomsRef.current.add(roomId);
+    const recentKeys = [...hiddenInactivePokerRoomsRef.current].slice(-300);
+    hiddenInactivePokerRoomsRef.current = new Set(recentKeys);
+    localStorage.setItem(HIDDEN_INACTIVE_POKER_STORAGE_KEY, JSON.stringify(recentKeys));
+  }
+
   const totalNet = useMemo(() => {
     const slotNet = slotHistory.reduce((sum, item) => sum + item.net, 0);
     const blackjackNet = blackjackHistory.reduce((sum, item) => sum + item.net, 0);
@@ -657,10 +685,6 @@ function App() {
   const rouletteBetAvailable = canPlaceBet(balance, rouletteBet);
   const rocketBetAvailable = canPlaceBet(balance, rocketBet);
   const canDouble = blackjackPhase === "player" && !hasPlayerAction && balance >= activeBlackjackBet * 2;
-  const activityItems = useMemo(
-    () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, privateMessages, duelHistory, onlineRooms),
-    [accountUser, friendRequests, skinTrades, privateMessages, duelHistory, onlineRooms],
-  );
   const pendingFriendRequestsCount = accountUser
     ? friendRequests.filter((request) => request.status === "pending" && request.toUid === accountUser.uid).length
     : 0;
@@ -679,6 +703,14 @@ function App() {
       rocketShip: getShopItem(equippedSkins.rocketShip),
     }),
     [equippedSkins],
+  );
+  const visibleOnlineRooms = useMemo(
+    () => onlineRooms.filter((room) => !hiddenInactivePokerRoomsRef.current.has(room.id) && !isInactivePokerRoom(room, now)),
+    [onlineRooms, now],
+  );
+  const activityItems = useMemo(
+    () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, privateMessages, duelHistory, visibleOnlineRooms),
+    [accountUser, friendRequests, skinTrades, privateMessages, duelHistory, visibleOnlineRooms],
   );
 
   useEffect(() => {
@@ -836,7 +868,8 @@ function App() {
     const unsubscribeRooms = subscribeOnlineRooms(
       (rooms) => {
         setOnlineRooms(rooms);
-        setOnlineMessage(rooms.length ? "Salons en ligne synchronises." : "Aucun salon ouvert pour le moment.");
+        const visibleRooms = rooms.filter((room) => !isInactivePokerRoom(room));
+        setOnlineMessage(visibleRooms.length ? "Salons en ligne synchronises." : "Aucun salon ouvert pour le moment.");
       },
       () => {
         setOnlineMessage("Synchronisation des salons impossible pour le moment.");
@@ -909,6 +942,40 @@ function App() {
       setBalance((current) => Math.max(0, current - 25));
     });
   }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (!isInactivePokerRoom(room, now) || !room.players.some((player) => player.uid === accountUser.uid)) {
+        return;
+      }
+
+      rememberHiddenInactivePokerRoom(room.id);
+      const refundKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
+
+      if (!refundedInactivePokerRoomsRef.current.has(refundKey)) {
+        const anteKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
+        const anteRefund = paidPokerAnteRoomsRef.current.has(anteKey) ? 25 : 0;
+        const contributionRefund = room.pokerContributions[accountUser.uid] ?? 0;
+        const trackedRefund = room.pokerPaidByPlayer[accountUser.uid];
+        const refundAmount = trackedRefund ?? anteRefund + contributionRefund;
+
+        if (refundAmount > 0) {
+          setBalance((current) => current + refundAmount);
+          setOnlineMessage(`Table poker inactive : ${refundAmount} credits rembourses.`);
+        }
+
+        rememberInactivePokerRefund(refundKey);
+      }
+
+      deleteInactivePokerRoom(room, accountUser).catch(() => {
+        setOnlineMessage("La table inactive sera retiree des qu'un joueur pourra la nettoyer.");
+      });
+    });
+  }, [accountUser, onlineRooms, now]);
 
   useEffect(() => {
     if (!accountUser || !cloudSaveReadyRef.current) {
@@ -1054,10 +1121,56 @@ function App() {
       return;
     }
 
+    if (activeOnlineGame === "poker" && accountUser) {
+      let removedCount = 0;
+
+      setOnlineRooms((currentRooms) => {
+        const blockedRooms = currentRooms.filter(
+          (room) => room.type === "poker" && room.status === "playing" && room.players.some((player) => player.uid === accountUser.uid),
+        );
+
+        removedCount = blockedRooms.length;
+        blockedRooms.forEach((room) => rememberHiddenInactivePokerRoom(room.id));
+
+        return currentRooms.filter((room) => !blockedRooms.some((blockedRoom) => blockedRoom.id === room.id));
+      });
+
+      if (removedCount > 0) {
+        setOnlineMessage(`${removedCount} table(s) poker bloquee(s) retiree(s).`);
+      } else {
+        setOnlineMessage("Aucune table poker bloquee a retirer.");
+      }
+    }
+
     try {
       const rooms = await loadOnlineRooms();
-      setOnlineRooms(rooms);
-      setOnlineMessage(rooms.length ? "Salons en ligne disponibles." : "Aucun salon ouvert pour le moment.");
+      let removedAfterSyncCount = 0;
+      const stuckPokerRooms =
+        activeOnlineGame === "poker" && accountUser
+          ? rooms.filter((room) => room.type === "poker" && room.status === "playing" && room.players.some((player) => player.uid === accountUser.uid))
+          : [];
+      const inactivePokerRooms = rooms.filter((room) => isInactivePokerRoom(room) || stuckPokerRooms.some((stuckRoom) => stuckRoom.id === room.id));
+      inactivePokerRooms.forEach((room) => rememberHiddenInactivePokerRoom(room.id));
+      setOnlineRooms((currentRooms) => {
+        const nextRooms = rooms.filter((room) => !hiddenInactivePokerRoomsRef.current.has(room.id));
+        removedAfterSyncCount = rooms.length - nextRooms.length;
+        return nextRooms.length === currentRooms.length && nextRooms.every((room, index) => room.id === currentRooms[index]?.id) ? currentRooms : nextRooms;
+      });
+      const visibleRooms = rooms.filter((room) => !hiddenInactivePokerRoomsRef.current.has(room.id) && !isInactivePokerRoom(room));
+
+      if (inactivePokerRooms.length > 0 || removedAfterSyncCount > 0) {
+        setOnlineMessage(`${Math.max(inactivePokerRooms.length, removedAfterSyncCount)} table(s) poker bloquee(s) retiree(s).`);
+      } else {
+        setOnlineMessage(visibleRooms.length ? "Salons en ligne disponibles." : "Aucun salon ouvert pour le moment.");
+      }
+
+      if (accountUser) {
+        await Promise.allSettled(
+          inactivePokerRooms
+            .filter((room) => room.players.some((player) => player.uid === accountUser.uid))
+            .map((room) => deleteInactivePokerRoom(room, accountUser)),
+        );
+      }
     } catch {
       setOnlineMessage("Impossible de charger les salons en ligne pour le moment.");
     }
@@ -1403,6 +1516,44 @@ function App() {
       setOnlineMessage(`Action poker impossible : ${message}`);
     } finally {
       setOnlineActionRoomId(null);
+    }
+  }
+
+  async function handleForceClosePokerRoom(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour retirer cette table.");
+      return;
+    }
+
+    if (room.type !== "poker" || !room.players.some((player) => player.uid === accountUser.uid)) {
+      setOnlineMessage("Tu ne peux retirer que tes tables poker.");
+      return;
+    }
+
+    const refundKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
+
+    if (!refundedInactivePokerRoomsRef.current.has(refundKey)) {
+      const anteKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
+      const anteRefund = paidPokerAnteRoomsRef.current.has(anteKey) ? 25 : 0;
+      const contributionRefund = room.pokerContributions[accountUser.uid] ?? 0;
+      const trackedRefund = room.pokerPaidByPlayer[accountUser.uid];
+      const refundAmount = trackedRefund ?? anteRefund + contributionRefund;
+
+      if (refundAmount > 0) {
+        setBalance((current) => current + refundAmount);
+      }
+
+      rememberInactivePokerRefund(refundKey);
+    }
+
+    rememberHiddenInactivePokerRoom(room.id);
+    setOnlineRooms((currentRooms) => currentRooms.filter((currentRoom) => currentRoom.id !== room.id));
+    setOnlineMessage("Table poker retiree de ton affichage.");
+
+    try {
+      await deleteInactivePokerRoom(room, accountUser);
+    } catch {
+      setOnlineMessage("Table retiree de ton affichage. La suppression Firebase attendra les regles publiees.");
     }
   }
 
@@ -2404,12 +2555,13 @@ function App() {
             mode={activeOnlineGame}
             actionRoomId={onlineActionRoomId}
             now={now}
-            rooms={onlineRooms}
+            rooms={visibleOnlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onAdvancePoker={handleAdvancePokerPhase}
             onCallPoker={handleCallPoker}
             onCheckPoker={handleCheckPoker}
             onFoldPoker={handleFoldPoker}
+            onForceClosePoker={handleForceClosePokerRoom}
             onJoinRoom={handleJoinOnlineRoom}
             onLeaveRoom={handleLeaveOnlineRoom}
             onOpenProfile={handleOpenPlayerProfile}
@@ -3658,6 +3810,7 @@ function OnlineGames({
   onCheckPoker,
   onCreateRoom,
   onFoldPoker,
+  onForceClosePoker,
   onJoinRoom,
   onLeaveRoom,
   onOpenProfile,
@@ -3681,6 +3834,7 @@ function OnlineGames({
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onCreateRoom: (type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
+  onForceClosePoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
@@ -3799,6 +3953,7 @@ function OnlineGames({
         onCallPoker={onCallPoker}
         onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
+        onForceClosePoker={onForceClosePoker}
         onRaisePoker={onRaisePoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
@@ -3864,6 +4019,7 @@ function OnlineGames({
         onCallPoker={onCallPoker}
         onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
+        onForceClosePoker={onForceClosePoker}
         onRaisePoker={onRaisePoker}
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
@@ -3894,6 +4050,7 @@ function OnlineRoomsPanel({
   onCallPoker,
   onCheckPoker,
   onFoldPoker,
+  onForceClosePoker,
   onJoinRoom,
   onLeaveRoom,
   onPlayDuelRound,
@@ -3911,6 +4068,7 @@ function OnlineRoomsPanel({
   onCallPoker: (room: OnlineRoomEntry) => void;
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
+  onForceClosePoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry) => void;
@@ -3981,6 +4139,7 @@ function OnlineRoomsPanel({
                     onCall={onCallPoker}
                     onCheck={onCheckPoker}
                     onFold={onFoldPoker}
+                    onForceClose={onForceClosePoker}
                     onRaise={onRaisePoker}
                     onStart={onStartPoker}
                   />
@@ -4116,6 +4275,7 @@ function PokerRoomPanel({
   onCall,
   onCheck,
   onFold,
+  onForceClose,
   onRaise,
   onStart,
 }: {
@@ -4126,6 +4286,7 @@ function PokerRoomPanel({
   onCall: (room: OnlineRoomEntry) => void;
   onCheck: (room: OnlineRoomEntry) => void;
   onFold: (room: OnlineRoomEntry) => void;
+  onForceClose: (room: OnlineRoomEntry) => void;
   onRaise: (room: OnlineRoomEntry) => void;
   onStart: (room: OnlineRoomEntry) => void;
 }) {
@@ -4275,6 +4436,9 @@ function PokerRoomPanel({
         </button>
         <button className={styles.primaryButton} type="button" onClick={() => onAdvance(room)} disabled={busy || !canAdvance}>
           Suivant
+        </button>
+        <button className={styles.secondaryButton} type="button" onClick={() => onForceClose(room)} disabled={busy || !inRoom || room.status !== "playing"}>
+          Retirer la table
         </button>
       </div>
     </div>
