@@ -2145,6 +2145,16 @@ function App() {
     setShopMessage(`${item.name} achete. Tu peux l'equiper depuis l'inventaire.`);
   }
 
+  function handleEquipSkin(item: ShopItem) {
+    if (!ownedSkinIds.includes(item.id)) {
+      setShopMessage("Tu dois posseder ce skin avant de l'equiper.");
+      return;
+    }
+
+    setEquippedSkins((current) => equipSkin(current, item));
+    setShopMessage(`${item.name} equipe.`);
+  }
+
   function buySpecialChest(chestId: SpecialChestId) {
     const chest = getSpecialChestDefinition(chestId);
     const chestPrice = priceTools.chest(chest);
@@ -2717,7 +2727,7 @@ function App() {
             onBuySpecialChest={buySpecialChest}
           />
         ) : activeSection === "inventory" ? (
-          <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleShopAction} />
+          <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleEquipSkin} />
         ) : activeSection === "friends" ? (
           <FriendsGame
             currentUser={accountUser}
