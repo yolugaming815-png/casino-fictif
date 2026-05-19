@@ -23,6 +23,20 @@
   grid-column: 2;
 }
 
+.shell > .header,
+.shell > .statusBar,
+.shell > .socialAlert,
+.shell > .leaderboardPanel,
+.shell > .homeCards,
+.shell > .machine,
+.shell > .panel,
+.shell > .columns,
+.shell > .onlineDuelGrid,
+.shell > .messagesLayout,
+.shell > .caseLayout {
+  grid-column: 2;
+}
+
 .header,
 .statusBar,
 .gameTabs,
