@@ -11,6 +11,15 @@ test("achete un skin avec des credits virtuels", () => {
   assert.deepEqual(result.ownedSkinIds, ["plinko-gold", "plinko-neon"]);
 });
 
+test("peut acheter plusieurs copies du meme skin", () => {
+  const skin = getShopItem("plinko-neon");
+  const result = buySkin(500, ["plinko-neon"], skin);
+
+  assert.equal(result.purchased, true);
+  assert.equal(result.balance, 500 - SKIN_PRICES_BY_RARITY.common);
+  assert.deepEqual(result.ownedSkinIds, ["plinko-neon", "plinko-neon"]);
+});
+
 test("valorise les skins selon leur rarete", () => {
   assert.equal(getShopItem("plinko-neon").price, 200);
   assert.equal(getShopItem("plinko-ruby").price, 400);

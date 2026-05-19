@@ -2132,12 +2132,6 @@ function App() {
   }
 
   function handleShopAction(item: ShopItem) {
-    if (ownedSkinIds.includes(item.id)) {
-      setEquippedSkins((current) => equipSkin(current, item));
-      setShopMessage(`${item.name} equipe. Aucun impact sur les chances ou les gains.`);
-      return;
-    }
-
     const pricedItem = { ...item, price: priceTools.skin(item) };
     const result = buySkin(balance, ownedSkinIds, pricedItem);
 
@@ -2148,8 +2142,7 @@ function App() {
 
     setBalance(result.balance);
     setOwnedSkinIds(result.ownedSkinIds);
-    setEquippedSkins((current) => equipSkin(current, pricedItem));
-    setShopMessage(`${item.name} achete et equipe. Skin purement cosmetique.`);
+    setShopMessage(`${item.name} achete. Tu peux l'equiper depuis l'inventaire.`);
   }
 
   function buySpecialChest(chestId: SpecialChestId) {
@@ -6399,8 +6392,7 @@ function ShopGame({
               </header>
               <div className={styles.shopGrid}>
                 {sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === section.category && item.source !== "special")).map((item) => {
-                  const owned = ownedSkinIds.includes(item.id);
-                  const equipped = equippedSkins[item.category] === item.id;
+                  const ownedCount = ownedSkinIds.filter((skinId) => skinId === item.id).length;
                   const itemPrice = priceOverrides.skins[item.id] ?? item.price;
 
                   return (
@@ -6415,8 +6407,9 @@ function ShopGame({
                       </div>
                       <footer className={styles.shopFooter}>
                         <strong>{itemPrice === 0 ? "Inclus" : `${itemPrice} credits`}</strong>
-                        <button className={equipped ? styles.secondaryButton : styles.primaryButton} type="button" onClick={() => onAction(item)} disabled={equipped}>
-                          {equipped ? "Equipe" : owned ? "Equiper" : "Acheter"}
+                        {ownedCount > 0 ? <small>{ownedCount} possede{ownedCount > 1 ? "s" : ""}</small> : null}
+                        <button className={styles.primaryButton} type="button" onClick={() => onAction(item)} disabled={balance < itemPrice}>
+                          Acheter
                         </button>
                       </footer>
                     </article>

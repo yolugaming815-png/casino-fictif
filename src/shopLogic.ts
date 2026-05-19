@@ -593,10 +593,6 @@ export const SHOP_ITEMS: ShopItem[] = [
 ];
 
 export function buySkin(balance: number, ownedSkinIds: readonly string[], item: ShopItem) {
-  if (ownedSkinIds.includes(item.id)) {
-    return { balance, ownedSkinIds: [...ownedSkinIds], purchased: false, reason: "owned" as const };
-  }
-
   if (balance < item.price) {
     return { balance, ownedSkinIds: [...ownedSkinIds], purchased: false, reason: "balance" as const };
   }
