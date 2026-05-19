@@ -25,7 +25,6 @@ import {
   type Card,
 } from "./blackjackLogic";
 import {
-  PLINKO_ROWS,
   calculatePlinkoPayout,
   getPlinkoMultipliers,
   getPlinkoProbabilities,
@@ -2939,7 +2938,6 @@ function App() {
             onBetChange={setPlinkoBet}
             onLaunch={launchPlinko}
             onResolve={finishPlinko}
-            onRowsChange={setPlinkoRows}
           />
         ) : activeGame === "roulette" ? (
           <RouletteGame
@@ -5251,7 +5249,6 @@ function PlinkoGame({
   onBetChange,
   onLaunch,
   onResolve,
-  onRowsChange,
 }: {
   animating: boolean;
   ballSlots: number[];
@@ -5267,7 +5264,6 @@ function PlinkoGame({
   onBetChange: (bet: Bet) => void;
   onLaunch: () => void;
   onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
-  onRowsChange: (rows: PlinkoRows) => void;
 }) {
   const probabilities = getPlinkoProbabilities(rows, layout);
   const slots = getPlinkoMultipliers(rows, layout);
@@ -5298,18 +5294,7 @@ function PlinkoGame({
             ))}
           </select>
           <label htmlFor="plinkoRows">Rangees</label>
-          <select
-            id="plinkoRows"
-            value={rows}
-            onChange={(event) => onRowsChange(Number(event.target.value) as PlinkoRows)}
-            disabled={animating}
-          >
-            {PLINKO_ROWS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          <input id="plinkoRows" type="text" value={`${rows} rangees`} readOnly disabled={animating} />
           <button
             className={styles.primaryButton}
             type="button"
