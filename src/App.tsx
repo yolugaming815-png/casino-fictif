@@ -2588,7 +2588,7 @@ function App() {
           >
             Jeux
           </button>
-          {(activeSection === "home" || activeSection === "games") && (
+          {activeSection === "games" && (
             <div className={styles.subTabs} aria-label="Choix du jeu">
               <button
                 className={activeGame === "slots" ? styles.activeTab : ""}
