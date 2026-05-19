@@ -1489,8 +1489,7 @@
 .primaryButton,
 .secondaryButton,
 .controls select,
-.controls input,
-.gameTabs button {
+.controls input {
   min-height: 44px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -1498,23 +1497,23 @@
 }
 
 .pauseButton,
-.secondaryButton,
-.gameTabs button {
+.secondaryButton {
   background: rgba(255, 255, 255, 0.08);
   color: #f9f7ef;
   padding: 0 16px;
 }
 
 .gameTabs {
+  display: none;
+}
+
+.subTabs {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 8px;
-  position: absolute;
-  left: 0;
-  top: 390px;
-  width: 220px;
+  gap: 6px;
+  margin: -2px 0 2px 12px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 209, 102, 0.34);
 }
 
 .modeTabs {
@@ -1539,13 +1538,25 @@
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  min-height: 44px;
+  min-height: 38px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.08);
   color: #f9f7ef;
   font: inherit;
+  font-size: 0.9rem;
   font-weight: 800;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.subTabs button {
+  min-height: 34px;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.055);
+  color: #dce4e0;
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .tabBadge {
@@ -1562,7 +1573,8 @@
   line-height: 1;
 }
 
-.modeTabs .activeTab {
+.modeTabs .activeTab,
+.subTabs .activeTab {
   background: #f9f7ef;
   color: #101218;
 }
@@ -1582,17 +1594,6 @@
     rgba(16, 18, 24, 0.76);
   color: #fff9df;
   font-weight: 900;
-}
-
-.gameTabs button {
-  font-weight: 800;
-  justify-content: flex-start;
-  text-align: left;
-}
-
-.gameTabs .activeTab {
-  background: #f9f7ef;
-  color: #101218;
 }
 
 .homeCards {
@@ -4761,7 +4762,8 @@
 
   .shell > :not(.modeTabs):not(.gameTabs),
   .modeTabs,
-  .gameTabs {
+  .gameTabs,
+  .subTabs {
     grid-column: 1;
   }
 
@@ -4790,10 +4792,6 @@
   .rocketStage,
   .columns {
     grid-template-columns: 1fr;
-  }
-
-  .gameTabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pokerSeats {

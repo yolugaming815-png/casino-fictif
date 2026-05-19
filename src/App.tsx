@@ -2588,6 +2588,52 @@ function App() {
           >
             Jeux
           </button>
+          {(activeSection === "home" || activeSection === "games") && (
+            <div className={styles.subTabs} aria-label="Choix du jeu">
+              <button
+                className={activeGame === "slots" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveGame("slots")}
+              >
+                Machine a sous
+              </button>
+              <button
+                className={activeGame === "blackjack" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveGame("blackjack")}
+              >
+                Blackjack
+              </button>
+              <button
+                className={activeGame === "plinko" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveGame("plinko")}
+              >
+                Plinko
+              </button>
+              <button
+                className={activeGame === "roulette" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveGame("roulette")}
+              >
+                Roulette
+              </button>
+              <button
+                className={activeGame === "rocket" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveGame("rocket")}
+              >
+                Rocket Games
+              </button>
+              <button
+                className={activeGame === "claw" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveGame("claw")}
+              >
+                Machine a pince
+              </button>
+            </div>
+          )}
           <button
             className={activeSection === "online" ? styles.activeTab : ""}
             type="button"
@@ -2595,6 +2641,24 @@ function App() {
           >
             Jeux en ligne
           </button>
+          {activeSection === "online" && (
+            <div className={styles.subTabs} aria-label="Choix du jeu en ligne">
+              <button
+                className={activeOnlineGame === "duel" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveOnlineGame("duel")}
+              >
+                Duel
+              </button>
+              <button
+                className={activeOnlineGame === "poker" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => setActiveOnlineGame("poker")}
+              >
+                Poker
+              </button>
+            </div>
+          )}
           <button
             className={activeSection === "cases" ? styles.activeTab : ""}
             type="button"
@@ -2676,72 +2740,6 @@ function App() {
             {" en attente."}
           </div>
         ) : null}
-
-        {(activeSection === "home" || activeSection === "games") && (
-          <nav className={styles.gameTabs} aria-label="Choix du jeu">
-          <button
-            className={activeGame === "slots" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => setActiveGame("slots")}
-          >
-            Machine a sous
-          </button>
-          <button
-            className={activeGame === "blackjack" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => setActiveGame("blackjack")}
-          >
-            Blackjack
-          </button>
-          <button
-            className={activeGame === "plinko" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => setActiveGame("plinko")}
-          >
-            Plinko
-          </button>
-          <button
-            className={activeGame === "roulette" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => setActiveGame("roulette")}
-          >
-            Roulette
-          </button>
-          <button
-            className={activeGame === "rocket" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => setActiveGame("rocket")}
-          >
-            Rocket Games
-          </button>
-          <button
-            className={activeGame === "claw" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => setActiveGame("claw")}
-          >
-            Machine a pince
-          </button>
-          </nav>
-        )}
-
-        {activeSection === "online" && (
-          <nav className={styles.gameTabs} aria-label="Choix du jeu en ligne">
-            <button
-              className={activeOnlineGame === "duel" ? styles.activeTab : ""}
-              type="button"
-              onClick={() => setActiveOnlineGame("duel")}
-            >
-              Duel
-            </button>
-            <button
-              className={activeOnlineGame === "poker" ? styles.activeTab : ""}
-              type="button"
-            onClick={() => setActiveOnlineGame("poker")}
-          >
-              Poker
-            </button>
-          </nav>
-        )}
 
         {activeSection === "home" ? (
           <HomeDashboard
