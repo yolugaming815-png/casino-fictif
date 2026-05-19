@@ -13,14 +13,12 @@
 .shell {
   width: min(1420px, 100%);
   margin: 0 auto;
+  position: relative;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
-}
-
-.shell > :not(.modeTabs):not(.gameTabs) {
-  grid-column: 2;
+  padding-left: 238px;
 }
 
 .shell > .header,
@@ -34,7 +32,7 @@
 .shell > .onlineDuelGrid,
 .shell > .messagesLayout,
 .shell > .caseLayout {
-  grid-column: 2;
+  grid-column: 1;
 }
 
 .header,
@@ -1513,10 +1511,10 @@
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
-  grid-column: 1;
-  grid-row: 2;
-  position: sticky;
-  top: 300px;
+  position: absolute;
+  left: 0;
+  top: 390px;
+  width: 220px;
 }
 
 .modeTabs {
@@ -1529,10 +1527,10 @@
   background: rgba(16, 18, 24, 0.86);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(14px);
-  grid-column: 1;
-  grid-row: 1;
-  position: sticky;
-  top: 24px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 220px;
 }
 
 .modeTabs button {
@@ -4758,6 +4756,7 @@
 
   .shell {
     grid-template-columns: 1fr;
+    padding-left: 0;
   }
 
   .shell > :not(.modeTabs):not(.gameTabs),
@@ -4769,6 +4768,7 @@
   .modeTabs,
   .gameTabs {
     position: static;
+    width: auto;
   }
 
   .header,
