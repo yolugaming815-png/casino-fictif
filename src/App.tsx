@@ -4337,7 +4337,7 @@ function OnlineGames({
       });
       return items;
     }, []);
-  const visibleFriends = friends.slice(0, 4);
+  const visibleFriends = friends.slice(0, 9);
   const visibleRooms = rooms.filter(
     (room) =>
       room.type === mode &&
@@ -4455,7 +4455,7 @@ function OnlineGames({
             {visibleFriends.map((friend) => (
               <span key={friend.uid}>{friend.displayName}</span>
             ))}
-            {Array.from({ length: Math.max(0, 5 - visibleFriends.length) }).map((_, index) => (
+            {Array.from({ length: Math.max(0, 9 - visibleFriends.length) }).map((_, index) => (
               <span key={`empty-${index}`}>Place libre</span>
             ))}
           </div>

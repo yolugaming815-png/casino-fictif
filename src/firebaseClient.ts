@@ -176,6 +176,7 @@ export type DuelStats = {
 
 const STALE_WAITING_ROOM_MS = 30 * 60 * 1000;
 const INACTIVE_POKER_ROOM_MS = 30 * 60 * 1000;
+const POKER_MAX_PLAYERS = 10;
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA95a2M9sm2EXwQNU3KFeMShp3tLYqmtCo",
@@ -725,7 +726,7 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     hostName: typeof data.hostName === "string" ? data.hostName : "Joueur anonyme",
     players,
     playerIds: Array.isArray(data.playerIds) ? data.playerIds.filter((id): id is string => typeof id === "string") : players.map((player) => player.uid),
-    maxPlayers: typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers) ? data.maxPlayers : type === "poker" ? 6 : 2,
+    maxPlayers: typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers) ? data.maxPlayers : type === "poker" ? POKER_MAX_PLAYERS : 2,
     invitedUid: typeof data.invitedUid === "string" ? data.invitedUid : undefined,
     invitedName: typeof data.invitedName === "string" ? data.invitedName : undefined,
     duelScores,
@@ -772,7 +773,7 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     hostName: player.displayName,
     players: [player],
     playerIds,
-    maxPlayers: type === "poker" ? 6 : 2,
+    maxPlayers: type === "poker" ? POKER_MAX_PLAYERS : 2,
     invitedUid: invitedPlayer?.uid ?? "",
     invitedName: invitedPlayer?.displayName ?? "",
     duelScores: {},
