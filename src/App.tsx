@@ -4795,6 +4795,7 @@ function PokerRoomPanel({
   const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0;
   const canFold = room.status === "playing" && inRoom && !folded && isTurn;
   const canRaise = room.status === "playing" && inRoom && !folded && isTurn && Number.isFinite(raiseTarget) && raiseTarget >= minimumRaiseTarget;
+  const canRemoveTable = inRoom && (room.status === "playing" || room.status === "finished");
   const winnerNames = room.pokerWinnerNames.length ? room.pokerWinnerNames : room.pokerWinnerName ? [room.pokerWinnerName] : [];
   const winnerSummary = winnerNames.length > 1 ? `Egalite : ${winnerNames.join(", ")}` : `Gagnant : ${winnerNames[0] || "a determiner"}`;
   const phaseLabel =
@@ -4935,7 +4936,7 @@ function PokerRoomPanel({
         <button className={styles.primaryButton} type="button" onClick={() => onAdvance(room)} disabled={busy || !canAdvance}>
           Suivant
         </button>
-        <button className={styles.secondaryButton} type="button" onClick={() => onForceClose(room)} disabled={busy || !inRoom || room.status !== "playing"}>
+        <button className={styles.secondaryButton} type="button" onClick={() => onForceClose(room)} disabled={busy || !canRemoveTable}>
           Retirer la table
         </button>
       </div>

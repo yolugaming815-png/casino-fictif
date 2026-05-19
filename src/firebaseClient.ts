@@ -862,8 +862,11 @@ export async function deleteInactivePokerRoom(room: OnlineRoomEntry, user: Casin
     return;
   }
 
-  if (!isInactivePokerRoom(room) || !room.players.some((player) => player.uid === user.uid)) {
-    throw new Error("Cette table de poker n'est pas inactive.");
+  const isPlayerInRoom = room.players.some((player) => player.uid === user.uid);
+  const canDeleteFinishedPokerRoom = room.type === "poker" && room.status === "finished" && isPlayerInRoom;
+
+  if (!isPlayerInRoom || (!isInactivePokerRoom(room) && !canDeleteFinishedPokerRoom)) {
+    throw new Error("Cette table de poker ne peut pas etre retiree.");
   }
 
   await deleteDoc(doc(getFirestore(app), "onlineRooms", room.id));
