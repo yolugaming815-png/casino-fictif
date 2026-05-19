@@ -1497,7 +1497,7 @@
 
 .modeTabs {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
@@ -1671,6 +1671,36 @@
   padding: 14px;
   background: rgba(255, 209, 102, 0.16);
   color: #ffe1a0;
+  font-weight: 700;
+}
+
+.rewardedAdPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.18), rgba(116, 236, 158, 0.1)),
+    rgba(255, 255, 255, 0.04);
+  padding: 18px;
+}
+
+.rewardedAdPanel span {
+  color: #87ffb4;
+  font-weight: 900;
+}
+
+.rewardedAdPanel h3 {
+  margin: 6px 0;
+  color: #ffd166;
+  font-size: clamp(1.45rem, 4vw, 2.3rem);
+}
+
+.rewardedAdPanel p {
+  margin: 0;
+  color: #d5ddd9;
   font-weight: 700;
 }
 
@@ -4661,6 +4691,7 @@
   .statusBar,
   .leaderboardPanel,
   .modeTabs,
+  .rewardedAdPanel,
   .onlineDuelGrid,
   .blackjackTable,
   .caseLayout,

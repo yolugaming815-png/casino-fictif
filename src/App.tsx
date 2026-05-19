@@ -206,6 +206,11 @@ type ClawOutcome = {
   balanceAfter: number;
 };
 
+type RewardedAdState = {
+  date: string;
+  watched: number;
+};
+
 type SavedGameState = {
   version: 1;
   balance: number;
@@ -219,6 +224,7 @@ type SavedGameState = {
   caseHistory: CaseHistoryItem[];
   specialInventory: SpecialInventory;
   clawHistory: ClawOutcome[];
+  rewardedAds: RewardedAdState;
 };
 
 type ActivityItem = {
@@ -229,7 +235,7 @@ type ActivityItem = {
   timestamp?: unknown;
 };
 
-type MainSection = "games" | "online" | "cases" | "shop" | "inventory" | "friends" | "trades" | "messages" | "activity" | "admin";
+type MainSection = "games" | "online" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
@@ -239,6 +245,9 @@ const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 const MESSAGE_SEND_COOLDOWN_MS = 2500;
 const CLAW_COST = 75;
 const KEY_FRAGMENTS_REQUIRED = 9;
+const REWARDED_AD_CREDITS = 250;
+const DAILY_REWARDED_AD_LIMIT = 5;
+const REWARDED_AD_WATCH_MS = 6500;
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   common: 0,
   rare: 1,
@@ -256,6 +265,26 @@ function emptySpecialInventory(): SpecialInventory {
     },
     { chests: {}, keys: {}, fragments: {} } as SpecialInventory,
   );
+}
+
+function todayRewardDateKey() {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+function normalizeRewardedAds(value: unknown): RewardedAdState {
+  const today = todayRewardDateKey();
+  const raw = value && typeof value === "object" ? (value as Partial<RewardedAdState>) : {};
+  const date = typeof raw.date === "string" ? raw.date : today;
+  const watched = Number(raw.watched);
+
+  if (date !== today) {
+    return { date: today, watched: 0 };
+  }
+
+  return {
+    date,
+    watched: Math.max(0, Math.min(DAILY_REWARDED_AD_LIMIT, Math.floor(Number.isFinite(watched) ? watched : 0))),
+  };
 }
 
 const slotRules = [
@@ -483,6 +512,7 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     caseHistory: sanitizeCaseHistory(parsed.caseHistory),
     specialInventory: sanitizeSpecialInventory(parsed.specialInventory),
     clawHistory: readArray<ClawOutcome>(parsed.clawHistory).slice(0, 10),
+    rewardedAds: normalizeRewardedAds(parsed.rewardedAds),
   };
 }
 
@@ -599,6 +629,9 @@ function App() {
   const [specialInventory, setSpecialInventory] = useState<SpecialInventory>(savedGame?.specialInventory ?? emptySpecialInventory());
   const [clawHistory, setClawHistory] = useState<ClawOutcome[]>(savedGame?.clawHistory ?? []);
   const [clawMessage, setClawMessage] = useState("Tente d'attraper des cles ou des fragments de cles.");
+  const [rewardedAds, setRewardedAds] = useState<RewardedAdState>(savedGame?.rewardedAds ?? normalizeRewardedAds(null));
+  const [rewardedAdMessage, setRewardedAdMessage] = useState("Regarde une pub volontaire pour gagner des credits virtuels.");
+  const [rewardedAdWatching, setRewardedAdWatching] = useState(false);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
@@ -784,6 +817,7 @@ function App() {
       caseHistory,
       specialInventory,
       clawHistory,
+      rewardedAds,
     });
   }, [
     balance,
@@ -797,6 +831,7 @@ function App() {
     caseHistory,
     specialInventory,
     clawHistory,
+    rewardedAds,
   ]);
 
   useEffect(() => {
@@ -888,6 +923,9 @@ function App() {
     rouletteHistory,
     rocketHistory,
     caseHistory,
+    specialInventory,
+    clawHistory,
+    rewardedAds,
   ]);
 
   useEffect(() => {
@@ -1786,6 +1824,7 @@ function App() {
       caseHistory,
       specialInventory,
       clawHistory,
+      rewardedAds,
     };
   }
 
@@ -1801,6 +1840,7 @@ function App() {
     setCaseHistory(importedSave.caseHistory);
     setSpecialInventory(importedSave.specialInventory);
     setClawHistory(importedSave.clawHistory);
+    setRewardedAds(importedSave.rewardedAds);
     setLastCaseDrop(importedSave.caseHistory[0] ?? null);
     setActivePlinkoLaunches([]);
     setRocketAnimating(false);
@@ -2395,6 +2435,35 @@ function App() {
     return outcome;
   }
 
+  function handleRewardedAd() {
+    if (rewardedAdWatching) {
+      return;
+    }
+
+    const current = normalizeRewardedAds(rewardedAds);
+    if (current.watched >= DAILY_REWARDED_AD_LIMIT) {
+      setRewardedAds(current);
+      setRewardedAdMessage("Limite atteinte pour aujourd'hui. Reviens demain pour d'autres bonus.");
+      return;
+    }
+
+    setRewardedAdWatching(true);
+    setRewardedAdMessage("Pub en cours. Les credits seront ajoutes a la fin.");
+
+    window.setTimeout(() => {
+      setBalance((currentBalance) => currentBalance + REWARDED_AD_CREDITS);
+      setRewardedAds((latest) => {
+        const normalized = normalizeRewardedAds(latest);
+        return {
+          date: normalized.date,
+          watched: Math.min(DAILY_REWARDED_AD_LIMIT, normalized.watched + 1),
+        };
+      });
+      setRewardedAdWatching(false);
+      setRewardedAdMessage(`+${REWARDED_AD_CREDITS} credits virtuels ajoutes.`);
+    }, REWARDED_AD_WATCH_MS);
+  }
+
   function launchRocket() {
     if (paused) {
       setRocketMessage("La pause responsable est active.");
@@ -2546,6 +2615,13 @@ function App() {
             onClick={() => setActiveSection("inventory")}
           >
             Inventaire
+          </button>
+          <button
+            className={activeSection === "bonus" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("bonus")}
+          >
+            Bonus
           </button>
           <button
             className={activeSection === "friends" ? styles.activeTab : ""}
@@ -2728,6 +2804,14 @@ function App() {
           />
         ) : activeSection === "inventory" ? (
           <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleEquipSkin} />
+        ) : activeSection === "bonus" ? (
+          <RewardedAdsPanel
+            balance={balance}
+            message={rewardedAdMessage}
+            rewardedAds={normalizeRewardedAds(rewardedAds)}
+            watching={rewardedAdWatching}
+            onWatch={handleRewardedAd}
+          />
         ) : activeSection === "friends" ? (
           <FriendsGame
             currentUser={accountUser}
@@ -6283,6 +6367,66 @@ function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
       <CaseThemePreview category={category} />
       <strong>{chest.title}</strong>
     </div>
+  );
+}
+
+function RewardedAdsPanel({
+  balance,
+  message,
+  rewardedAds,
+  watching,
+  onWatch,
+}: {
+  balance: number;
+  message: string;
+  rewardedAds: RewardedAdState;
+  watching: boolean;
+  onWatch: () => void;
+}) {
+  const remaining = Math.max(0, DAILY_REWARDED_AD_LIMIT - rewardedAds.watched);
+  const canWatch = remaining > 0 && !watching;
+
+  return (
+    <section className={styles.machine}>
+      <div className={styles.shopHeader}>
+        <div>
+          <h2>Bonus credits</h2>
+          <p>{message}</p>
+        </div>
+        <strong>{balance.toLocaleString("fr-FR")} credits</strong>
+      </div>
+
+      <div className={styles.rewardedAdPanel}>
+        <div>
+          <span>Pub recompensee</span>
+          <h3>+{REWARDED_AD_CREDITS.toLocaleString("fr-FR")} credits virtuels</h3>
+          <p>Les credits sont gratuits, fictifs et sans valeur reelle.</p>
+        </div>
+        <button className={styles.primaryButton} type="button" onClick={onWatch} disabled={!canWatch}>
+          {watching ? "Pub en cours..." : remaining > 0 ? "Regarder une pub" : "Limite atteinte"}
+        </button>
+      </div>
+
+      <div className={styles.rulesTable}>
+        <div className={styles.ruleRow}>
+          <span>Bonus du jour</span>
+          <strong>
+            {rewardedAds.watched}/{DAILY_REWARDED_AD_LIMIT}
+          </strong>
+          <small>{remaining} restant{remaining > 1 ? "s" : ""}</small>
+        </div>
+        <div className={styles.ruleRow}>
+          <span>Recompense</span>
+          <strong>+{REWARDED_AD_CREDITS}</strong>
+          <small>credits virtuels</small>
+        </div>
+        <div className={styles.ruleRow}>
+          <span>Valeur reelle</span>
+          <strong>0</strong>
+          <small>Aucun retrait possible</small>
+        </div>
+      </div>
+    </section>
   );
 }
 
