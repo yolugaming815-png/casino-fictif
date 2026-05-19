@@ -899,6 +899,12 @@ function App() {
   }, [isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin && activeSection === "admin") {
+      setActiveSection("games");
+    }
+  }, [activeSection, isAdmin]);
+
+  useEffect(() => {
     if (!accountUser) {
       setOnlineRooms([]);
       setDuelHistory([]);
@@ -2549,7 +2555,7 @@ function App() {
             <span>Activite</span>
             {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
           </button>
-          {accountUser ? (
+          {isAdmin ? (
             <button
               className={activeSection === "admin" ? styles.activeTab : ""}
               type="button"
