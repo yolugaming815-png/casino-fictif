@@ -580,6 +580,7 @@ function App() {
   const [activeSection, setActiveSection] = useState<MainSection>("home");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paused, setPaused] = useState(false);
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
@@ -2509,6 +2510,25 @@ function App() {
     }, ROCKET_FLIGHT_DURATION_MS);
   }
 
+  function selectMainSection(section: MainSection) {
+    setActiveSection(section);
+    if (section !== "games" && section !== "online") {
+      setMobileMenuOpen(false);
+    }
+  }
+
+  function selectGame(game: "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw") {
+    setActiveGame(game);
+    setActiveSection("games");
+    setMobileMenuOpen(false);
+  }
+
+  function selectOnlineGame(game: "duel" | "poker") {
+    setActiveOnlineGame(game);
+    setActiveSection("online");
+    setMobileMenuOpen(false);
+  }
+
   return (
     <main className={styles.app}>
       <section className={styles.shell} aria-label="Casino fictif">
@@ -2573,18 +2593,23 @@ function App() {
           />
         )}
 
-        <nav className={styles.modeTabs} aria-label="Section principale">
+        <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
+          Menu
+        </button>
+        {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
+
+        <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
           <button
             className={activeSection === "home" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("home")}
+            onClick={() => selectMainSection("home")}
           >
             Accueil
           </button>
           <button
             className={activeSection === "games" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("games")}
+            onClick={() => selectMainSection("games")}
           >
             Jeux
           </button>
@@ -2593,42 +2618,42 @@ function App() {
               <button
                 className={activeGame === "slots" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveGame("slots")}
+                onClick={() => selectGame("slots")}
               >
                 Machine a sous
               </button>
               <button
                 className={activeGame === "blackjack" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveGame("blackjack")}
+                onClick={() => selectGame("blackjack")}
               >
                 Blackjack
               </button>
               <button
                 className={activeGame === "plinko" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveGame("plinko")}
+                onClick={() => selectGame("plinko")}
               >
                 Plinko
               </button>
               <button
                 className={activeGame === "roulette" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveGame("roulette")}
+                onClick={() => selectGame("roulette")}
               >
                 Roulette
               </button>
               <button
                 className={activeGame === "rocket" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveGame("rocket")}
+                onClick={() => selectGame("rocket")}
               >
                 Rocket Games
               </button>
               <button
                 className={activeGame === "claw" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveGame("claw")}
+                onClick={() => selectGame("claw")}
               >
                 Machine a pince
               </button>
@@ -2637,7 +2662,7 @@ function App() {
           <button
             className={activeSection === "online" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("online")}
+            onClick={() => selectMainSection("online")}
           >
             Jeux en ligne
           </button>
@@ -2646,14 +2671,14 @@ function App() {
               <button
                 className={activeOnlineGame === "duel" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveOnlineGame("duel")}
+                onClick={() => selectOnlineGame("duel")}
               >
                 Duel
               </button>
               <button
                 className={activeOnlineGame === "poker" ? styles.activeTab : ""}
                 type="button"
-                onClick={() => setActiveOnlineGame("poker")}
+                onClick={() => selectOnlineGame("poker")}
               >
                 Poker
               </button>
@@ -2662,35 +2687,35 @@ function App() {
           <button
             className={activeSection === "cases" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("cases")}
+            onClick={() => selectMainSection("cases")}
           >
             Cases
           </button>
           <button
             className={activeSection === "shop" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("shop")}
+            onClick={() => selectMainSection("shop")}
           >
             Boutique
           </button>
           <button
             className={activeSection === "inventory" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("inventory")}
+            onClick={() => selectMainSection("inventory")}
           >
             Inventaire
           </button>
           <button
             className={activeSection === "bonus" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("bonus")}
+            onClick={() => selectMainSection("bonus")}
           >
             Bonus
           </button>
           <button
             className={activeSection === "friends" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("friends")}
+            onClick={() => selectMainSection("friends")}
           >
             <span>Amis</span>
             {pendingFriendRequestsCount > 0 ? <span className={styles.tabBadge}>{pendingFriendRequestsCount}</span> : null}
@@ -2698,7 +2723,7 @@ function App() {
           <button
             className={activeSection === "trades" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("trades")}
+            onClick={() => selectMainSection("trades")}
           >
             <span>Echanges</span>
             {pendingTradeOffersCount > 0 ? <span className={styles.tabBadge}>{pendingTradeOffersCount}</span> : null}
@@ -2706,7 +2731,7 @@ function App() {
           <button
             className={activeSection === "messages" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("messages")}
+            onClick={() => selectMainSection("messages")}
           >
             <span>Messages</span>
             {unreadMessagesCount > 0 ? <span className={styles.tabBadge}>{unreadMessagesCount}</span> : null}
@@ -2714,7 +2739,7 @@ function App() {
           <button
             className={activeSection === "activity" ? styles.activeTab : ""}
             type="button"
-            onClick={() => setActiveSection("activity")}
+            onClick={() => selectMainSection("activity")}
           >
             <span>Activite</span>
             {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
@@ -2723,7 +2748,7 @@ function App() {
             <button
               className={activeSection === "admin" ? styles.activeTab : ""}
               type="button"
-              onClick={() => setActiveSection("admin")}
+              onClick={() => selectMainSection("admin")}
             >
               Admin
             </button>

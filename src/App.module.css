@@ -1584,6 +1584,11 @@
   color: #ffd166;
 }
 
+.mobileMenuButton,
+.mobileMenuBackdrop {
+  display: none;
+}
+
 .socialAlert {
   margin-top: 12px;
   padding: 12px 14px;
@@ -4752,7 +4757,7 @@
 
 @media (max-width: 780px) {
   .app {
-    padding: 14px;
+    padding: 64px 14px 14px;
   }
 
   .shell {
@@ -4767,7 +4772,52 @@
     grid-column: 1;
   }
 
-  .modeTabs,
+  .mobileMenuButton {
+    position: fixed;
+    z-index: 55;
+    top: 12px;
+    left: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(16, 18, 24, 0.92);
+    color: #f9f7ef;
+    padding: 0 14px;
+    font: inherit;
+    font-weight: 900;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobileMenuBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: block;
+    border: 0;
+    background: rgba(0, 0, 0, 0.54);
+  }
+
+  .modeTabs {
+    position: fixed;
+    z-index: 50;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(320px, 84vw);
+    overflow: auto;
+    border-radius: 0 8px 8px 0;
+    transform: translateX(-110%);
+    transition: transform 180ms ease;
+  }
+
+  .modeTabsOpen {
+    transform: translateX(0);
+  }
+
   .gameTabs {
     position: static;
     width: auto;
