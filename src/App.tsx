@@ -235,7 +235,7 @@ type ActivityItem = {
   timestamp?: unknown;
 };
 
-type MainSection = "games" | "online" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
+type MainSection = "home" | "games" | "online" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
@@ -577,7 +577,7 @@ function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
-  const [activeSection, setActiveSection] = useState<MainSection>("games");
+  const [activeSection, setActiveSection] = useState<MainSection>("home");
   const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw">("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<"duel" | "poker">("duel");
   const [paused, setPaused] = useState(false);
@@ -2562,13 +2562,6 @@ function App() {
           </div>
         </section>
 
-        <LeaderboardPanel
-          currentUserId={accountUser?.uid ?? null}
-          entries={leaderboard}
-          message={leaderboardMessage}
-          onOpenProfile={handleOpenPlayerProfile}
-        />
-
         {selectedProfile && (
           <PlayerProfileModal
             currentUserId={accountUser?.uid ?? null}
@@ -2581,6 +2574,13 @@ function App() {
         )}
 
         <nav className={styles.modeTabs} aria-label="Section principale">
+          <button
+            className={activeSection === "home" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => setActiveSection("home")}
+          >
+            Accueil
+          </button>
           <button
             className={activeSection === "games" ? styles.activeTab : ""}
             type="button"
@@ -2677,7 +2677,7 @@ function App() {
           </div>
         ) : null}
 
-        {activeSection === "games" && (
+        {(activeSection === "home" || activeSection === "games") && (
           <nav className={styles.gameTabs} aria-label="Choix du jeu">
           <button
             className={activeGame === "slots" ? styles.activeTab : ""}
@@ -2736,14 +2736,24 @@ function App() {
             <button
               className={activeOnlineGame === "poker" ? styles.activeTab : ""}
               type="button"
-              onClick={() => setActiveOnlineGame("poker")}
-            >
-              Partie en ligne
+            onClick={() => setActiveOnlineGame("poker")}
+          >
+              Poker
             </button>
           </nav>
         )}
 
-        {activeSection === "online" ? (
+        {activeSection === "home" ? (
+          <HomeDashboard
+            activityCount={activityBadgeCount}
+            currentUserId={accountUser?.uid ?? null}
+            leaderboard={leaderboard}
+            leaderboardMessage={leaderboardMessage}
+            rewardedAds={normalizeRewardedAds(rewardedAds)}
+            onGoTo={(section) => setActiveSection(section)}
+            onOpenProfile={handleOpenPlayerProfile}
+          />
+        ) : activeSection === "online" ? (
           <OnlineGames
             currentUser={accountUser}
             duelHistory={duelHistory}
@@ -6367,6 +6377,46 @@ function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
       <CaseThemePreview category={category} />
       <strong>{chest.title}</strong>
     </div>
+  );
+}
+
+function HomeDashboard({
+  activityCount,
+  currentUserId,
+  leaderboard,
+  leaderboardMessage,
+  rewardedAds,
+  onGoTo,
+  onOpenProfile,
+}: {
+  activityCount: number;
+  currentUserId: string | null;
+  leaderboard: LeaderboardEntry[];
+  leaderboardMessage: string;
+  rewardedAds: RewardedAdState;
+  onGoTo: (section: MainSection) => void;
+  onOpenProfile: (player: LeaderboardEntry) => void;
+}) {
+  const remainingAds = Math.max(0, DAILY_REWARDED_AD_LIMIT - rewardedAds.watched);
+
+  return (
+    <>
+      <LeaderboardPanel currentUserId={currentUserId} entries={leaderboard} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
+      <section className={styles.homeCards} aria-label="Raccourcis">
+        <button type="button" onClick={() => onGoTo("shop")}>
+          <strong>Boutique</strong>
+          <span>Achete des skins et coffres</span>
+        </button>
+        <button type="button" onClick={() => onGoTo("activity")}>
+          <strong>Activite</strong>
+          <span>{activityCount > 0 ? `${activityCount} nouveaute${activityCount > 1 ? "s" : ""}` : "Tout est a jour"}</span>
+        </button>
+        <button type="button" onClick={() => onGoTo("bonus")}>
+          <strong>Bonus</strong>
+          <span>{remainingAds} pub{remainingAds > 1 ? "s" : ""} restante{remainingAds > 1 ? "s" : ""}</span>
+        </button>
+      </section>
+    </>
   );
 }
 
