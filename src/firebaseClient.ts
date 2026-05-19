@@ -1292,7 +1292,7 @@ export async function callPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
   });
 }
 
-export async function raisePokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
+export async function raisePokerPlayer(room: OnlineRoomEntry, user: CasinoUser, targetBet: number) {
   const app = getFirebaseApp();
   if (!app) {
     return;
@@ -1306,7 +1306,16 @@ export async function raisePokerPlayer(room: OnlineRoomEntry, user: CasinoUser) 
     throw new Error("Tu es deja couche.");
   }
 
-  const newBet = room.pokerCurrentBet + 25;
+  const newBet = Math.floor(targetBet);
+
+  if (!Number.isFinite(newBet) || newBet < 25) {
+    throw new Error("La mise minimum est de 25 credits.");
+  }
+
+  if (newBet <= room.pokerCurrentBet) {
+    throw new Error("Ta relance doit depasser la mise actuelle.");
+  }
+
   const currentContribution = room.pokerContributions[user.uid] ?? 0;
   const amountToPay = Math.max(0, newBet - currentContribution);
   const pokerContributions = {

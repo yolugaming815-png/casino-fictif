@@ -1433,6 +1433,32 @@
   font-weight: 900;
 }
 
+.pokerRaiseInput {
+  width: 116px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(249, 247, 239, 0.2);
+  background: rgba(16, 18, 24, 0.74);
+  color: #f9f7ef;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.pokerRaiseInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .positive {
   color: #79e29f;
 }

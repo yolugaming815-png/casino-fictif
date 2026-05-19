@@ -1557,13 +1557,24 @@ function App() {
     }
   }
 
-  async function handleRaisePoker(room: OnlineRoomEntry) {
+  async function handleRaisePoker(room: OnlineRoomEntry, targetBet: number) {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour relancer.");
       return;
     }
 
-    const newBet = room.pokerCurrentBet + 25;
+    const newBet = Math.floor(targetBet);
+
+    if (!Number.isFinite(newBet) || newBet < 25) {
+      setOnlineMessage("La mise minimum est de 25 credits.");
+      return;
+    }
+
+    if (newBet <= room.pokerCurrentBet) {
+      setOnlineMessage("Ta relance doit depasser la mise actuelle.");
+      return;
+    }
+
     const amountToPay = Math.max(0, newBet - (room.pokerContributions[accountUser.uid] ?? 0));
 
     if (balance < amountToPay) {
@@ -1573,9 +1584,9 @@ function App() {
 
     try {
       setOnlineActionRoomId(room.id);
-      await raisePokerPlayer(room, accountUser);
+      await raisePokerPlayer(room, accountUser, newBet);
       setBalance((current) => current - amountToPay);
-      setOnlineMessage("Relance de 25 credits enregistree.");
+      setOnlineMessage(`Mise de ${newBet.toLocaleString("fr-FR")} credits enregistree.`);
       await refreshOnlineRooms();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -4133,7 +4144,7 @@ function OnlineGames({
   onOpenProfile: (entry: LeaderboardEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
-  onRaisePoker: (room: OnlineRoomEntry) => void;
+  onRaisePoker: (room: OnlineRoomEntry, targetBet: number) => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
   onStartPoker: (room: OnlineRoomEntry) => void;
 }) {
@@ -4365,7 +4376,7 @@ function OnlineRoomsPanel({
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry) => void;
-  onRaisePoker: (room: OnlineRoomEntry) => void;
+  onRaisePoker: (room: OnlineRoomEntry, targetBet: number) => void;
   onRefreshRooms: () => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
   onStartPoker: (room: OnlineRoomEntry) => void;
@@ -4580,13 +4591,24 @@ function PokerRoomPanel({
   onCheck: (room: OnlineRoomEntry) => void;
   onFold: (room: OnlineRoomEntry) => void;
   onForceClose: (room: OnlineRoomEntry) => void;
-  onRaise: (room: OnlineRoomEntry) => void;
+  onRaise: (room: OnlineRoomEntry, targetBet: number) => void;
   onStart: (room: OnlineRoomEntry) => void;
 }) {
   const currentHand = room.pokerHands[currentUserId] ?? [];
   const isHost = room.hostUid === currentUserId;
   const inRoom = room.players.some((player) => player.uid === currentUserId);
   const folded = room.foldedPlayerIds.includes(currentUserId);
+  const minimumRaiseTarget = Math.max(25, room.pokerCurrentBet + 1);
+  const [raiseInput, setRaiseInput] = useState(String(minimumRaiseTarget));
+  const raiseTarget = Math.floor(Number(raiseInput));
+
+  useEffect(() => {
+    setRaiseInput((currentValue) => {
+      const parsedValue = Number(currentValue);
+      return Number.isFinite(parsedValue) && parsedValue >= minimumRaiseTarget ? currentValue : String(minimumRaiseTarget);
+    });
+  }, [minimumRaiseTarget]);
+
   const canStart = (room.status === "waiting" || room.status === "finished") && isHost && room.players.length >= 2;
   const activePlayers = room.players.filter((player) => !room.foldedPlayerIds.includes(player.uid));
   const phaseDone =
@@ -4602,7 +4624,7 @@ function PokerRoomPanel({
   const canCheck = room.status === "playing" && inRoom && !folded && isTurn && amountToCall === 0;
   const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0;
   const canFold = room.status === "playing" && inRoom && !folded && isTurn;
-  const canRaise = room.status === "playing" && inRoom && !folded && isTurn;
+  const canRaise = room.status === "playing" && inRoom && !folded && isTurn && Number.isFinite(raiseTarget) && raiseTarget >= minimumRaiseTarget;
   const winnerNames = room.pokerWinnerNames.length ? room.pokerWinnerNames : room.pokerWinnerName ? [room.pokerWinnerName] : [];
   const winnerSummary = winnerNames.length > 1 ? `Egalite : ${winnerNames.join(", ")}` : `Gagnant : ${winnerNames[0] || "a determiner"}`;
   const phaseLabel =
@@ -4721,8 +4743,21 @@ function PokerRoomPanel({
         <button className={styles.primaryButton} type="button" onClick={() => onCall(room)} disabled={busy || !canCall}>
           Suivre{amountToCall > 0 ? ` ${amountToCall}` : ""}
         </button>
-        <button className={styles.primaryButton} type="button" onClick={() => onRaise(room)} disabled={busy || !canRaise}>
-          Relancer +25
+        <label className={styles.visuallyHidden} htmlFor={`poker-raise-${room.id}`}>
+          Montant de la mise
+        </label>
+        <input
+          className={styles.pokerRaiseInput}
+          id={`poker-raise-${room.id}`}
+          min={minimumRaiseTarget}
+          step="1"
+          type="number"
+          value={raiseInput}
+          onChange={(event) => setRaiseInput(event.target.value)}
+          disabled={busy || !inRoom || folded || room.status !== "playing"}
+        />
+        <button className={styles.primaryButton} type="button" onClick={() => onRaise(room, raiseTarget)} disabled={busy || !canRaise}>
+          Relancer
         </button>
         <button className={styles.secondaryButton} type="button" onClick={() => onFold(room)} disabled={busy || !canFold}>
           Se coucher
