@@ -4960,7 +4960,7 @@
 
 @media (max-width: 520px) {
   .app {
-    padding: 8px;
+    padding: 64px 8px 8px;
   }
 
   .shell,
@@ -4994,18 +4994,30 @@
   .modeTabs,
   .gameTabs {
     gap: 6px;
-    padding: 6px;
   }
 
   .modeTabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+    width: min(280px, 82vw);
+    padding: 12px;
   }
 
-  .modeTabs button,
-  .gameTabs button {
-    min-height: 42px;
-    padding: 0 8px;
+  .modeTabs button {
+    min-height: 36px;
+    padding: 0 10px;
     font-size: 0.82rem;
+  }
+
+  .subTabs {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    margin-left: 10px;
+    padding-left: 9px;
+  }
+
+  .subTabs button {
+    min-height: 32px;
+    font-size: 0.76rem;
   }
 
   .reels {
