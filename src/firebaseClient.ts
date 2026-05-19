@@ -1588,12 +1588,18 @@ export async function loadAdminRooms(): Promise<OnlineRoomEntry[]> {
 }
 
 function normalizeAdminTarget(target: string) {
-  return target.trim().replace(/^@/, "").toLowerCase();
+  return target
+    .trim()
+    .replace(/^@+/, "")
+    .replace(/^,+/, "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 function findAdminTarget(players: LeaderboardEntry[], target: string) {
   const normalized = normalizeAdminTarget(target);
-  return players.find((player) => player.uid.toLowerCase() === normalized || player.displayName.toLowerCase() === normalized);
+  return players.find((player) => player.uid.toLowerCase() === normalized || normalizeAdminTarget(player.displayName) === normalized);
 }
 
 function coerceGameSave(data: Record<string, unknown>) {
@@ -1653,13 +1659,13 @@ export async function executeAdminCommand(admin: CasinoUser, command: string): P
   const action = parts[0].toLowerCase();
   const players = await loadAdminPlayers();
   const targetToken = parts.find((part) => part.startsWith("@"));
-  const allTargets = targetToken === "@all";
+  const allTargets = targetToken ? normalizeAdminTarget(targetToken) === "all" : false;
   const target = targetToken && !allTargets ? findAdminTarget(players, targetToken) : null;
 
   const targetPlayers = allTargets ? players : target ? [target] : [];
   const requireTargets = () => {
     if (!targetToken || targetPlayers.length === 0) {
-      throw new Error("Joueur introuvable. Utilise @NomExact ou @all.");
+      throw new Error("Joueur introuvable. Utilise @Nom_Exact ou @all.");
     }
   };
   const numberAt = (index: number, label: string) => {
@@ -1677,7 +1683,7 @@ export async function executeAdminCommand(admin: CasinoUser, command: string): P
       return {
         ok: true,
         message:
-          "/add money 500 @Lucas | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150",
+          "/add money 500 @Lucas | /add money 500 @Ilyes_Benabdelkader | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150",
       };
     }
 

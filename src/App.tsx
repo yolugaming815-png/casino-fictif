@@ -3065,6 +3065,14 @@ function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null;
   );
 }
 
+function normalizeAdminMentionText(value: string) {
+  return value.replace(/_/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function formatAdminMention(displayName: string) {
+  return `@${displayName.trim().replace(/\s+/g, "_")}`;
+}
+
 function AdminPanel({
   currentUser,
   isAdmin,
@@ -3109,6 +3117,21 @@ function AdminPanel({
     "/delete room ROOM_ID",
     "/finish room ROOM_ID",
   ];
+  const mentionMatch = command.match(/@[^ \t\r\n]*$/);
+  const mentionQuery = mentionMatch ? normalizeAdminMentionText(mentionMatch[0].replace(/^@+/, "").replace(/^,+/, "")) : "";
+  const playerSuggestions = useMemo(() => {
+    if (!mentionQuery) {
+      return [];
+    }
+
+    return players
+      .filter((player) => {
+        const name = normalizeAdminMentionText(player.displayName);
+        const uid = player.uid.toLowerCase();
+        return name.startsWith(mentionQuery) || uid.startsWith(mentionQuery);
+      })
+      .slice(0, 8);
+  }, [mentionQuery, players]);
 
   async function submitCommand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -3122,6 +3145,16 @@ function AdminPanel({
     if (ok) {
       setCommand("");
     }
+  }
+
+  function selectPlayerSuggestion(player: LeaderboardEntry) {
+    if (!mentionMatch) {
+      return;
+    }
+
+    const start = mentionMatch.index ?? command.length;
+    const mention = formatAdminMention(player.displayName);
+    setCommand(`${command.slice(0, start)}${mention}`);
   }
 
   if (!currentUser || !isAdmin) {
@@ -3170,13 +3203,22 @@ function AdminPanel({
             type="text"
             value={command}
             onChange={(event) => setCommand(event.target.value)}
-            placeholder="/add money 500 @Lucas"
+            placeholder="/add money 500 @Ilyes_Benabdelkader"
             spellCheck={false}
           />
           <button className={styles.primaryButton} type="submit" disabled={running || !command.trim()}>
             Executer
           </button>
         </form>
+        {playerSuggestions.length > 0 ? (
+          <div className={styles.adminSuggestions}>
+            {playerSuggestions.map((player) => (
+              <button type="button" key={player.uid} onClick={() => selectPlayerSuggestion(player)}>
+                {formatAdminMention(player.displayName)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {lastResult ? (
           <p className={lastResult.ok ? styles.adminSuccess : styles.adminError}>{lastResult.message}</p>
         ) : null}
