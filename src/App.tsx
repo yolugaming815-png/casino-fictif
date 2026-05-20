@@ -2728,6 +2728,7 @@ function App() {
             duelStats={selectedProfileStats}
             friendRequestMessage={friendRequestMessage}
             editMessage={profileEditMessage}
+            isFriend={accountUser ? areUsersFriends(friendRequests, accountUser.uid, selectedProfile.uid) : false}
             player={selectedProfile}
             onClose={() => setSelectedProfile(null)}
             onSaveProfile={handleSaveOwnProfile}
@@ -5215,6 +5216,7 @@ function PlayerProfileModal({
   duelStats,
   editMessage,
   friendRequestMessage,
+  isFriend,
   player,
   onClose,
   onSaveProfile,
@@ -5224,6 +5226,7 @@ function PlayerProfileModal({
   duelStats: DuelStats | null;
   editMessage: string;
   friendRequestMessage: string;
+  isFriend: boolean;
   player: LeaderboardEntry;
   onClose: () => void;
   onSaveProfile: (displayName: string, photoURL: string) => void;
@@ -5300,10 +5303,10 @@ function PlayerProfileModal({
             </div>
           ) : (
             <>
-              <button className={styles.primaryButton} type="button" onClick={onSendFriendRequest} disabled={!currentUserId}>
-                Demander en ami
+              <button className={isFriend ? styles.secondaryButton : styles.primaryButton} type="button" onClick={onSendFriendRequest} disabled={!currentUserId || isFriend}>
+                {isFriend ? "Ami" : "Demander en ami"}
               </button>
-              <small>{friendRequestMessage || (currentUserId ? "Clique pour envoyer une demande d'ami." : "Connecte-toi pour envoyer une demande.")}</small>
+              <small>{isFriend ? "Vous etes deja amis." : friendRequestMessage || (currentUserId ? "Clique pour envoyer une demande d'ami." : "Connecte-toi pour envoyer une demande.")}</small>
             </>
           )}
         </div>
