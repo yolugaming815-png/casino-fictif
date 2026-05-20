@@ -1539,6 +1539,7 @@ function App() {
         balance,
         inventory: buildPublicInventory(ownedSkinIds),
         equippedSkins,
+        isAdmin,
       },
     );
     setSelectedProfileStats(null);
@@ -2875,6 +2876,8 @@ function App() {
             friendRequestMessage={friendRequestMessage}
             editMessage={profileEditMessage}
             isFriend={accountUser ? areUsersFriends(friendRequests, accountUser.uid, selectedProfile.uid) : false}
+            isLeaderboardLeader={leaderboard[0]?.uid === selectedProfile.uid}
+            isPlayerAdmin={selectedProfile.isAdmin === true || (selectedProfile.uid === accountUser?.uid && isAdmin)}
             player={selectedProfile}
             onClose={() => setSelectedProfile(null)}
             onSaveProfile={handleSaveOwnProfile}
@@ -5416,6 +5419,8 @@ function PlayerProfileModal({
   editMessage,
   friendRequestMessage,
   isFriend,
+  isLeaderboardLeader,
+  isPlayerAdmin,
   player,
   onClose,
   onSaveProfile,
@@ -5426,6 +5431,8 @@ function PlayerProfileModal({
   editMessage: string;
   friendRequestMessage: string;
   isFriend: boolean;
+  isLeaderboardLeader: boolean;
+  isPlayerAdmin: boolean;
   player: LeaderboardEntry;
   onClose: () => void;
   onSaveProfile: (displayName: string, photoURL: string) => void;
@@ -5471,7 +5478,28 @@ function PlayerProfileModal({
     <div className={styles.profileModalBackdrop} role="dialog" aria-modal="true" aria-label={`Profil de ${player.displayName}`}>
       <section className={styles.profileModal}>
         <header className={styles.profileModalHeader}>
-          <ProfileAvatar className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
+          <span className={styles.profileAvatarFrame}>
+            {isLeaderboardLeader ? (
+              <span className={styles.profileRankBadge} aria-label="Premier du classement">
+                <svg viewBox="0 0 32 22" aria-hidden="true">
+                  <path d="M4 20 L7 7 L13 14 L16 3 L19 14 L25 7 L28 20 Z" />
+                  <path d="M7 20 H25" />
+                </svg>
+              </span>
+            ) : null}
+            <ProfileAvatar className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
+            {isPlayerAdmin ? (
+              <span className={styles.profileAdminBadge} aria-label="Admin">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M13 4 L20 11" />
+                  <path d="M11 6 L18 13" />
+                  <path d="M5 20 L14 11" />
+                  <path d="M3 18 L6 21" />
+                  <path d="M10 5 L14 1 L23 10 L19 14 Z" />
+                </svg>
+              </span>
+            ) : null}
+          </span>
           <div>
             <span>Profil joueur</span>
             <h2>{player.displayName}</h2>

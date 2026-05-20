@@ -45,6 +45,7 @@ export type LeaderboardEntry = {
   balance: number;
   inventory: Array<{ id: string; count: number }>;
   equippedSkins: Record<string, string>;
+  isAdmin?: boolean;
   banned?: boolean;
   updatedAt?: unknown;
 };
@@ -331,6 +332,14 @@ export async function saveLeaderboardEntry(
   const profile = playerSnapshot.exists() && playerSnapshot.data().profile && typeof playerSnapshot.data().profile === "object" ? (playerSnapshot.data().profile as Record<string, unknown>) : {};
   const publicDisplayName = typeof profile.displayName === "string" && profile.displayName.trim() ? profile.displayName : user.displayName || "Joueur anonyme";
   const publicPhotoURL = typeof profile.photoURL === "string" ? profile.photoURL : publicProfilePhotoURL(user.photoURL);
+  let userIsAdmin = false;
+
+  try {
+    const adminSnapshot = await getDoc(doc(getFirestore(app), "admins", user.uid));
+    userIsAdmin = adminSnapshot.exists() && adminSnapshot.data().enabled !== false;
+  } catch {
+    userIsAdmin = false;
+  }
 
   await setDoc(
     doc(getFirestore(app), "leaderboard", user.uid),
@@ -341,6 +350,7 @@ export async function saveLeaderboardEntry(
       balance,
       inventory,
       equippedSkins,
+      isAdmin: userIsAdmin,
       updatedAt: serverTimestamp(),
     },
     { merge: true },
@@ -1598,10 +1608,11 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
     return [];
   }
 
-  const leaderboardQuery = query(collection(getFirestore(app), "leaderboard"), orderBy("balance", "desc"), limit(limitCount));
+  const db = getFirestore(app);
+  const leaderboardQuery = query(collection(db, "leaderboard"), orderBy("balance", "desc"), limit(limitCount));
   const snapshot = await getDocs(leaderboardQuery);
 
-  return snapshot.docs.map((entry) => {
+  const entries = snapshot.docs.map((entry) => {
     const data = entry.data();
     return {
       uid: String(data.uid ?? entry.id),
@@ -1617,10 +1628,22 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
             .filter((item) => item.id && item.count > 0)
         : [],
       equippedSkins: data.equippedSkins && typeof data.equippedSkins === "object" ? (data.equippedSkins as Record<string, string>) : {},
+      isAdmin: data.isAdmin === true,
       banned: data.banned === true,
       updatedAt: data.updatedAt,
     };
   });
+
+  try {
+    const adminSnapshot = await getDocs(collection(db, "admins"));
+    const adminIds = new Set(adminSnapshot.docs.filter((entry) => entry.data().enabled !== false).map((entry) => entry.id));
+    return entries.map((entry) => ({
+      ...entry,
+      isAdmin: entry.isAdmin === true || adminIds.has(entry.uid),
+    }));
+  } catch {
+    return entries;
+  }
 }
 
 function parseLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {

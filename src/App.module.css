@@ -308,6 +308,60 @@
   font-weight: 900;
 }
 
+.profileAvatarFrame {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 96px;
+  height: 100px;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.profileRankBadge,
+.profileAdminBadge {
+  position: absolute;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  color: #ffd166;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.42), transparent 38%),
+    linear-gradient(135deg, #5a4318, #221a0b);
+  border: 1px solid rgba(255, 209, 102, 0.72);
+  box-shadow:
+    0 3px 12px rgba(0, 0, 0, 0.46),
+    0 0 16px rgba(255, 209, 102, 0.22);
+}
+
+.profileRankBadge {
+  top: -8px;
+  left: 50%;
+  width: 40px;
+  height: 29px;
+  border-radius: 10px 10px 6px 6px;
+  transform: translateX(-50%);
+}
+
+.profileAdminBadge {
+  right: 3px;
+  bottom: 8px;
+  width: 29px;
+  height: 29px;
+  border-radius: 999px;
+}
+
+.profileRankBadge svg,
+.profileAdminBadge svg {
+  width: 72%;
+  height: 72%;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .profileEditor {
   display: grid;
   grid-template-columns: 1fr;
