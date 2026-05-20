@@ -5602,6 +5602,10 @@
     padding: 14px;
   }
 
+  .pokerTableCenter {
+    top: 38%;
+  }
+
   .pokerCards span {
     width: 46px;
     height: 66px;
