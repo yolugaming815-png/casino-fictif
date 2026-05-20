@@ -2560,7 +2560,7 @@ function App() {
     }, CASE_BOX_OPEN_DURATION_MS + CASE_REEL_DURATION_MS);
   }
 
-  function playClawMachine() {
+  function playClawMachine(chestId?: SpecialChestId) {
     if (paused) {
       setClawMessage("La pause responsable est active.");
       return null;
@@ -2571,7 +2571,7 @@ function App() {
       return null;
     }
 
-    const chest = SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)];
+    const chest = chestId ? getSpecialChestDefinition(chestId) : SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)];
     const roll = Math.random();
     const rewardType: ClawOutcome["rewardType"] = roll < 0.01 ? "key" : roll < 0.16 ? "fragments" : "credits";
     const creditRoll = Math.random();
@@ -7295,7 +7295,7 @@ function ClawGame({
   message: string;
   paused: boolean;
   specialInventory: SpecialInventory;
-  onPlay: () => ClawOutcome | null;
+  onPlay: (chestId?: SpecialChestId) => ClawOutcome | null;
 }) {
   const [clawPosition, setClawPosition] = useState(50);
   const [dropping, setDropping] = useState(false);
@@ -7351,11 +7351,11 @@ function ClawGame({
     setReveal(null);
     window.setTimeout(() => setGrabbedBall(closestBallIndex), 520);
     window.setTimeout(() => {
-      const outcome = onPlay();
       const ball = clawBalls[closestBallIndex];
+      const outcome = onPlay(ball.chest.id);
 
       if (outcome) {
-        setReveal({ outcome, x: ball.left, theme: getSpecialChestDefinition(outcome.chestId).theme });
+        setReveal({ outcome, x: ball.left, theme: ball.chest.theme });
       }
     }, 880);
     window.setTimeout(() => {
