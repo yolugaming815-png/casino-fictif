@@ -1936,7 +1936,7 @@ export async function executeAdminCommand(admin: CasinoUser, command: string): P
       return {
         ok: true,
         message:
-          '/rename "Lucas" to "Lucas VIP" | /add money 500 @Lucas | /add money 500 @Ilyes_Benabdelkader | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150',
+          '/rename "Lucas" to "Lucas VIP" | /add money 500 @Lucas | /add money 500 @Ilyes_Benabdelkader | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /reset fragments @all | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150',
       };
     }
 
@@ -2041,23 +2041,37 @@ export async function executeAdminCommand(admin: CasinoUser, command: string): P
         message = `${targetPlayers.length} inventaire(s) skin mis a jour.`;
       } else if (subject === "key" || subject === "cle" || subject === "fragments" || subject === "fragment" || subject === "chest" || subject === "coffre") {
         requireTargets();
-        const chestId = parts[2];
-        const amount = numberAt(3, "Quantite");
         const bucket = subject === "key" || subject === "cle" ? "keys" : subject === "chest" || subject === "coffre" ? "chests" : "fragments";
+        const resetAllFragments = action === "/reset" && bucket === "fragments";
+        const chestId = resetAllFragments ? "" : parts[2];
+        const amount = resetAllFragments ? 0 : numberAt(3, "Quantite");
+
+        if (!resetAllFragments && !chestId) {
+          throw new Error("ID du coffre manquant.");
+        }
+
         await Promise.all(
           targetPlayers.map((player) =>
             runTransaction(db, async (transaction) => {
               const playerRef = doc(db, "players", player.uid);
+              const leaderboardRef = doc(db, "leaderboard", player.uid);
               const playerSnapshot = await transaction.get(playerRef);
               const gameSave = coerceGameSave(playerSnapshot.exists() ? playerSnapshot.data() : {});
               const specialInventory = gameSave.specialInventory as { chests: Record<string, number>; keys: Record<string, number>; fragments: Record<string, number> };
-              specialInventory[bucket][chestId] = Math.max(0, (specialInventory[bucket][chestId] ?? 0) + (action === "/remove" ? -amount : amount));
+              if (resetAllFragments) {
+                specialInventory.fragments = {};
+              } else {
+                specialInventory[bucket][chestId] = Math.max(0, (specialInventory[bucket][chestId] ?? 0) + (action === "/remove" ? -amount : amount));
+              }
               gameSave.specialInventory = specialInventory;
               transaction.set(playerRef, { gameSave, updatedAt: serverTimestamp() }, { merge: true });
+              transaction.set(leaderboardRef, { specialInventory, updatedAt: serverTimestamp() }, { merge: true });
             }),
           ),
         );
-        message = `${bucket} ${chestId} mis a jour pour ${targetPlayers.length} joueur(s).`;
+        message = resetAllFragments
+          ? `Fragments reinitialises pour ${targetPlayers.length} joueur(s).`
+          : `${bucket} ${chestId} mis a jour pour ${targetPlayers.length} joueur(s).`;
       }
     } else if (action === "/ban" || action === "/unban") {
       requireTargets();

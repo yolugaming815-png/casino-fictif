@@ -4231,6 +4231,7 @@ function AdminPanel({
     "/reset skins @Lucas",
     "/add key nebula 1 @Lucas",
     "/add fragments orbital 3 @Lucas",
+    "/reset fragments @all",
     "/add chest royal 1 @Lucas",
     "/set price skin cards-aqua 500",
     "/set price case plinkoBall 150",
