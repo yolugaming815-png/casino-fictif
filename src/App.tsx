@@ -728,6 +728,17 @@ function getMissionHourKey(time = Date.now()) {
   return `${year}-${month}-${day}-${hour}`;
 }
 
+function getMissionResetCountdown(time = Date.now()) {
+  const nextHour = new Date(time);
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  const remainingMs = Math.max(0, nextHour.getTime() - time);
+  const minutes = Math.floor(remainingMs / 60000);
+  const seconds = Math.floor((remainingMs % 60000) / 1000);
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function missionHash(value: string) {
   let hash = 2166136261;
 
@@ -1370,6 +1381,7 @@ function App() {
     [missionCounters],
   );
   const missionHourKey = getMissionHourKey(now);
+  const missionResetCountdown = getMissionResetCountdown(now);
   const activeMissions = useMemo(() => getHourlyMissionPlan(missionHourKey), [missionHourKey]);
   const activeMissionState =
     missionState?.hourKey === missionHourKey
@@ -3654,6 +3666,7 @@ function App() {
             balance={balance}
             missionState={activeMissionState}
             missions={activeMissions}
+            resetCountdown={missionResetCountdown}
             stats={missionStats}
             onClaim={claimMission}
           />
@@ -7703,12 +7716,14 @@ function MissionsPanel({
   balance,
   missionState,
   missions,
+  resetCountdown,
   stats,
   onClaim,
 }: {
   balance: number;
   missionState: HourlyMissionState;
   missions: MissionDefinition[];
+  resetCountdown: string;
   stats: MissionStats;
   onClaim: (mission: MissionDefinition) => void;
 }) {
@@ -7722,7 +7737,10 @@ function MissionsPanel({
           <h2>Missions</h2>
           <p>5 missions renouvelees chaque heure : 2 faciles, 2 moyennes et 1 difficile.</p>
         </div>
-        <strong>{balance.toLocaleString("fr-FR")} credits</strong>
+        <div className={styles.missionHeaderStats}>
+          <strong>{balance.toLocaleString("fr-FR")} credits</strong>
+          <span>Reset dans {resetCountdown}</span>
+        </div>
       </div>
 
       <div className={styles.missionSummary}>

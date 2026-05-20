@@ -2058,6 +2058,17 @@
   font-size: 1.35rem;
 }
 
+.missionHeaderStats {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.missionHeaderStats span {
+  color: #d5ddd9;
+  font-weight: 900;
+}
+
 .missionGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
