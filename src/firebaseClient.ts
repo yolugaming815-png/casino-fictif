@@ -141,6 +141,7 @@ export type OnlineRoomEntry = {
   maxPlayers: number;
   invitedUid?: string;
   invitedName?: string;
+  duelRewardMode?: string;
   duelScores: Record<string, DuelPlayerScore>;
   winnerUid?: string;
   winnerName?: string;
@@ -729,6 +730,7 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     maxPlayers: typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers) ? data.maxPlayers : type === "poker" ? POKER_MAX_PLAYERS : 2,
     invitedUid: typeof data.invitedUid === "string" ? data.invitedUid : undefined,
     invitedName: typeof data.invitedName === "string" ? data.invitedName : undefined,
+    duelRewardMode: typeof data.duelRewardMode === "string" ? data.duelRewardMode : undefined,
     duelScores,
     winnerUid: typeof data.winnerUid === "string" ? data.winnerUid : undefined,
     winnerName: typeof data.winnerName === "string" ? data.winnerName : undefined,
@@ -983,6 +985,7 @@ export async function startDuelRoom(room: OnlineRoomEntry, user: CasinoUser) {
     players: room.players,
     playerIds: Array.from(new Set([...room.playerIds, ...room.players.map((player) => player.uid)])),
     maxPlayers: room.maxPlayers,
+    duelRewardMode: "gameplay-v1",
     duelScores,
     winnerUid: "",
     winnerName: "",
@@ -1396,13 +1399,13 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
   });
 }
 
-export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser) {
+export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser, scoreOverride?: number) {
   const app = getFirebaseApp();
   if (!app) {
     return;
   }
 
-  const roundScore = createDuelRoundScore(room.game);
+  const roundScore = Number.isFinite(scoreOverride) ? Math.max(0, Math.floor(scoreOverride ?? 0)) : createDuelRoundScore(room.game);
 
   await runTransaction(getFirestore(app), async (transaction) => {
     const roomRef = doc(getFirestore(app), "onlineRooms", room.id);

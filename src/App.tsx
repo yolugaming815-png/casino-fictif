@@ -26,6 +26,8 @@ import {
 } from "./blackjackLogic";
 import {
   calculatePlinkoPayout,
+  generatePlinkoPath,
+  getFinalSlot,
   getPlinkoMultipliers,
   getPlinkoProbabilities,
   getPlinkoMultiplier,
@@ -247,6 +249,9 @@ const KEY_FRAGMENTS_REQUIRED = 9;
 const REWARDED_AD_CREDITS = 250;
 const DAILY_REWARDED_AD_LIMIT = 5;
 const REWARDED_AD_WATCH_MS = 6500;
+const DUEL_PLINKO_BALLS_PER_ROUND = 15;
+const DUEL_PLINKO_BET_PER_BALL = 10;
+const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   common: 0,
   rare: 1,
@@ -257,6 +262,32 @@ const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
 function parseBetInput(value: string): Bet {
   const parsed = Math.floor(Number(value));
   return Number.isFinite(parsed) ? Math.max(MIN_BET, parsed) : MIN_BET;
+}
+
+function getDuelGameKind(game: string): "plinko" | "roulette" | "quick" {
+  const normalized = game.toLowerCase();
+
+  if (normalized.includes("roulette")) {
+    return "roulette";
+  }
+
+  if (normalized.includes("plinko")) {
+    return "plinko";
+  }
+
+  return "quick";
+}
+
+function readStoredSet(key: string): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(key) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function storeSet(key: string, values: Set<string>) {
+  localStorage.setItem(key, JSON.stringify([...values]));
 }
 
 function emptySpecialInventory(): SpecialInventory {
@@ -677,6 +708,7 @@ function App() {
   const refundedInactivePokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(REFUNDED_INACTIVE_POKER_STORAGE_KEY) ?? "[]") as string[]));
   const hiddenInactivePokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(HIDDEN_INACTIVE_POKER_STORAGE_KEY) ?? "[]") as string[]));
   const forceClosedPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(FORCE_CLOSED_POKER_STORAGE_KEY) ?? "[]") as string[]));
+  const settledDuelRewardsRef = useRef(readStoredSet(DUEL_REWARDS_KEY));
   const appliedTradeKeysRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(APPLIED_TRADE_KEYS_STORAGE_KEY) ?? "[]") as string[]));
   const lastPrivateMessageSentAtRef = useRef(0);
   const [now, setNow] = useState(Date.now());
@@ -1021,6 +1053,43 @@ function App() {
       unsubscribeHistory();
     };
   }, [accountUser]);
+
+  useEffect(() => {
+    if (!accountUser) {
+      return;
+    }
+
+    const finishedDuels = [...onlineRooms, ...duelHistory].filter(
+      (room, index, rooms) =>
+        room.type === "duel" &&
+        room.duelRewardMode === "gameplay-v1" &&
+        room.status === "finished" &&
+        room.playerIds.includes(accountUser.uid) &&
+        rooms.findIndex((candidate) => candidate.id === room.id) === index,
+    );
+
+    finishedDuels.forEach((room) => {
+      const currentScore = room.duelScores[accountUser.uid] ?? { rounds: [], total: 0 };
+      const opponentTotal = room.players
+        .filter((player) => player.uid !== accountUser.uid)
+        .reduce((sum, player) => sum + (room.duelScores[player.uid]?.total ?? 0), 0);
+      const rewardKey = `${room.id}:${accountUser.uid}:${room.winnerUid}:${currentScore.total}:${opponentTotal}`;
+
+      if (settledDuelRewardsRef.current.has(rewardKey) || currentScore.rounds.length < 3 || !room.winnerUid) {
+        return;
+      }
+
+      const balanceDelta = room.winnerUid === accountUser.uid ? currentScore.total + opponentTotal : -currentScore.total;
+      setBalance((current) => Math.max(0, current + balanceDelta));
+      settledDuelRewardsRef.current.add(rewardKey);
+      storeSet(DUEL_REWARDS_KEY, settledDuelRewardsRef.current);
+      setOnlineMessage(
+        room.winnerUid === accountUser.uid
+          ? `Duel gagne : tu remportes ${(currentScore.total + opponentTotal).toLocaleString("fr-FR")} credits virtuels.`
+          : `Duel perdu : tu perds ${currentScore.total.toLocaleString("fr-FR")} credits virtuels.`,
+      );
+    });
+  }, [accountUser, onlineRooms, duelHistory]);
 
   useEffect(() => {
     if (!accountUser || !cloudSaveReadyRef.current) {
@@ -1500,7 +1569,7 @@ function App() {
     }
   }
 
-  async function handlePlayDuelRound(room: OnlineRoomEntry) {
+  async function handlePlayDuelRound(room: OnlineRoomEntry, roundScore?: number) {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour jouer une manche.");
       return;
@@ -1508,7 +1577,7 @@ function App() {
 
     try {
       setOnlineActionRoomId(room.id);
-      await playDuelRound(room, accountUser);
+      await playDuelRound(room, accountUser, roundScore);
       setOnlineMessage("Manche jouee et score sauvegarde.");
       await refreshOnlineRooms();
       await refreshDuelHistory(accountUser.uid);
@@ -4331,7 +4400,7 @@ function OnlineGames({
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
-  onPlayDuelRound: (room: OnlineRoomEntry) => void;
+  onPlayDuelRound: (room: OnlineRoomEntry, roundScore?: number) => void;
   onRefreshRooms: () => void;
   onRaisePoker: (room: OnlineRoomEntry, targetBet: number) => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
@@ -4394,7 +4463,7 @@ function OnlineGames({
                 <span>Mode {index + 1}</span>
                 <h3>Duel {gameName}</h3>
                 <p>3 manches chacun. Le meilleur bilan virtuel gagne le duel.</p>
-                <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel ${gameName}`)} disabled={friends.length === 0}>
+                <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel ${gameName}`)}>
                   Creer un duel
                 </button>
               </article>
@@ -4423,8 +4492,11 @@ function OnlineGames({
                         Profil
                       </button>
                     )}
-                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel avec ${friend.displayName}`, friend)}>
-                      Inviter
+                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel Plinko avec ${friend.displayName}`, friend)}>
+                      Plinko
+                    </button>
+                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel Roulette avec ${friend.displayName}`, friend)}>
+                      Roulette
                     </button>
                   </div>
                 </article>
@@ -4564,7 +4636,7 @@ function OnlineRoomsPanel({
   onForceClosePoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
-  onPlayDuelRound: (room: OnlineRoomEntry) => void;
+  onPlayDuelRound: (room: OnlineRoomEntry, roundScore?: number) => void;
   onRaisePoker: (room: OnlineRoomEntry, targetBet: number) => void;
   onRefreshRooms: () => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
@@ -4656,10 +4728,15 @@ function DuelRoomPanel({
   busy: boolean;
   currentUserId: string;
   room: OnlineRoomEntry;
-  onPlayRound: (room: OnlineRoomEntry) => void;
+  onPlayRound: (room: OnlineRoomEntry, roundScore?: number) => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
 }) {
   const currentPlayerScore = room.duelScores[currentUserId] ?? { rounds: [], total: 0 };
+  const duelGameKind = getDuelGameKind(room.game);
+  const [duelRouletteBet, setDuelRouletteBet] = useState<Bet>(25);
+  const [duelRouletteKind, setDuelRouletteKind] = useState<RouletteBetKind>("red");
+  const [duelRouletteNumber, setDuelRouletteNumber] = useState(17);
+  const [duelRoundPreview, setDuelRoundPreview] = useState("");
   const canStart = room.status === "waiting" && room.hostUid === currentUserId && room.players.length >= 2;
   const canPlay = room.status === "playing" && room.players.some((player) => player.uid === currentUserId) && currentPlayerScore.rounds.length < 3;
   const opponent = room.players.find((player) => player.uid !== currentUserId);
@@ -4678,6 +4755,34 @@ function DuelRoomPanel({
           ? "A toi de jouer."
           : `Tu as joue ${currentPlayerScore.rounds.length}/3 manches.`
         : `Duel termine.`;
+  function playRealDuelRound() {
+    if (duelGameKind === "plinko") {
+      const launches = Array.from({ length: DUEL_PLINKO_BALLS_PER_ROUND }, () => {
+        const path = generatePlinkoPath(10);
+        const slot = getFinalSlot(path);
+        const multiplier = getPlinkoMultiplier(slot, 10);
+        return calculatePlinkoPayout(DUEL_PLINKO_BET_PER_BALL, multiplier).payout;
+      });
+      const score = Math.round(launches.reduce((sum, payout) => sum + payout, 0));
+      setDuelRoundPreview(`15 billes lancees : ${score.toLocaleString("fr-FR")} points.`);
+      onPlayRound(room, score);
+      return;
+    }
+
+    if (duelGameKind === "roulette") {
+      const outcome = playRoulette(
+        { kind: duelRouletteKind, number: duelRouletteKind === "straight" ? duelRouletteNumber : undefined },
+        duelRouletteBet,
+      );
+      const score = Math.round(outcome.payout);
+      setDuelRoundPreview(`${outcome.number} ${formatRouletteColor(outcome.color)} : ${score.toLocaleString("fr-FR")} points.`);
+      onPlayRound(room, score);
+      return;
+    }
+
+    setDuelRoundPreview("Manche rapide jouee.");
+    onPlayRound(room);
+  }
 
   return (
     <div className={styles.duelRoomPanel}>
@@ -4703,11 +4808,42 @@ function DuelRoomPanel({
       ) : (
         <div className={styles.socialActions}>
           {opponentScore && <small>L'adversaire a joue {opponentScore.rounds.length}/3 manches.</small>}
+          {room.status === "playing" && duelGameKind === "plinko" && (
+            <small>Duel Plinko : {DUEL_PLINKO_BALLS_PER_ROUND} billes par manche, {DUEL_PLINKO_BET_PER_BALL} credits par bille.</small>
+          )}
+          {room.status === "playing" && duelGameKind === "roulette" && (
+            <div className={styles.duelInlineControls}>
+              <label htmlFor={`duel-roulette-bet-${room.id}`}>Mise</label>
+              <BetAmountInput id={`duel-roulette-bet-${room.id}`} value={duelRouletteBet} onChange={setDuelRouletteBet} />
+              <label htmlFor={`duel-roulette-kind-${room.id}`}>Pari</label>
+              <select id={`duel-roulette-kind-${room.id}`} value={duelRouletteKind} onChange={(event) => setDuelRouletteKind(event.target.value as RouletteBetKind)}>
+                {rouletteBetOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {duelRouletteKind === "straight" && (
+                <>
+                  <label htmlFor={`duel-roulette-number-${room.id}`}>Numero</label>
+                  <input
+                    id={`duel-roulette-number-${room.id}`}
+                    type="number"
+                    min={0}
+                    max={36}
+                    value={duelRouletteNumber}
+                    onChange={(event) => setDuelRouletteNumber(Math.max(0, Math.min(36, Number(event.target.value))))}
+                  />
+                </>
+              )}
+            </div>
+          )}
+          {duelRoundPreview && <small>{duelRoundPreview}</small>}
           <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={busy || !canStart}>
             Lancer le duel
           </button>
-          <button className={styles.primaryButton} type="button" onClick={() => onPlayRound(room)} disabled={busy || !canPlay}>
-            Jouer une manche
+          <button className={styles.primaryButton} type="button" onClick={playRealDuelRound} disabled={busy || !canPlay}>
+            {duelGameKind === "plinko" ? "Lancer les 15 billes" : duelGameKind === "roulette" ? "Lancer la roulette" : "Jouer une manche"}
           </button>
         </div>
       )}

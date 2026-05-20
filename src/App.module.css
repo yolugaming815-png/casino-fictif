@@ -1226,6 +1226,33 @@
   color: #d5ddd9;
 }
 
+.duelInlineControls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.duelInlineControls label {
+  color: #d5ddd9;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.duelInlineControls input,
+.duelInlineControls select {
+  min-height: 40px;
+  max-width: 150px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(16, 18, 24, 0.74);
+  color: #f9f7ef;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
 .duelWinner {
   margin: 0;
   padding: 12px;
