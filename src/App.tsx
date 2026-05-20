@@ -118,6 +118,7 @@ import {
   subscribeAdminPriceOverrides,
   subscribeDuelHistory,
   subscribeOnlineRooms,
+  updateCasinoUserProfile,
   watchAdminStatus,
   type AdminCommandResult,
   type AdminPriceOverrides,
@@ -252,6 +253,13 @@ const REWARDED_AD_WATCH_MS = 6500;
 const DUEL_PLINKO_BALLS_PER_ROUND = 15;
 const DUEL_PLINKO_BET_PER_BALL = 10;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
+const PROFILE_PHOTO_PRESETS = [
+  "",
+  "https://api.dicebear.com/9.x/identicon/svg?seed=spade",
+  "https://api.dicebear.com/9.x/identicon/svg?seed=gold",
+  "https://api.dicebear.com/9.x/identicon/svg?seed=casino",
+  "https://api.dicebear.com/9.x/identicon/svg?seed=royal",
+];
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   common: 0,
   rare: 1,
@@ -691,6 +699,7 @@ function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardMessage, setLeaderboardMessage] = useState("Connecte-toi pour apparaitre dans le classement.");
   const [selectedProfile, setSelectedProfile] = useState<LeaderboardEntry | null>(null);
+  const [profileEditMessage, setProfileEditMessage] = useState("");
   const [friendRequestMessage, setFriendRequestMessage] = useState("");
   const [friendRequests, setFriendRequests] = useState<FriendRequestEntry[]>([]);
   const [friendsMessage, setFriendsMessage] = useState("Connecte-toi pour voir tes amis.");
@@ -1398,6 +1407,7 @@ function App() {
 
   async function handleOpenPlayerProfile(entry: LeaderboardEntry) {
     setFriendRequestMessage("");
+    setProfileEditMessage("");
     setSelectedProfile(entry);
     setSelectedProfileStats(null);
 
@@ -1406,6 +1416,62 @@ function App() {
       setSelectedProfileStats(stats);
     } catch {
       setSelectedProfileStats(null);
+    }
+  }
+
+  function handleOpenOwnProfile() {
+    if (!accountUser) {
+      setAccountMessage("Connecte-toi pour ouvrir ton profil.");
+      return;
+    }
+
+    const leaderboardProfile = leaderboard.find((entry) => entry.uid === accountUser.uid);
+    setFriendRequestMessage("");
+    setProfileEditMessage("");
+    setSelectedProfile(
+      leaderboardProfile ?? {
+        uid: accountUser.uid,
+        displayName: accountUser.displayName || accountUser.email || "Joueur",
+        photoURL: accountUser.photoURL || "",
+        balance,
+        inventory: buildPublicInventory(ownedSkinIds),
+        equippedSkins,
+      },
+    );
+    setSelectedProfileStats(null);
+    loadDuelStats(accountUser.uid).then(setSelectedProfileStats).catch(() => setSelectedProfileStats(null));
+    setMobileMenuOpen(false);
+  }
+
+  async function handleSaveOwnProfile(displayName: string, photoURL: string) {
+    if (!accountUser) {
+      setProfileEditMessage("Connecte-toi pour modifier ton profil.");
+      return;
+    }
+
+    try {
+      setProfileEditMessage("Sauvegarde du profil...");
+      const updatedUser = await updateCasinoUserProfile(displayName, photoURL);
+      const nextUser = updatedUser ?? { ...accountUser, displayName: displayName.trim(), photoURL: photoURL.trim() };
+      setAccountUser(nextUser);
+      await saveLeaderboardEntry(nextUser, balance, buildPublicInventory(ownedSkinIds), equippedSkins);
+      await refreshLeaderboard();
+      setSelectedProfile((profile) =>
+        profile
+          ? {
+              ...profile,
+              displayName: nextUser.displayName || "Joueur anonyme",
+              photoURL: nextUser.photoURL || "",
+              balance,
+              inventory: buildPublicInventory(ownedSkinIds),
+              equippedSkins,
+            }
+          : profile,
+      );
+      setProfileEditMessage("Profil mis a jour.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setProfileEditMessage(`Profil impossible a modifier : ${message}`);
     }
   }
 
@@ -2660,8 +2726,10 @@ function App() {
             currentUserId={accountUser?.uid ?? null}
             duelStats={selectedProfileStats}
             friendRequestMessage={friendRequestMessage}
+            editMessage={profileEditMessage}
             player={selectedProfile}
             onClose={() => setSelectedProfile(null)}
+            onSaveProfile={handleSaveOwnProfile}
             onSendFriendRequest={() => handleSendFriendRequest(selectedProfile)}
           />
         )}
@@ -2675,13 +2743,13 @@ function App() {
         {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
 
         <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
-          <div className={styles.menuProfile}>
-            <span className={styles.menuAvatar} aria-hidden="true">♠</span>
+          <button className={styles.menuProfile} type="button" onClick={handleOpenOwnProfile}>
+            <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={accountUser?.photoURL || ""} />
             <div>
               <strong>{accountUser?.displayName || "Joueur"}</strong>
               <small>{balance.toLocaleString("fr-FR")} credits</small>
             </div>
-          </div>
+          </button>
           <button
             className={activeSection === "home" ? styles.activeTab : ""}
             type="button"
@@ -5144,18 +5212,29 @@ function PokerRoomPanel({
 function PlayerProfileModal({
   currentUserId,
   duelStats,
+  editMessage,
   friendRequestMessage,
   player,
   onClose,
+  onSaveProfile,
   onSendFriendRequest,
 }: {
   currentUserId: string | null;
   duelStats: DuelStats | null;
+  editMessage: string;
   friendRequestMessage: string;
   player: LeaderboardEntry;
   onClose: () => void;
+  onSaveProfile: (displayName: string, photoURL: string) => void;
   onSendFriendRequest: () => void;
 }) {
+  const [draftDisplayName, setDraftDisplayName] = useState(player.displayName);
+  const [draftPhotoURL, setDraftPhotoURL] = useState(player.photoURL ?? "");
+  useEffect(() => {
+    setDraftDisplayName(player.displayName);
+    setDraftPhotoURL(player.photoURL ?? "");
+  }, [player.displayName, player.photoURL]);
+
   const inventory = player.inventory
     .map((inventoryItem) => {
       const item = SHOP_ITEMS.find((candidate) => candidate.id === inventoryItem.id);
@@ -5172,6 +5251,7 @@ function PlayerProfileModal({
     <div className={styles.profileModalBackdrop} role="dialog" aria-modal="true" aria-label={`Profil de ${player.displayName}`}>
       <section className={styles.profileModal}>
         <header className={styles.profileModalHeader}>
+          <ProfileAvatar className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
           <div>
             <span>Profil joueur</span>
             <h2>{player.displayName}</h2>
@@ -5183,10 +5263,48 @@ function PlayerProfileModal({
         </header>
 
         <div className={styles.profileActions}>
-          <button className={styles.primaryButton} type="button" onClick={onSendFriendRequest} disabled={!currentUserId || isCurrentUser}>
-            {isCurrentUser ? "Ton profil" : "Demander en ami"}
-          </button>
-          <small>{friendRequestMessage || (currentUserId ? "Clique pour envoyer une demande d'ami." : "Connecte-toi pour envoyer une demande.")}</small>
+          {isCurrentUser ? (
+            <div className={styles.profileEditor}>
+              <label htmlFor="profileDisplayName">Pseudo</label>
+              <input
+                id="profileDisplayName"
+                maxLength={28}
+                value={draftDisplayName}
+                onChange={(event) => setDraftDisplayName(event.target.value)}
+              />
+              <label htmlFor="profilePhotoURL">Photo de profil</label>
+              <input
+                id="profilePhotoURL"
+                placeholder="Lien d'image ou photo Google"
+                value={draftPhotoURL}
+                onChange={(event) => setDraftPhotoURL(event.target.value)}
+              />
+              <div className={styles.profileAvatarChoices} aria-label="Choix rapides de photo">
+                {PROFILE_PHOTO_PRESETS.map((preset, index) => (
+                  <button
+                    className={draftPhotoURL === preset ? styles.activeAvatarChoice : ""}
+                    key={preset || "default"}
+                    type="button"
+                    onClick={() => setDraftPhotoURL(preset)}
+                  >
+                    <ProfileAvatar className={styles.profileAvatarChoice} displayName={player.displayName} photoURL={preset} />
+                    <span>{index === 0 ? "Defaut" : `Style ${index}`}</span>
+                  </button>
+                ))}
+              </div>
+              <button className={styles.primaryButton} type="button" onClick={() => onSaveProfile(draftDisplayName, draftPhotoURL)}>
+                Enregistrer le profil
+              </button>
+              <small>{editMessage || "Ton pseudo et ta photo seront visibles dans le classement."}</small>
+            </div>
+          ) : (
+            <>
+              <button className={styles.primaryButton} type="button" onClick={onSendFriendRequest} disabled={!currentUserId}>
+                Demander en ami
+              </button>
+              <small>{friendRequestMessage || (currentUserId ? "Clique pour envoyer une demande d'ami." : "Connecte-toi pour envoyer une demande.")}</small>
+            </>
+          )}
         </div>
 
         <div className={styles.profileStats}>
@@ -5238,6 +5356,24 @@ function PlayerProfileModal({
         </div>
       </section>
     </div>
+  );
+}
+
+function ProfileAvatar({
+  className,
+  displayName,
+  photoURL,
+}: {
+  className: string;
+  displayName: string;
+  photoURL?: string;
+}) {
+  const initial = (displayName.trim()[0] || "♠").toUpperCase();
+
+  return (
+    <span className={className}>
+      {photoURL ? <img alt="" src={photoURL} /> : <span aria-hidden="true">{initial}</span>}
+    </span>
   );
 }
 

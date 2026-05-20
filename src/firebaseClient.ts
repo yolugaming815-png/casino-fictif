@@ -7,6 +7,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   signOut,
+  updateProfile,
   type User,
 } from "firebase/auth";
 import {
@@ -40,6 +41,7 @@ export type CasinoUser = {
 export type LeaderboardEntry = {
   uid: string;
   displayName: string;
+  photoURL?: string;
   balance: number;
   inventory: Array<{ id: string; count: number }>;
   equippedSkins: Record<string, string>;
@@ -325,6 +327,7 @@ export async function saveLeaderboardEntry(
     {
       uid: user.uid,
       displayName: user.displayName || "Joueur anonyme",
+      photoURL: user.photoURL || "",
       balance,
       inventory,
       equippedSkins,
@@ -332,6 +335,39 @@ export async function saveLeaderboardEntry(
     },
     { merge: true },
   );
+}
+
+export async function updateCasinoUserProfile(displayName: string, photoURL: string) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return null;
+  }
+
+  const auth = getAuth(app);
+  if (!auth.currentUser) {
+    throw new Error("Connecte-toi pour modifier ton profil.");
+  }
+
+  const safeDisplayName = displayName.trim().slice(0, 28) || "Joueur anonyme";
+  const safePhotoURL = photoURL.trim().slice(0, 500);
+
+  await updateProfile(auth.currentUser, {
+    displayName: safeDisplayName,
+    photoURL: safePhotoURL || null,
+  });
+  await setDoc(
+    doc(getFirestore(app), "players", auth.currentUser.uid),
+    {
+      profile: {
+        displayName: safeDisplayName,
+        photoURL: safePhotoURL,
+      },
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  return toCasinoUser(auth.currentUser);
 }
 
 export async function sendFriendRequest(from: CasinoUser, to: LeaderboardEntry) {
@@ -1466,6 +1502,7 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
     return {
       uid: String(data.uid ?? entry.id),
       displayName: typeof data.displayName === "string" ? data.displayName : "Joueur anonyme",
+      photoURL: typeof data.photoURL === "string" ? data.photoURL : "",
       balance: typeof data.balance === "number" && Number.isFinite(data.balance) ? data.balance : 0,
       inventory: Array.isArray(data.inventory)
         ? data.inventory
@@ -1486,6 +1523,7 @@ function parseLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
   return {
     uid: typeof data.uid === "string" ? data.uid : id,
     displayName: typeof data.displayName === "string" ? data.displayName : "Joueur anonyme",
+    photoURL: typeof data.photoURL === "string" ? data.photoURL : "",
     balance: typeof data.balance === "number" && Number.isFinite(data.balance) ? data.balance : 0,
     inventory: Array.isArray(data.inventory)
       ? data.inventory
