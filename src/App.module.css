@@ -2077,6 +2077,18 @@
   font-weight: 900;
 }
 
+.mission-easy {
+  border-color: rgba(124, 242, 162, 0.22);
+}
+
+.mission-medium {
+  border-color: rgba(255, 209, 102, 0.28);
+}
+
+.mission-hard {
+  border-color: rgba(255, 135, 135, 0.3);
+}
+
 .missionCard h3 {
   margin: 6px 0;
 }

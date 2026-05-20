@@ -228,23 +228,36 @@ type RewardedAdState = {
   watched: number;
 };
 
-type MissionId = "solo-5" | "plinko-3" | "cases-2" | "bonus-1" | "claw-3";
+type MissionId = string;
+type MissionDifficulty = "easy" | "medium" | "hard";
+type MissionMetric = keyof MissionStats;
 
 type MissionDefinition = {
   id: MissionId;
+  difficulty: MissionDifficulty;
   title: string;
   detail: string;
   goal: number;
   reward: number;
-  progress: (stats: MissionStats) => number;
+  metric: MissionMetric;
 };
 
 type MissionStats = {
   soloGames: number;
+  slotSpins: number;
+  blackjackHands: number;
   plinkoDrops: number;
+  rouletteSpins: number;
+  rocketLaunches: number;
   casesOpened: number;
   rewardedAdsWatched: number;
   clawAttempts: number;
+};
+
+type HourlyMissionState = {
+  hourKey: string;
+  baselines: Record<MissionMetric, number>;
+  claimedMissionIds: MissionId[];
 };
 
 type SavedGameState = {
@@ -261,7 +274,8 @@ type SavedGameState = {
   specialInventory: SpecialInventory;
   clawHistory: ClawOutcome[];
   rewardedAds: RewardedAdState;
-  claimedMissionIds: MissionId[];
+  missionCounters: MissionStats;
+  missionState: HourlyMissionState | null;
 };
 
 type ActivityItem = {
@@ -289,46 +303,256 @@ const PLINKO_MAX_BET = 1000;
 const DUEL_PLINKO_BALLS_PER_ROUND = 15;
 const DUEL_PLINKO_BET_PER_BALL = 10;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
+const MISSION_REWARDS: Record<MissionDifficulty, number> = {
+  easy: 150,
+  medium: 300,
+  hard: 500,
+};
+const MISSION_METRICS: MissionMetric[] = [
+  "soloGames",
+  "slotSpins",
+  "blackjackHands",
+  "plinkoDrops",
+  "rouletteSpins",
+  "rocketLaunches",
+  "casesOpened",
+  "rewardedAdsWatched",
+  "clawAttempts",
+];
 const MISSION_DEFINITIONS: MissionDefinition[] = [
   {
-    id: "solo-5",
-    title: "Jouer 5 parties solo",
+    id: "easy-slots-2",
+    difficulty: "easy",
+    title: "Lancer 2 machines a sous",
+    detail: "Deux spins suffisent pour cette mission rapide.",
+    goal: 2,
+    reward: MISSION_REWARDS.easy,
+    metric: "slotSpins",
+  },
+  {
+    id: "easy-blackjack-1",
+    difficulty: "easy",
+    title: "Faire 1 main de blackjack",
+    detail: "Termine une main, peu importe le resultat.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "blackjackHands",
+  },
+  {
+    id: "easy-plinko-2",
+    difficulty: "easy",
+    title: "Lancer 2 billes Plinko",
+    detail: "Deux billes pour avancer doucement.",
+    goal: 2,
+    reward: MISSION_REWARDS.easy,
+    metric: "plinkoDrops",
+  },
+  {
+    id: "easy-roulette-1",
+    difficulty: "easy",
+    title: "Jouer 1 tour de roulette",
+    detail: "Choisis un pari et lance la roulette.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "rouletteSpins",
+  },
+  {
+    id: "easy-rocket-1",
+    difficulty: "easy",
+    title: "Lancer 1 fusee",
+    detail: "Une tentative sur Rocket Games.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "rocketLaunches",
+  },
+  {
+    id: "easy-case-1",
+    difficulty: "easy",
+    title: "Ouvrir 1 case",
+    detail: "Une ouverture suffit.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "casesOpened",
+  },
+  {
+    id: "easy-claw-1",
+    difficulty: "easy",
+    title: "Tenter 1 pince",
+    detail: "Une tentative a la machine a pince.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "clawAttempts",
+  },
+  {
+    id: "easy-bonus-1",
+    difficulty: "easy",
+    title: "Regarder 1 bonus",
+    detail: "Bonus volontaire, credits virtuels uniquement.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "rewardedAdsWatched",
+  },
+  {
+    id: "medium-solo-4",
+    difficulty: "medium",
+    title: "Jouer 4 parties solo",
     detail: "Machine a sous, blackjack, plinko, roulette ou rocket games.",
-    goal: 5,
-    reward: 500,
-    progress: (stats) => stats.soloGames,
+    goal: 4,
+    reward: MISSION_REWARDS.medium,
+    metric: "soloGames",
   },
   {
-    id: "plinko-3",
-    title: "Lancer 3 billes Plinko",
-    detail: "Fais tomber des billes dans le Plinko.",
+    id: "medium-slots-4",
+    difficulty: "medium",
+    title: "Lancer 4 machines a sous",
+    detail: "Enchaine quelques spins.",
+    goal: 4,
+    reward: MISSION_REWARDS.medium,
+    metric: "slotSpins",
+  },
+  {
+    id: "medium-blackjack-3",
+    difficulty: "medium",
+    title: "Faire 3 mains de blackjack",
+    detail: "Termine trois mains.",
     goal: 3,
-    reward: 350,
-    progress: (stats) => stats.plinkoDrops,
+    reward: MISSION_REWARDS.medium,
+    metric: "blackjackHands",
   },
   {
-    id: "cases-2",
+    id: "medium-plinko-4",
+    difficulty: "medium",
+    title: "Lancer 4 billes Plinko",
+    detail: "Fais tomber quatre billes.",
+    goal: 4,
+    reward: MISSION_REWARDS.medium,
+    metric: "plinkoDrops",
+  },
+  {
+    id: "medium-roulette-3",
+    difficulty: "medium",
+    title: "Jouer 3 tours de roulette",
+    detail: "Trois tours complets.",
+    goal: 3,
+    reward: MISSION_REWARDS.medium,
+    metric: "rouletteSpins",
+  },
+  {
+    id: "medium-rocket-3",
+    difficulty: "medium",
+    title: "Lancer 3 fusees",
+    detail: "Trois tentatives sur Rocket Games.",
+    goal: 3,
+    reward: MISSION_REWARDS.medium,
+    metric: "rocketLaunches",
+  },
+  {
+    id: "medium-cases-2",
+    difficulty: "medium",
     title: "Ouvrir 2 cases",
     detail: "Ouvre des cases ou coffres pour avancer.",
     goal: 2,
-    reward: 450,
-    progress: (stats) => stats.casesOpened,
+    reward: MISSION_REWARDS.medium,
+    metric: "casesOpened",
   },
   {
-    id: "bonus-1",
-    title: "Regarder 1 bonus pub",
-    detail: "Bonus volontaire, jamais force pendant une partie.",
-    goal: 1,
-    reward: 250,
-    progress: (stats) => stats.rewardedAdsWatched,
-  },
-  {
-    id: "claw-3",
-    title: "Tenter 3 fois la machine a pince",
+    id: "medium-claw-3",
+    difficulty: "medium",
+    title: "Tenter 3 pinces",
     detail: "Chaque tentative compte, meme sans gain.",
     goal: 3,
-    reward: 400,
-    progress: (stats) => stats.clawAttempts,
+    reward: MISSION_REWARDS.medium,
+    metric: "clawAttempts",
+  },
+  {
+    id: "medium-bonus-2",
+    difficulty: "medium",
+    title: "Regarder 2 bonus",
+    detail: "Deux bonus volontaires dans l'heure.",
+    goal: 2,
+    reward: MISSION_REWARDS.medium,
+    metric: "rewardedAdsWatched",
+  },
+  {
+    id: "hard-solo-8",
+    difficulty: "hard",
+    title: "Jouer 8 parties solo",
+    detail: "Un vrai tour des jeux solo.",
+    goal: 8,
+    reward: MISSION_REWARDS.hard,
+    metric: "soloGames",
+  },
+  {
+    id: "hard-slots-6",
+    difficulty: "hard",
+    title: "Lancer 6 machines a sous",
+    detail: "Six spins sur la machine.",
+    goal: 6,
+    reward: MISSION_REWARDS.hard,
+    metric: "slotSpins",
+  },
+  {
+    id: "hard-blackjack-5",
+    difficulty: "hard",
+    title: "Faire 5 mains de blackjack",
+    detail: "Cinq mains terminees.",
+    goal: 5,
+    reward: MISSION_REWARDS.hard,
+    metric: "blackjackHands",
+  },
+  {
+    id: "hard-plinko-8",
+    difficulty: "hard",
+    title: "Lancer 8 billes Plinko",
+    detail: "Huit billes dans le Plinko.",
+    goal: 8,
+    reward: MISSION_REWARDS.hard,
+    metric: "plinkoDrops",
+  },
+  {
+    id: "hard-roulette-5",
+    difficulty: "hard",
+    title: "Jouer 5 tours de roulette",
+    detail: "Cinq tours complets.",
+    goal: 5,
+    reward: MISSION_REWARDS.hard,
+    metric: "rouletteSpins",
+  },
+  {
+    id: "hard-rocket-5",
+    difficulty: "hard",
+    title: "Lancer 5 fusees",
+    detail: "Cinq tentatives sur Rocket Games.",
+    goal: 5,
+    reward: MISSION_REWARDS.hard,
+    metric: "rocketLaunches",
+  },
+  {
+    id: "hard-cases-3",
+    difficulty: "hard",
+    title: "Ouvrir 3 cases",
+    detail: "Trois ouvertures pendant l'heure.",
+    goal: 3,
+    reward: MISSION_REWARDS.hard,
+    metric: "casesOpened",
+  },
+  {
+    id: "hard-claw-5",
+    difficulty: "hard",
+    title: "Tenter 5 pinces",
+    detail: "Cinq essais a la machine a pince.",
+    goal: 5,
+    reward: MISSION_REWARDS.hard,
+    metric: "clawAttempts",
+  },
+  {
+    id: "hard-bonus-3",
+    difficulty: "hard",
+    title: "Regarder 3 bonus",
+    detail: "Trois bonus volontaires dans l'heure.",
+    goal: 3,
+    reward: MISSION_REWARDS.hard,
+    metric: "rewardedAdsWatched",
   },
 ];
 const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
@@ -492,6 +716,111 @@ function normalizeRewardedAds(value: unknown): RewardedAdState {
   return {
     date,
     watched: Math.max(0, Math.min(DAILY_REWARDED_AD_LIMIT, Math.floor(Number.isFinite(watched) ? watched : 0))),
+  };
+}
+
+function getMissionHourKey(time = Date.now()) {
+  const date = new Date(time);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  return `${year}-${month}-${day}-${hour}`;
+}
+
+function missionHash(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function pickHourlyMissions(difficulty: MissionDifficulty, count: number, hourKey: string) {
+  return MISSION_DEFINITIONS.filter((mission) => mission.difficulty === difficulty)
+    .sort((first, second) => missionHash(`${hourKey}:${first.id}`) - missionHash(`${hourKey}:${second.id}`))
+    .slice(0, count);
+}
+
+function getHourlyMissionPlan(hourKey: string) {
+  return [
+    ...pickHourlyMissions("easy", 2, hourKey),
+    ...pickHourlyMissions("medium", 2, hourKey),
+    ...pickHourlyMissions("hard", 1, hourKey),
+  ];
+}
+
+function createMissionBaselines(stats: MissionStats): Record<MissionMetric, number> {
+  return {
+    soloGames: stats.soloGames,
+    slotSpins: stats.slotSpins,
+    blackjackHands: stats.blackjackHands,
+    plinkoDrops: stats.plinkoDrops,
+    rouletteSpins: stats.rouletteSpins,
+    rocketLaunches: stats.rocketLaunches,
+    casesOpened: stats.casesOpened,
+    rewardedAdsWatched: stats.rewardedAdsWatched,
+    clawAttempts: stats.clawAttempts,
+  };
+}
+
+function emptyMissionStats(): MissionStats {
+  return {
+    soloGames: 0,
+    slotSpins: 0,
+    blackjackHands: 0,
+    plinkoDrops: 0,
+    rouletteSpins: 0,
+    rocketLaunches: 0,
+    casesOpened: 0,
+    rewardedAdsWatched: 0,
+    clawAttempts: 0,
+  };
+}
+
+function normalizeMissionCounters(value: unknown): MissionStats {
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const counters = emptyMissionStats();
+
+  MISSION_METRICS.forEach((metric) => {
+    const amount = Number(raw[metric]);
+    counters[metric] = Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0;
+  });
+
+  return counters;
+}
+
+function normalizeMissionState(value: unknown): HourlyMissionState | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Partial<HourlyMissionState>;
+  const hourKey = typeof raw.hourKey === "string" ? raw.hourKey : "";
+  const knownIds = new Set(MISSION_DEFINITIONS.map((mission) => mission.id));
+  const claimedMissionIds = sanitizeClaimedMissionIds(raw.claimedMissionIds);
+  const rawBaselines = raw.baselines && typeof raw.baselines === "object" ? raw.baselines : {};
+  const baselines = MISSION_METRICS.reduce(
+    (result, key) => {
+      const metric = key as MissionMetric;
+      const value = Number((rawBaselines as Record<string, unknown>)[metric]);
+      result[metric] = Number.isFinite(value) ? Math.max(0, value) : 0;
+      return result;
+    },
+    {} as Record<MissionMetric, number>,
+  );
+
+  if (!hourKey) {
+    return null;
+  }
+
+  return {
+    hourKey,
+    baselines,
+    claimedMissionIds: claimedMissionIds.filter((id) => knownIds.has(id)),
   };
 }
 
@@ -726,7 +1055,8 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     specialInventory: sanitizeSpecialInventory(parsed.specialInventory),
     clawHistory: readArray<ClawOutcome>(parsed.clawHistory).slice(0, 10),
     rewardedAds: normalizeRewardedAds(parsed.rewardedAds),
-    claimedMissionIds: sanitizeClaimedMissionIds(parsed.claimedMissionIds),
+    missionCounters: normalizeMissionCounters(parsed.missionCounters),
+    missionState: normalizeMissionState(parsed.missionState),
   };
 }
 
@@ -847,7 +1177,8 @@ function App() {
   const [rewardedAds, setRewardedAds] = useState<RewardedAdState>(savedGame?.rewardedAds ?? normalizeRewardedAds(null));
   const [rewardedAdMessage, setRewardedAdMessage] = useState("Regarde une pub volontaire pour gagner des credits virtuels.");
   const [rewardedAdWatching, setRewardedAdWatching] = useState(false);
-  const [claimedMissionIds, setClaimedMissionIds] = useState<MissionId[]>(savedGame?.claimedMissionIds ?? []);
+  const [missionCounters, setMissionCounters] = useState<MissionStats>(savedGame?.missionCounters ?? emptyMissionStats());
+  const [missionState, setMissionState] = useState<HourlyMissionState | null>(savedGame?.missionState ?? null);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
@@ -905,6 +1236,17 @@ function App() {
   const rocketId = useRef(getNextHistoryId(savedGame?.rocketHistory));
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
   const clawId = useRef(getNextHistoryId(savedGame?.clawHistory));
+
+  function addMissionProgress(metric: MissionMetric, amount = 1) {
+    setMissionCounters((current) => ({
+      ...current,
+      [metric]: current[metric] + amount,
+      soloGames:
+        metric === "slotSpins" || metric === "blackjackHands" || metric === "plinkoDrops" || metric === "rouletteSpins" || metric === "rocketLaunches"
+          ? current.soloGames + amount
+          : current.soloGames,
+    }));
+  }
 
   function rememberAppliedTrade(tradeApplyKey: string) {
     if (appliedTradeKeysRef.current.has(tradeApplyKey)) {
@@ -1022,14 +1364,33 @@ function App() {
   );
   const missionStats = useMemo<MissionStats>(
     () => ({
-      soloGames: slotHistory.length + blackjackHistory.length + plinkoHistory.length + rouletteHistory.length + rocketHistory.length,
-      plinkoDrops: plinkoHistory.length,
-      casesOpened: caseHistory.length,
-      rewardedAdsWatched: normalizeRewardedAds(rewardedAds).watched,
-      clawAttempts: clawHistory.length,
+      ...missionCounters,
+      rewardedAdsWatched: missionCounters.rewardedAdsWatched,
     }),
-    [slotHistory, blackjackHistory, plinkoHistory, rouletteHistory, rocketHistory, caseHistory, rewardedAds, clawHistory],
+    [missionCounters],
   );
+  const missionHourKey = getMissionHourKey(now);
+  const activeMissions = useMemo(() => getHourlyMissionPlan(missionHourKey), [missionHourKey]);
+  const activeMissionState =
+    missionState?.hourKey === missionHourKey
+      ? missionState
+      : {
+          hourKey: missionHourKey,
+          baselines: createMissionBaselines(missionStats),
+          claimedMissionIds: [],
+        };
+
+  useEffect(() => {
+    if (missionState?.hourKey === missionHourKey) {
+      return;
+    }
+
+    setMissionState({
+      hourKey: missionHourKey,
+      baselines: createMissionBaselines(missionStats),
+      claimedMissionIds: [],
+    });
+  }, [missionHourKey, missionState?.hourKey, missionStats]);
 
   useEffect(() => {
     saveGame({
@@ -1046,7 +1407,8 @@ function App() {
       specialInventory,
       clawHistory,
       rewardedAds,
-      claimedMissionIds,
+      missionCounters,
+      missionState: activeMissionState,
     });
   }, [
     balance,
@@ -1061,7 +1423,8 @@ function App() {
     specialInventory,
     clawHistory,
     rewardedAds,
-    claimedMissionIds,
+    missionCounters,
+    activeMissionState,
   ]);
 
   useEffect(() => {
@@ -1156,7 +1519,8 @@ function App() {
     specialInventory,
     clawHistory,
     rewardedAds,
-    claimedMissionIds,
+    missionCounters,
+    activeMissionState,
   ]);
 
   useEffect(() => {
@@ -2188,7 +2552,8 @@ function App() {
       specialInventory,
       clawHistory,
       rewardedAds,
-      claimedMissionIds,
+      missionCounters,
+      missionState: activeMissionState,
     };
   }
 
@@ -2205,7 +2570,8 @@ function App() {
     setSpecialInventory(importedSave.specialInventory);
     setClawHistory(importedSave.clawHistory);
     setRewardedAds(importedSave.rewardedAds);
-    setClaimedMissionIds(importedSave.claimedMissionIds);
+    setMissionCounters(importedSave.missionCounters);
+    setMissionState(importedSave.missionState);
     setLastCaseDrop(importedSave.caseHistory[0] ?? null);
     setActivePlinkoLaunches([]);
     setRocketAnimating(false);
@@ -2293,6 +2659,7 @@ function App() {
         },
         ...items,
       ].slice(0, 10));
+      addMissionProgress("slotSpins");
       setSlotSpinning(false);
       slotTimeoutId.current = null;
     }, 1350);
@@ -2426,6 +2793,7 @@ function App() {
       },
       ...items,
     ].slice(0, 10));
+    addMissionProgress("blackjackHands");
   }
 
   function launchPlinko() {
@@ -2487,6 +2855,7 @@ function App() {
       },
       ...items,
     ].slice(0, 10));
+    addMissionProgress("plinkoDrops");
     setActivePlinkoLaunches((items) => items.filter((item) => item.id !== launch.id));
   }
 
@@ -2537,6 +2906,7 @@ function App() {
         },
         ...items,
       ].slice(0, 10));
+      addMissionProgress("rouletteSpins");
       setRouletteSpinning(false);
     }, ROULETTE_SPIN_DURATION_MS);
   }
@@ -2637,6 +3007,7 @@ function App() {
       setOwnedSkinIds(outcome.ownedSkinIds);
       setLastCaseDrop(historyItem);
       setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
+      addMissionProgress("casesOpened");
 
       if (!outcome.duplicate) {
         setEquippedSkins((current) => equipSkin(current, outcome.item));
@@ -2729,6 +3100,7 @@ function App() {
       setOwnedSkinIds(outcome.ownedSkinIds);
       setLastCaseDrop(historyItem);
       setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
+      addMissionProgress("casesOpened");
       if (!outcome.duplicate) {
         setEquippedSkins((current) => equipSkin(current, outcome.item));
       }
@@ -2801,6 +3173,7 @@ function App() {
       }));
     }
     setClawHistory((items) => [outcome, ...items].slice(0, 10));
+    addMissionProgress("clawAttempts");
     setClawMessage(`${label} dans la boule.`);
     return outcome;
   }
@@ -2829,22 +3202,31 @@ function App() {
           watched: Math.min(DAILY_REWARDED_AD_LIMIT, normalized.watched + 1),
         };
       });
+      addMissionProgress("rewardedAdsWatched");
       setRewardedAdWatching(false);
       setRewardedAdMessage(`+${REWARDED_AD_CREDITS} credits virtuels ajoutes.`);
     }, REWARDED_AD_WATCH_MS);
   }
 
   function claimMission(mission: MissionDefinition) {
-    if (claimedMissionIds.includes(mission.id)) {
+    if (activeMissionState.claimedMissionIds.includes(mission.id)) {
       return;
     }
 
-    const progress = mission.progress(missionStats);
+    const progress = Math.max(0, missionStats[mission.metric] - (activeMissionState.baselines[mission.metric] ?? 0));
     if (progress < mission.goal) {
       return;
     }
 
-    setClaimedMissionIds((current) => (current.includes(mission.id) ? current : [...current, mission.id]));
+    setMissionState((current) => {
+      const base = current?.hourKey === missionHourKey ? current : activeMissionState;
+      return base.claimedMissionIds.includes(mission.id)
+        ? base
+        : {
+            ...base,
+            claimedMissionIds: [...base.claimedMissionIds, mission.id],
+          };
+    });
     setBalance((current) => current + mission.reward);
   }
 
@@ -2889,6 +3271,7 @@ function App() {
         },
         ...items,
       ].slice(0, 10));
+      addMissionProgress("rocketLaunches");
       setRocketAnimating(false);
     }, ROCKET_FLIGHT_DURATION_MS);
   }
@@ -3269,8 +3652,8 @@ function App() {
         ) : activeSection === "missions" ? (
           <MissionsPanel
             balance={balance}
-            claimedMissionIds={claimedMissionIds}
-            missions={MISSION_DEFINITIONS}
+            missionState={activeMissionState}
+            missions={activeMissions}
             stats={missionStats}
             onClaim={claimMission}
           />
@@ -7313,18 +7696,18 @@ function HomeDashboard({
 
 function MissionsPanel({
   balance,
-  claimedMissionIds,
+  missionState,
   missions,
   stats,
   onClaim,
 }: {
   balance: number;
-  claimedMissionIds: MissionId[];
+  missionState: HourlyMissionState;
   missions: MissionDefinition[];
   stats: MissionStats;
   onClaim: (mission: MissionDefinition) => void;
 }) {
-  const claimedSet = new Set(claimedMissionIds);
+  const claimedSet = new Set(missionState.claimedMissionIds);
   const completedCount = missions.filter((mission) => claimedSet.has(mission.id)).length;
 
   return (
@@ -7332,7 +7715,7 @@ function MissionsPanel({
       <div className={styles.shopHeader}>
         <div>
           <h2>Missions</h2>
-          <p>Complete des objectifs et reclame des credits virtuels.</p>
+          <p>5 missions renouvelees chaque heure : 2 faciles, 2 moyennes et 1 difficile.</p>
         </div>
         <strong>{balance.toLocaleString("fr-FR")} credits</strong>
       </div>
@@ -7350,16 +7733,19 @@ function MissionsPanel({
 
       <div className={styles.missionGrid}>
         {missions.map((mission) => {
-          const rawProgress = mission.progress(stats);
+          const rawProgress = Math.max(0, stats[mission.metric] - (missionState.baselines[mission.metric] ?? 0));
           const progress = Math.min(mission.goal, rawProgress);
           const percent = Math.round((progress / mission.goal) * 100);
           const claimed = claimedSet.has(mission.id);
           const complete = progress >= mission.goal;
+          const difficultyLabel = mission.difficulty === "easy" ? "Facile" : mission.difficulty === "medium" ? "Moyen" : "Difficile";
 
           return (
-            <article className={styles.missionCard} key={mission.id}>
+            <article className={`${styles.missionCard} ${styles[`mission-${mission.difficulty}`]}`} key={mission.id}>
               <div>
-                <small>+{mission.reward.toLocaleString("fr-FR")} credits</small>
+                <small>
+                  {difficultyLabel} | +{mission.reward.toLocaleString("fr-FR")} credits
+                </small>
                 <h3>{mission.title}</h3>
                 <p>{mission.detail}</p>
               </div>
