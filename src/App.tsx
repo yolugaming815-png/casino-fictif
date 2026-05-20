@@ -2,9 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
-import activityBanner from "./assets/home/activity-banner.svg";
-import bonusBanner from "./assets/home/bonus-banner.svg";
-import boutiqueBanner from "./assets/home/boutique-banner.svg";
 import {
   INITIAL_BALANCE,
   MIN_BET,
@@ -6914,25 +6911,16 @@ function HomeDashboard({
       <LeaderboardPanel currentUserId={currentUserId} entries={leaderboard} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
       <section className={styles.homeCards} aria-label="Raccourcis">
         <button type="button" onClick={() => onGoTo("shop")}>
-          <img className={styles.homeCardImage} src={boutiqueBanner} alt="" />
-          <span className={styles.homeCardText}>
-            <strong>Boutique</strong>
-            <span>Achete des skins et coffres</span>
-          </span>
+          <strong>Boutique</strong>
+          <span>Achete des skins et coffres</span>
         </button>
         <button type="button" onClick={() => onGoTo("activity")}>
-          <img className={styles.homeCardImage} src={activityBanner} alt="" />
-          <span className={styles.homeCardText}>
-            <strong>Activite</strong>
-            <span>{activityCount > 0 ? `${activityCount} nouveaute${activityCount > 1 ? "s" : ""}` : "Tout est a jour"}</span>
-          </span>
+          <strong>Activite</strong>
+          <span>{activityCount > 0 ? `${activityCount} nouveaute${activityCount > 1 ? "s" : ""}` : "Tout est a jour"}</span>
         </button>
         <button type="button" onClick={() => onGoTo("bonus")}>
-          <img className={styles.homeCardImage} src={bonusBanner} alt="" />
-          <span className={styles.homeCardText}>
-            <strong>Bonus</strong>
-            <span>{remainingAds} pub{remainingAds > 1 ? "s" : ""} restante{remainingAds > 1 ? "s" : ""}</span>
-          </span>
+          <strong>Bonus</strong>
+          <span>{remainingAds} pub{remainingAds > 1 ? "s" : ""} restante{remainingAds > 1 ? "s" : ""}</span>
         </button>
       </section>
     </>

@@ -1857,10 +1857,11 @@
 }
 
 .homeCards button {
-  position: relative;
   display: grid;
-  min-height: 176px;
-  padding: 0;
+  gap: 8px;
+  min-height: 150px;
+  align-content: end;
+  padding: 18px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background:
@@ -1870,7 +1871,6 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
 }
 
@@ -1887,26 +1887,6 @@
 .homeCards span {
   color: #d5ddd9;
   font-weight: 700;
-}
-
-.homeCardImage {
-  width: 100%;
-  height: 100%;
-  min-height: 176px;
-  object-fit: cover;
-}
-
-.homeCardText {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  left: 12px;
-  display: grid;
-  gap: 3px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(7, 8, 12, 0.14), rgba(7, 8, 12, 0.78));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .machine {
