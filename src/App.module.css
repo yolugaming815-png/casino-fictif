@@ -1487,6 +1487,10 @@
   font-size: 1.6rem;
 }
 
+.pokerBalanceBadge {
+  display: none;
+}
+
 .pokerCommunity {
   align-self: end;
   display: grid;
@@ -5603,7 +5607,38 @@
   }
 
   .pokerTableCenter {
-    top: 38%;
+    left: 9%;
+    top: 18px;
+    min-width: 96px;
+    min-height: 76px;
+    transform: none;
+  }
+
+  .pokerBalanceBadge {
+    position: absolute;
+    top: 18px;
+    right: 9%;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    min-width: 112px;
+    min-height: 72px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    background: rgba(16, 18, 24, 0.82);
+    border: 1px solid rgba(121, 168, 255, 0.48);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.34);
+  }
+
+  .pokerBalanceBadge span,
+  .pokerBalanceBadge small {
+    color: #d5ddd9;
+    font-weight: 800;
+  }
+
+  .pokerBalanceBadge strong {
+    color: #79a8ff;
+    font-size: 1.05rem;
   }
 
   .pokerCards span {

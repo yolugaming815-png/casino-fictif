@@ -5788,6 +5788,11 @@ function PokerRoomPanel({
           <strong>{room.pokerPot.toLocaleString("fr-FR")}</strong>
           <small>{room.pokerPhase}</small>
         </div>
+        <div className={styles.pokerBalanceBadge}>
+          <span>Solde</span>
+          <strong>{playerBalance.toLocaleString("fr-FR")}</strong>
+          <small>credits</small>
+        </div>
         <div className={styles.pokerCommunity}>
           <strong>Tes cartes</strong>
           <div className={styles.pokerMiniCards}>
