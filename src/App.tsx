@@ -7449,14 +7449,14 @@ function ClawGame({
             )}
           </div>
           <div className={styles.clawControls}>
-            <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(-1)} disabled={dropping}>
-              Gauche
+            <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(-1)} disabled={dropping} aria-label="Deplacer la pince vers la gauche">
+              <span aria-hidden="true">←</span>
             </button>
             <button className={styles.primaryButton} type="button" onClick={dropClaw} disabled={dropping || paused || balance < CLAW_COST}>
               {dropping ? "La pince descend..." : "Descendre la pince"}
             </button>
-            <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(1)} disabled={dropping}>
-              Droite
+            <button className={styles.secondaryButton} type="button" onClick={() => moveClaw(1)} disabled={dropping} aria-label="Deplacer la pince vers la droite">
+              <span aria-hidden="true">→</span>
             </button>
           </div>
         </div>

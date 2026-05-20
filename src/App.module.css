@@ -1024,6 +1024,13 @@
   gap: 10px;
 }
 
+.clawControls span {
+  display: inline-block;
+  font-size: 1.9rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 @keyframes clawRevealPop {
   0% {
     transform: translateX(-50%) scale(0.45);
