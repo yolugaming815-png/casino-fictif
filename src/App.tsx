@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
+import activityShortcutImage from "./assets/home/activite.png";
+import bonusShortcutImage from "./assets/home/bonus.png";
+import boutiqueShortcutImage from "./assets/home/boutique.png";
 import {
   INITIAL_BALANCE,
   MIN_BET,
@@ -6910,17 +6913,14 @@ function HomeDashboard({
     <>
       <LeaderboardPanel currentUserId={currentUserId} entries={leaderboard} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
       <section className={styles.homeCards} aria-label="Raccourcis">
-        <button type="button" onClick={() => onGoTo("shop")}>
-          <strong>Boutique</strong>
-          <span>Achete des skins et coffres</span>
+        <button type="button" onClick={() => onGoTo("shop")} aria-label="Ouvrir la boutique">
+          <img src={boutiqueShortcutImage} alt="" />
         </button>
-        <button type="button" onClick={() => onGoTo("activity")}>
-          <strong>Activite</strong>
-          <span>{activityCount > 0 ? `${activityCount} nouveaute${activityCount > 1 ? "s" : ""}` : "Tout est a jour"}</span>
+        <button type="button" onClick={() => onGoTo("activity")} aria-label="Ouvrir l'activite">
+          <img src={activityShortcutImage} alt="" />
         </button>
-        <button type="button" onClick={() => onGoTo("bonus")}>
-          <strong>Bonus</strong>
-          <span>{remainingAds} pub{remainingAds > 1 ? "s" : ""} restante{remainingAds > 1 ? "s" : ""}</span>
+        <button type="button" onClick={() => onGoTo("bonus")} aria-label="Ouvrir les bonus">
+          <img src={bonusShortcutImage} alt="" />
         </button>
       </section>
     </>
