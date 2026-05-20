@@ -5563,7 +5563,44 @@
   }
 
   .profileInventoryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .profileInventoryItem {
     grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+
+  .profileInventoryItem .inventoryPreview {
+    width: 100%;
+    min-height: 74px;
+  }
+
+  .profileInventoryItem .caseImagePreview {
+    width: 58px;
+    height: 58px;
+  }
+
+  .profileInventoryItem .shopCardPreviewPair,
+  .profileInventoryItem .caseCardPreviewPair {
+    transform: scale(0.75);
+  }
+
+  .profileInventoryItem .vehiclePreviewLarge {
+    transform: scale(0.78);
+  }
+
+  .profileInventoryItem h4 {
+    font-size: 0.95rem;
+    line-height: 1.15;
+  }
+
+  .profileInventoryItem p {
+    display: none;
   }
 
   .accountTools {
@@ -5816,6 +5853,10 @@
     grid-template-columns: 1fr;
     justify-items: center;
     text-align: center;
+  }
+
+  .profileInventoryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .shopGrid,
