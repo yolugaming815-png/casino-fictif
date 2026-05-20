@@ -327,12 +327,17 @@ export async function saveLeaderboardEntry(
     return;
   }
 
+  const playerSnapshot = await getDoc(doc(getFirestore(app), "players", user.uid));
+  const profile = playerSnapshot.exists() && playerSnapshot.data().profile && typeof playerSnapshot.data().profile === "object" ? (playerSnapshot.data().profile as Record<string, unknown>) : {};
+  const publicDisplayName = typeof profile.displayName === "string" && profile.displayName.trim() ? profile.displayName : user.displayName || "Joueur anonyme";
+  const publicPhotoURL = typeof profile.photoURL === "string" ? profile.photoURL : publicProfilePhotoURL(user.photoURL);
+
   await setDoc(
     doc(getFirestore(app), "leaderboard", user.uid),
     {
       uid: user.uid,
-      displayName: user.displayName || "Joueur anonyme",
-      photoURL: publicProfilePhotoURL(user.photoURL),
+      displayName: publicDisplayName,
+      photoURL: publicPhotoURL,
       balance,
       inventory,
       equippedSkins,
@@ -1652,6 +1657,53 @@ function findAdminTarget(players: LeaderboardEntry[], target: string) {
   return players.find((player) => player.uid.toLowerCase() === normalized || normalizeAdminTarget(player.displayName) === normalized);
 }
 
+function parseRenameCommand(command: string) {
+  const match = command.match(/^\/rename\s+"([^"]+)"\s+to\s+"([^"]+)"$/i);
+  if (!match) {
+    throw new Error('Commande rename invalide. Utilise /rename "pseudo d\'origine" to "nouveau pseudo".');
+  }
+
+  const originalName = match[1].trim();
+  const nextName = match[2].replace(/\s+/g, " ").trim().slice(0, 28);
+  if (!originalName || !nextName) {
+    throw new Error("Les deux pseudos sont obligatoires.");
+  }
+
+  return { originalName, nextName };
+}
+
+async function updateNameReferences(db: ReturnType<typeof getFirestore>, uid: string, nextName: string) {
+  const batch = writeBatch(db);
+  let writes = 0;
+  const queueSet = (path: string, id: string, data: Record<string, unknown>) => {
+    if (writes >= 450) return;
+    batch.set(doc(db, path, id), data, { merge: true });
+    writes += 1;
+  };
+
+  const [fromFriends, toFriends, fromMessages, toMessages, fromTrades, toTrades] = await Promise.all([
+    getDocs(query(collection(db, "friendRequests"), where("fromUid", "==", uid), limit(80))),
+    getDocs(query(collection(db, "friendRequests"), where("toUid", "==", uid), limit(80))),
+    getDocs(query(collection(db, "privateMessages"), where("fromUid", "==", uid), limit(80))),
+    getDocs(query(collection(db, "privateMessages"), where("toUid", "==", uid), limit(80))),
+    getDocs(query(collection(db, "skinTrades"), where("fromUid", "==", uid), limit(80))),
+    getDocs(query(collection(db, "skinTrades"), where("toUid", "==", uid), limit(80))),
+  ]);
+
+  fromFriends.docs.forEach((entry) => queueSet("friendRequests", entry.id, { fromDisplayName: nextName }));
+  toFriends.docs.forEach((entry) => queueSet("friendRequests", entry.id, { toDisplayName: nextName }));
+  fromMessages.docs.forEach((entry) => queueSet("privateMessages", entry.id, { fromDisplayName: nextName }));
+  toMessages.docs.forEach((entry) => queueSet("privateMessages", entry.id, { toDisplayName: nextName }));
+  fromTrades.docs.forEach((entry) => queueSet("skinTrades", entry.id, { fromDisplayName: nextName }));
+  toTrades.docs.forEach((entry) => queueSet("skinTrades", entry.id, { toDisplayName: nextName }));
+
+  if (writes > 0) {
+    await batch.commit();
+  }
+
+  return writes;
+}
+
 function coerceGameSave(data: Record<string, unknown>) {
   const gameSave = data.gameSave && typeof data.gameSave === "object" ? ({ ...(data.gameSave as Record<string, unknown>) } as Record<string, unknown>) : {};
   gameSave.ownedSkinIds = Array.isArray(gameSave.ownedSkinIds) ? [...gameSave.ownedSkinIds] : [];
@@ -1733,11 +1785,41 @@ export async function executeAdminCommand(admin: CasinoUser, command: string): P
       return {
         ok: true,
         message:
-          "/add money 500 @Lucas | /add money 500 @Ilyes_Benabdelkader | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150",
+          '/rename "Lucas" to "Lucas VIP" | /add money 500 @Lucas | /add money 500 @Ilyes_Benabdelkader | /remove money 100 @Lucas | /set money 1000 @Lucas | /reset money @all | /add skin cards-aqua @Lucas | /remove skin cards-aqua @Lucas | /reset skins @Lucas | /add key nebula 1 @Lucas | /add fragments nebula 3 @Lucas | /add chest nebula 1 @Lucas | /ban @Lucas | /unban @Lucas | /delete room ROOM_ID | /finish room ROOM_ID | /set price skin cards-aqua 500 | /set price chest nebula 1200 | /set price case plinkoBall 150',
       };
     }
 
-    if (action === "/add" || action === "/remove" || action === "/set" || action === "/reset") {
+    if (action === "/rename") {
+      const { originalName, nextName } = parseRenameCommand(trimmed);
+      const player = findAdminTarget(players, originalName);
+      if (!player) {
+        throw new Error(`Joueur "${originalName}" introuvable.`);
+      }
+
+      await setDoc(
+        doc(db, "players", player.uid),
+        {
+          profile: {
+            displayName: nextName,
+            photoURL: player.photoURL ?? "",
+          },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      await setDoc(
+        doc(db, "leaderboard", player.uid),
+        {
+          uid: player.uid,
+          displayName: nextName,
+          photoURL: player.photoURL ?? "",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      const referenceCount = await updateNameReferences(db, player.uid, nextName);
+      message = `${player.displayName} renomme en ${nextName}. ${referenceCount} reference(s) mise(s) a jour.`;
+    } else if (action === "/add" || action === "/remove" || action === "/set" || action === "/reset") {
       const subject = parts[1]?.toLowerCase();
 
       if (subject === "price") {

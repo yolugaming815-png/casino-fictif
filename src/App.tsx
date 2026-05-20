@@ -3414,6 +3414,7 @@ function AdminPanel({
     "/remove money 100 @Daniel",
     "/set money 1000 @Yoann_H92",
     "/reset money @all",
+    '/rename "Lucas" to "Lucas VIP"',
     "/add skin cards-aqua @Lucas",
     "/remove skin cards-aqua @Lucas",
     "/reset skins @Lucas",
