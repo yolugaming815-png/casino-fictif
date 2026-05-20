@@ -359,11 +359,12 @@ export async function updateCasinoUserProfile(displayName: string, photoURL: str
   }
 
   const safeDisplayName = displayName.trim().slice(0, 28) || "Joueur anonyme";
-  const safePhotoURL = photoURL.trim().slice(0, 500);
+  const safePhotoURL = photoURL.trim().slice(0, 120000);
+  const authPhotoURL = safePhotoURL.startsWith("data:image/") ? auth.currentUser.photoURL : safePhotoURL || null;
 
   await updateProfile(auth.currentUser, {
     displayName: safeDisplayName,
-    photoURL: safePhotoURL || null,
+    photoURL: authPhotoURL,
   });
   await setDoc(
     doc(getFirestore(app), "players", auth.currentUser.uid),
@@ -377,7 +378,11 @@ export async function updateCasinoUserProfile(displayName: string, photoURL: str
     { merge: true },
   );
 
-  return toCasinoUser(auth.currentUser);
+  return {
+    ...toCasinoUser(auth.currentUser),
+    displayName: safeDisplayName,
+    photoURL: safePhotoURL,
+  };
 }
 
 export async function sendFriendRequest(from: CasinoUser, to: LeaderboardEntry) {
