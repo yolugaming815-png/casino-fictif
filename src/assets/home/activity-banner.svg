@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-label="Activite">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#092412"/>
+      <stop offset="0.52" stop-color="#06140d"/>
+      <stop offset="1" stop-color="#030706"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff2a6"/>
+      <stop offset="0.5" stop-color="#d0a23b"/>
+      <stop offset="1" stop-color="#6d4718"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="760" height="300" rx="22" fill="url(#bg)"/>
+  <rect x="8" y="8" width="744" height="284" rx="18" fill="none" stroke="#d7b453" stroke-width="3"/>
+  <circle cx="122" cy="92" r="70" fill="#2ee071" opacity="0.18" filter="url(#glow)"/>
+  <path d="M88 137c3-54 28-86 66-86s63 32 66 86z" fill="url(#gold)" stroke="#fff0a8" stroke-width="3"/>
+  <path d="M72 146c12 22 41 34 82 34s70-12 82-34z" fill="#a06b1e" stroke="#f8d36b" stroke-width="4"/>
+  <circle cx="154" cy="190" r="17" fill="url(#gold)" stroke="#fff0a8" stroke-width="2"/>
+  <circle cx="214" cy="58" r="27" fill="#c43535" stroke="#ff9e9e" stroke-width="4"/>
+  <text x="203" y="69" fill="#fff" font-family="Arial Black, Arial, sans-serif" font-size="28" font-weight="900">3</text>
+  <text x="350" y="86" fill="url(#gold)" font-family="Arial Black, Arial, sans-serif" font-size="54" font-weight="900">ACTIVITE</text>
+  <text x="350" y="139" fill="#f8f1e6" font-family="Arial, sans-serif" font-size="30" font-weight="700">Tout ce qui se passe</text>
+  <text x="350" y="180" fill="#f8f1e6" font-family="Arial, sans-serif" font-size="30" font-weight="700">en temps reel !</text>
+  <rect x="42" y="226" width="676" height="52" rx="17" fill="#06140e" stroke="#375c42"/>
+  <g fill="url(#gold)" stroke="#3c260d" stroke-width="1" font-family="Arial, sans-serif" font-size="17" font-weight="900">
+    <text x="96" y="260">Duel</text>
+    <text x="238" y="260">Cadeaux</text>
+    <text x="406" y="260">Echanges</text>
+    <text x="590" y="260">Amis</text>
+  </g>
+  <path d="M95 237l32 32M127 237l-32 32M244 236v35M226 247h72M420 240h64l-13-12M420 264h64l-13 12M588 238a13 13 0 1 0 0 26 13 13 0 0 0 0-26M619 244a11 11 0 1 0 0 22 11 11 0 0 0 0-22" fill="none" stroke="url(#gold)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

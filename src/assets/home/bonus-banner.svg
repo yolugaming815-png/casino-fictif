@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-label="Bonus">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#071b3a"/>
+      <stop offset="0.5" stop-color="#071020"/>
+      <stop offset="1" stop-color="#03060b"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff1a5"/>
+      <stop offset="0.5" stop-color="#d2a03b"/>
+      <stop offset="1" stop-color="#6a4216"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1">
+      <stop offset="0" stop-color="#1e59df"/>
+      <stop offset="1" stop-color="#0d1d4f"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="760" height="300" rx="22" fill="url(#bg)"/>
+  <rect x="8" y="8" width="744" height="284" rx="18" fill="none" stroke="#d7b453" stroke-width="3"/>
+  <circle cx="150" cy="92" r="74" fill="#2768ff" opacity="0.22" filter="url(#glow)"/>
+  <rect x="72" y="64" width="168" height="92" rx="24" fill="#2b1b17" stroke="url(#gold)" stroke-width="7"/>
+  <rect x="96" y="82" width="112" height="56" rx="10" fill="url(#blue)" stroke="#79a6ff" stroke-width="3"/>
+  <path d="M142 96v28l30-14z" fill="url(#gold)" stroke="#fff0a8" stroke-width="2"/>
+  <path d="M238 54c30 28 30 82 2 112" fill="none" stroke="#bf3e2f" stroke-width="18" stroke-linecap="round"/>
+  <path d="M222 160l38 42 24-52" fill="#bf3e2f" stroke="#ffbf76" stroke-width="7" stroke-linejoin="round"/>
+  <ellipse cx="87" cy="174" rx="43" ry="18" fill="url(#gold)"/>
+  <ellipse cx="150" cy="188" rx="47" ry="20" fill="url(#gold)"/>
+  <text x="390" y="84" fill="url(#gold)" font-family="Arial Black, Arial, sans-serif" font-size="60" font-weight="900">BONUS</text>
+  <text x="390" y="138" fill="#f8f1e6" font-family="Arial, sans-serif" font-size="30" font-weight="700">Regarde une pub</text>
+  <text x="390" y="179" fill="#f8f1e6" font-family="Arial, sans-serif" font-size="30" font-weight="700">et gagne des credits !</text>
+  <rect x="42" y="226" width="676" height="52" rx="17" fill="#07182a" stroke="#344c6e"/>
+  <g fill="#8df083" font-family="Arial Black, Arial, sans-serif" font-size="26" font-weight="900">
+    <text x="92" y="260">+ 1 000</text>
+    <text x="314" y="260">++ 5 000</text>
+    <text x="550" y="260">++ 10 000</text>
+  </g>
+</svg>
