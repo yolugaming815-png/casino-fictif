@@ -2667,24 +2667,36 @@ function App() {
         )}
 
         <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
+          <span aria-hidden="true">☰</span>
           Menu
         </button>
         {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
 
         <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
+          <div className={styles.menuProfile}>
+            <span className={styles.menuAvatar} aria-hidden="true">♠</span>
+            <div>
+              <strong>{accountUser?.displayName || "Joueur"}</strong>
+              <small>{balance.toLocaleString("fr-FR")} credits</small>
+            </div>
+          </div>
           <button
             className={activeSection === "home" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("home")}
           >
-            Accueil
+            <span className={styles.tabIcon} aria-hidden="true">⌂</span>
+            <span className={styles.tabLabel}>Accueil</span>
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "games" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("games")}
           >
-            Jeux
+            <span className={styles.tabIcon} aria-hidden="true">◆</span>
+            <span className={styles.tabLabel}>Jeux</span>
+            <span className={styles.tabChevron} aria-hidden="true">{activeSection === "games" ? "⌄" : "›"}</span>
           </button>
           {activeSection === "games" && (
             <div className={styles.subTabs} aria-label="Choix du jeu">
@@ -2693,42 +2705,48 @@ function App() {
                 type="button"
                 onClick={() => selectGame("slots")}
               >
-                Machine a sous
+                <span className={styles.tabIcon} aria-hidden="true">7</span>
+                <span className={styles.tabLabel}>Machine a sous</span>
               </button>
               <button
                 className={activeGame === "blackjack" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectGame("blackjack")}
               >
-                Blackjack
+                <span className={styles.tabIcon} aria-hidden="true">♠</span>
+                <span className={styles.tabLabel}>Blackjack</span>
               </button>
               <button
                 className={activeGame === "plinko" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectGame("plinko")}
               >
-                Plinko
+                <span className={styles.tabIcon} aria-hidden="true">P</span>
+                <span className={styles.tabLabel}>Plinko</span>
               </button>
               <button
                 className={activeGame === "roulette" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectGame("roulette")}
               >
-                Roulette
+                <span className={styles.tabIcon} aria-hidden="true">◎</span>
+                <span className={styles.tabLabel}>Roulette</span>
               </button>
               <button
                 className={activeGame === "rocket" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectGame("rocket")}
               >
-                Rocket Games
+                <span className={styles.tabIcon} aria-hidden="true">▲</span>
+                <span className={styles.tabLabel}>Rocket Games</span>
               </button>
               <button
                 className={activeGame === "claw" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectGame("claw")}
               >
-                Machine a pince
+                <span className={styles.tabIcon} aria-hidden="true">▣</span>
+                <span className={styles.tabLabel}>Machine a pince</span>
               </button>
             </div>
           )}
@@ -2737,7 +2755,9 @@ function App() {
             type="button"
             onClick={() => selectMainSection("online")}
           >
-            Jeux en ligne
+            <span className={styles.tabIcon} aria-hidden="true">◎</span>
+            <span className={styles.tabLabel}>Jeux en ligne</span>
+            <span className={styles.tabChevron} aria-hidden="true">{activeSection === "online" ? "⌄" : "›"}</span>
           </button>
           {activeSection === "online" && (
             <div className={styles.subTabs} aria-label="Choix du jeu en ligne">
@@ -2746,14 +2766,16 @@ function App() {
                 type="button"
                 onClick={() => selectOnlineGame("duel")}
               >
-                Duel
+                <span className={styles.tabIcon} aria-hidden="true">×</span>
+                <span className={styles.tabLabel}>Duel</span>
               </button>
               <button
                 className={activeOnlineGame === "poker" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectOnlineGame("poker")}
               >
-                Poker
+                <span className={styles.tabIcon} aria-hidden="true">♠</span>
+                <span className={styles.tabLabel}>Poker</span>
               </button>
             </div>
           )}
@@ -2762,60 +2784,76 @@ function App() {
             type="button"
             onClick={() => selectMainSection("cases")}
           >
-            Cases
+            <span className={styles.tabIcon} aria-hidden="true">□</span>
+            <span className={styles.tabLabel}>Cases</span>
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "shop" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("shop")}
           >
-            Boutique
+            <span className={styles.tabIcon} aria-hidden="true">$</span>
+            <span className={styles.tabLabel}>Boutique</span>
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "inventory" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("inventory")}
           >
-            Inventaire
+            <span className={styles.tabIcon} aria-hidden="true">▣</span>
+            <span className={styles.tabLabel}>Inventaire</span>
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "bonus" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("bonus")}
           >
-            Bonus
+            <span className={styles.tabIcon} aria-hidden="true">+</span>
+            <span className={styles.tabLabel}>Bonus</span>
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "friends" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("friends")}
           >
-            <span>Amis</span>
+            <span className={styles.tabIcon} aria-hidden="true">●</span>
+            <span className={styles.tabLabel}>Amis</span>
             {pendingFriendRequestsCount > 0 ? <span className={styles.tabBadge}>{pendingFriendRequestsCount}</span> : null}
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "trades" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("trades")}
           >
-            <span>Echanges</span>
+            <span className={styles.tabIcon} aria-hidden="true">⇄</span>
+            <span className={styles.tabLabel}>Echanges</span>
             {pendingTradeOffersCount > 0 ? <span className={styles.tabBadge}>{pendingTradeOffersCount}</span> : null}
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "messages" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("messages")}
           >
-            <span>Messages</span>
+            <span className={styles.tabIcon} aria-hidden="true">✉</span>
+            <span className={styles.tabLabel}>Messages</span>
             {unreadMessagesCount > 0 ? <span className={styles.tabBadge}>{unreadMessagesCount}</span> : null}
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
             className={activeSection === "activity" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("activity")}
           >
-            <span>Activite</span>
+            <span className={styles.tabIcon} aria-hidden="true">!</span>
+            <span className={styles.tabLabel}>Activite</span>
             {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           {isAdmin ? (
             <button
@@ -2823,7 +2861,9 @@ function App() {
               type="button"
               onClick={() => selectMainSection("admin")}
             >
-              Admin
+              <span className={styles.tabIcon} aria-hidden="true">★</span>
+              <span className={styles.tabLabel}>Admin</span>
+              <span className={styles.tabChevron} aria-hidden="true">›</span>
             </button>
           ) : null}
         </nav>
