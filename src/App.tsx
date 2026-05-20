@@ -281,6 +281,7 @@ const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-ruby": plinkoRubyImage,
   "plinko-storm": plinkoStormImage,
 };
+const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-20";
 const PROFILE_PHOTO_PRESETS = [
   "",
   "https://api.dicebear.com/9.x/identicon/svg?seed=spade",
@@ -298,7 +299,8 @@ const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
 const plinkoBallImageCache = new Map<string, { image: HTMLImageElement; loaded: boolean }>();
 
 function getPlinkoBallImageSource(id: string) {
-  return PLINKO_BALL_IMAGES[id] ?? "";
+  const source = PLINKO_BALL_IMAGES[id] ?? "";
+  return source ? `${source}?v=${PLINKO_BALL_IMAGE_VERSION}` : "";
 }
 
 function getLoadedPlinkoBallImage(id: string) {
