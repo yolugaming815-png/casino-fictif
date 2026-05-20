@@ -5312,53 +5312,57 @@ function PlayerProfileModal({
           )}
         </div>
 
-        <div className={styles.profileStats}>
-          <span>
-            <strong>{duelStats?.wins ?? 0}</strong>
-            victoires
-          </span>
-          <span>
-            <strong>{duelStats?.losses ?? 0}</strong>
-            defaites
-          </span>
-          <span>
-            <strong>{(duelStats?.ratio ?? 0).toFixed(2)}</strong>
-            ratio
-          </span>
-        </div>
+        {!isCurrentUser && (
+          <>
+            <div className={styles.profileStats}>
+              <span>
+                <strong>{duelStats?.wins ?? 0}</strong>
+                victoires
+              </span>
+              <span>
+                <strong>{duelStats?.losses ?? 0}</strong>
+                defaites
+              </span>
+              <span>
+                <strong>{(duelStats?.ratio ?? 0).toFixed(2)}</strong>
+                ratio
+              </span>
+            </div>
 
-        <div className={styles.profileInventory}>
-          {inventory.length === 0 ? (
-            <p className={styles.empty}>Aucun inventaire public pour le moment.</p>
-          ) : (
-            groupedInventory.map((group) =>
-              group.items.length > 0 ? (
-                <section className={styles.profileInventorySection} key={group.category}>
-                  <h3>{skinCategoryLabel(group.category)}</h3>
-                  <div className={styles.profileInventoryGrid}>
-                    {group.items.map(({ item, count }) => {
-                      const equipped = player.equippedSkins[item.category] === item.id;
+            <div className={styles.profileInventory}>
+              {inventory.length === 0 ? (
+                <p className={styles.empty}>Aucun inventaire public pour le moment.</p>
+              ) : (
+                groupedInventory.map((group) =>
+                  group.items.length > 0 ? (
+                    <section className={styles.profileInventorySection} key={group.category}>
+                      <h3>{skinCategoryLabel(group.category)}</h3>
+                      <div className={styles.profileInventoryGrid}>
+                        {group.items.map(({ item, count }) => {
+                          const equipped = player.equippedSkins[item.category] === item.id;
 
-                      return (
-                        <article className={`${styles.profileInventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
-                          <div className={styles.inventoryPreview}>
-                            <SkinPreview item={item} large />
-                            <span className={styles.inventoryCount}>x{count}</span>
-                          </div>
-                          <div>
-                            <small>{rarityLabel(item.rarity)}</small>
-                            <h4>{item.name}</h4>
-                            <p>{equipped ? "Equipe" : "Dans l'inventaire"}</p>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : null,
-            )
-          )}
-        </div>
+                          return (
+                            <article className={`${styles.profileInventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
+                              <div className={styles.inventoryPreview}>
+                                <SkinPreview item={item} large />
+                                <span className={styles.inventoryCount}>x{count}</span>
+                              </div>
+                              <div>
+                                <small>{rarityLabel(item.rarity)}</small>
+                                <h4>{item.name}</h4>
+                                <p>{equipped ? "Equipe" : "Dans l'inventaire"}</p>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ) : null,
+                )
+              )}
+            </div>
+          </>
+        )}
       </section>
     </div>
   );
