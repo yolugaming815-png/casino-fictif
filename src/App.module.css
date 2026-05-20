@@ -1897,6 +1897,28 @@
   object-fit: cover;
 }
 
+@media (min-width: 781px) {
+  .homeCards button {
+    min-height: 0;
+  }
+
+  .homeCards button:nth-child(1) {
+    aspect-ratio: 1528 / 1029;
+  }
+
+  .homeCards button:nth-child(2) {
+    aspect-ratio: 1454 / 1082;
+  }
+
+  .homeCards button:nth-child(3) {
+    aspect-ratio: 1592 / 988;
+  }
+
+  .homeCards img {
+    min-height: 0;
+  }
+}
+
 .machine {
   position: relative;
   display: grid;
