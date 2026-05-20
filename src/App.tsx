@@ -1540,7 +1540,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => setNow(Date.now()), 60000);
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
   }, []);
 
