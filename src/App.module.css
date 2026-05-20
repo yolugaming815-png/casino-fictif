@@ -5652,6 +5652,17 @@
     font-size: 1.05rem;
   }
 
+  .pokerTableView {
+    min-height: 430px;
+    padding: 116px 16px 20px;
+    align-items: end;
+  }
+
+  .pokerCommunity {
+    min-height: 220px;
+    align-content: center;
+  }
+
   .pokerCards span {
     width: 46px;
     height: 66px;
