@@ -766,6 +766,7 @@
 
 .clawCarriage {
   position: absolute;
+  --claw-drop: 78px;
   left: var(--claw-x);
   top: 20px;
   width: 96px;
@@ -778,23 +779,23 @@
 }
 
 .clawCarriageDropping {
-  transform: translateX(-50%) translateY(74px);
-}
-
-.clawCarriageDropping .clawCable {
-  height: 112px;
-}
-
-.clawCarriageDropping .clawBody {
   transform: translateX(-50%);
 }
 
+.clawCarriageDropping .clawCable {
+  height: calc(86px + var(--claw-drop));
+}
+
+.clawCarriageDropping .clawBody {
+  transform: translateX(-50%) translateY(var(--claw-drop));
+}
+
 .clawCarriageDropping .clawGripLeft {
-  transform: rotate(18deg);
+  transform: translateY(var(--claw-drop)) rotate(18deg);
 }
 
 .clawCarriageDropping .clawGripRight {
-  transform: rotate(-18deg);
+  transform: translateY(var(--claw-drop)) rotate(-18deg);
 }
 
 .clawRail {
@@ -5403,6 +5404,10 @@
   .clawMachine {
     width: 100%;
     min-height: min(112vw, 430px);
+  }
+
+  .clawCarriage {
+    --claw-drop: clamp(132px, 36vw, 164px);
   }
 
   .clawMachine::before {
