@@ -44,6 +44,11 @@ export type LeaderboardEntry = {
   photoURL?: string;
   balance: number;
   inventory: Array<{ id: string; count: number }>;
+  specialInventory?: {
+    chests: Record<string, number>;
+    keys: Record<string, number>;
+    fragments: Record<string, number>;
+  };
   equippedSkins: Record<string, string>;
   isAdmin?: boolean;
   banned?: boolean;
@@ -322,6 +327,7 @@ export async function saveLeaderboardEntry(
   balance: number,
   inventory: Array<{ id: string; count: number }> = [],
   equippedSkins: Record<string, string> = {},
+  specialInventory: LeaderboardEntry["specialInventory"] = { chests: {}, keys: {}, fragments: {} },
 ) {
   const app = getFirebaseApp();
   if (!app) {
@@ -349,6 +355,7 @@ export async function saveLeaderboardEntry(
       photoURL: publicPhotoURL,
       balance,
       inventory,
+      specialInventory,
       equippedSkins,
       isAdmin: userIsAdmin,
       updatedAt: serverTimestamp(),
@@ -1627,6 +1634,7 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
             }))
             .filter((item) => item.id && item.count > 0)
         : [],
+      specialInventory: parsePublicSpecialInventory(data.specialInventory),
       equippedSkins: data.equippedSkins && typeof data.equippedSkins === "object" ? (data.equippedSkins as Record<string, string>) : {},
       isAdmin: data.isAdmin === true,
       banned: data.banned === true,
@@ -1646,6 +1654,26 @@ export async function loadLeaderboard(limitCount = 10): Promise<LeaderboardEntry
   }
 }
 
+function parsePublicSpecialInventory(value: unknown): LeaderboardEntry["specialInventory"] {
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const parseBucket = (bucket: unknown) => {
+    const source = bucket && typeof bucket === "object" ? (bucket as Record<string, unknown>) : {};
+    return Object.entries(source).reduce<Record<string, number>>((items, [id, count]) => {
+      const safeCount = Math.max(0, Math.floor(Number(count)));
+      if (id && safeCount > 0) {
+        items[id] = safeCount;
+      }
+      return items;
+    }, {});
+  };
+
+  return {
+    chests: parseBucket(raw.chests),
+    keys: parseBucket(raw.keys),
+    fragments: parseBucket(raw.fragments),
+  };
+}
+
 function parseLeaderboardEntry(id: string, data: Record<string, unknown>): LeaderboardEntry {
   return {
     uid: typeof data.uid === "string" ? data.uid : id,
@@ -1660,6 +1688,7 @@ function parseLeaderboardEntry(id: string, data: Record<string, unknown>): Leade
           }))
           .filter((item) => item.id && item.count > 0)
       : [],
+    specialInventory: parsePublicSpecialInventory(data.specialInventory),
     equippedSkins: data.equippedSkins && typeof data.equippedSkins === "object" ? (data.equippedSkins as Record<string, string>) : {},
     banned: data.banned === true,
     updatedAt: data.updatedAt,

@@ -944,6 +944,79 @@ function buildPublicInventory(ownedSkinIds: readonly string[]) {
   }));
 }
 
+function buildPublicSpecialInventory(specialInventory: SpecialInventory) {
+  return {
+    chests: { ...specialInventory.chests },
+    keys: { ...specialInventory.keys },
+    fragments: { ...specialInventory.fragments },
+  };
+}
+
+type SpecialTradeKind = "chest" | "key" | "fragment";
+
+function specialTradeItemId(kind: SpecialTradeKind, chestId: SpecialChestId) {
+  return `special:${kind}:${chestId}`;
+}
+
+function parseSpecialTradeItemId(id: string): { kind: SpecialTradeKind; chestId: SpecialChestId } | null {
+  const [prefix, kind, chestId] = id.split(":");
+  if (prefix !== "special" || (kind !== "chest" && kind !== "key" && kind !== "fragment")) {
+    return null;
+  }
+
+  const chest = SPECIAL_CHESTS.find((candidate) => candidate.id === chestId);
+  return chest ? { kind, chestId: chest.id } : null;
+}
+
+function specialTradeItemCount(specialInventory: SpecialInventory, id: string) {
+  const parsed = parseSpecialTradeItemId(id);
+  if (!parsed) {
+    return 0;
+  }
+
+  if (parsed.kind === "chest") {
+    return specialInventory.chests[parsed.chestId] ?? 0;
+  }
+
+  if (parsed.kind === "key") {
+    return specialInventory.keys[parsed.chestId] ?? 0;
+  }
+
+  return specialInventory.fragments[parsed.chestId] ?? 0;
+}
+
+function updateSpecialInventoryCopy(specialInventory: SpecialInventory, id: string, delta: number): SpecialInventory {
+  const parsed = parseSpecialTradeItemId(id);
+  if (!parsed) {
+    return specialInventory;
+  }
+
+  const bucket = parsed.kind === "chest" ? "chests" : parsed.kind === "key" ? "keys" : "fragments";
+  return {
+    ...specialInventory,
+    [bucket]: {
+      ...specialInventory[bucket],
+      [parsed.chestId]: Math.max(0, (specialInventory[bucket][parsed.chestId] ?? 0) + delta),
+    },
+  };
+}
+
+function hasTradeItemCopy(ownedSkinIds: readonly string[], specialInventory: SpecialInventory, id: string) {
+  if (!id) {
+    return true;
+  }
+
+  return parseSpecialTradeItemId(id) ? specialTradeItemCount(specialInventory, id) > 0 : hasSkinCopy(ownedSkinIds, id);
+}
+
+function buildSpecialTradeOptions(specialInventory: SpecialInventory) {
+  return SPECIAL_CHESTS.flatMap((chest) => [
+    { id: specialTradeItemId("chest", chest.id), name: chest.title, count: specialInventory.chests[chest.id] ?? 0 },
+    { id: specialTradeItemId("key", chest.id), name: chest.keyName, count: specialInventory.keys[chest.id] ?? 0 },
+    { id: specialTradeItemId("fragment", chest.id), name: chest.fragmentName, count: specialInventory.fragments[chest.id] ?? 0 },
+  ]).filter((item) => item.count > 0);
+}
+
 function removeOneSkinCopy(ownedSkinIds: readonly string[], skinId: string) {
   let removed = false;
   return ownedSkinIds.filter((id) => {
@@ -1470,12 +1543,24 @@ function App() {
 
         if (cloudSave) {
           applyCloudSave(cloudSave);
-          await saveLeaderboardEntry(user, cloudSave.balance, buildPublicInventory(cloudSave.ownedSkinIds), cloudSave.equippedSkins);
+          await saveLeaderboardEntry(
+            user,
+            cloudSave.balance,
+            buildPublicInventory(cloudSave.ownedSkinIds),
+            cloudSave.equippedSkins,
+            buildPublicSpecialInventory(cloudSave.specialInventory),
+          );
           setAccountMessage("Sauvegarde Google chargee.");
         } else {
           const currentSave = getCurrentSaveState();
           await saveCloudSave(user.uid, currentSave);
-          await saveLeaderboardEntry(user, currentSave.balance, buildPublicInventory(currentSave.ownedSkinIds), currentSave.equippedSkins);
+          await saveLeaderboardEntry(
+            user,
+            currentSave.balance,
+            buildPublicInventory(currentSave.ownedSkinIds),
+            currentSave.equippedSkins,
+            buildPublicSpecialInventory(currentSave.specialInventory),
+          );
           setAccountMessage("Compte Google cree avec ta partie actuelle.");
         }
 
@@ -1509,7 +1594,13 @@ function App() {
 
       Promise.all([
         saveCloudSave(accountUser.uid, currentSave),
-        saveLeaderboardEntry(accountUser, currentSave.balance, buildPublicInventory(currentSave.ownedSkinIds), currentSave.equippedSkins),
+        saveLeaderboardEntry(
+          accountUser,
+          currentSave.balance,
+          buildPublicInventory(currentSave.ownedSkinIds),
+          currentSave.equippedSkins,
+          buildPublicSpecialInventory(currentSave.specialInventory),
+        ),
       ])
         .then(() => {
           setAccountMessage("Sauvegarde Google a jour.");
@@ -1777,7 +1868,11 @@ function App() {
         if (isSender) {
           rememberAppliedTrade(tradeApplyKey);
           if (trade.requestedItemId) {
-            setOwnedSkinIds((current) => [...current, trade.requestedItemId]);
+            if (parseSpecialTradeItemId(trade.requestedItemId)) {
+              setSpecialInventory((current) => updateSpecialInventoryCopy(current, trade.requestedItemId, 1));
+            } else {
+              setOwnedSkinIds((current) => [...current, trade.requestedItemId]);
+            }
           }
           if (trade.requestedCredits > 0) {
             setBalance((current) => current + trade.requestedCredits);
@@ -1786,16 +1881,26 @@ function App() {
         }
 
         if (isReceiver) {
-          if (trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
-            setTradesMessage("Un echange accepte n'a pas pu etre applique : skin manquant.");
+          if (trade.requestedItemId && !hasTradeItemCopy(ownedSkinIds, specialInventory, trade.requestedItemId)) {
+            setTradesMessage("Un echange accepte n'a pas pu etre applique : objet manquant.");
             return;
           }
 
           rememberAppliedTrade(tradeApplyKey);
-          setOwnedSkinIds((current) => {
-            const withoutRequested = trade.requestedItemId ? removeOneSkinCopy(current, trade.requestedItemId) : current;
-            return trade.offeredItemId ? [...withoutRequested, trade.offeredItemId] : withoutRequested;
-          });
+          if (trade.requestedItemId) {
+            if (parseSpecialTradeItemId(trade.requestedItemId)) {
+              setSpecialInventory((current) => updateSpecialInventoryCopy(current, trade.requestedItemId, -1));
+            } else {
+              setOwnedSkinIds((current) => removeOneSkinCopy(current, trade.requestedItemId));
+            }
+          }
+          if (trade.offeredItemId) {
+            if (parseSpecialTradeItemId(trade.offeredItemId)) {
+              setSpecialInventory((current) => updateSpecialInventoryCopy(current, trade.offeredItemId, 1));
+            } else {
+              setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
+            }
+          }
           setBalance((current) => Math.max(0, current - trade.requestedCredits) + trade.offeredCredits);
           markSkinTradeApplied(trade.id, "to").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
         }
@@ -1804,7 +1909,11 @@ function App() {
       if ((trade.status === "rejected" || trade.status === "canceled") && isSender) {
         rememberAppliedTrade(tradeApplyKey);
         if (trade.offeredItemId) {
-          setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
+          if (parseSpecialTradeItemId(trade.offeredItemId)) {
+            setSpecialInventory((current) => updateSpecialInventoryCopy(current, trade.offeredItemId, 1));
+          } else {
+            setOwnedSkinIds((current) => [...current, trade.offeredItemId]);
+          }
         }
         if (trade.offeredCredits > 0) {
           setBalance((current) => current + trade.offeredCredits);
@@ -1817,7 +1926,7 @@ function App() {
         markSkinTradeApplied(trade.id, "to").then(() => refreshSkinTrades(accountUser.uid)).catch(() => undefined);
       }
     });
-  }, [accountUser, ownedSkinIds, skinTrades]);
+  }, [accountUser, ownedSkinIds, skinTrades, specialInventory]);
 
   async function refreshLeaderboard() {
     if (!isFirebaseConfigured()) {
@@ -1996,6 +2105,7 @@ function App() {
         photoURL: publicProfilePhotoURL(accountUser.photoURL),
         balance,
         inventory: buildPublicInventory(ownedSkinIds),
+        specialInventory: buildPublicSpecialInventory(specialInventory),
         equippedSkins,
         isAdmin,
       },
@@ -2016,7 +2126,7 @@ function App() {
       const updatedUser = await updateCasinoUserProfile(displayName, photoURL);
       const nextUser = updatedUser ?? { ...accountUser, displayName: displayName.trim(), photoURL: photoURL.trim() };
       setAccountUser(nextUser);
-      await saveLeaderboardEntry(nextUser, balance, buildPublicInventory(ownedSkinIds), equippedSkins);
+      await saveLeaderboardEntry(nextUser, balance, buildPublicInventory(ownedSkinIds), equippedSkins, buildPublicSpecialInventory(specialInventory));
       await refreshLeaderboard();
       setSelectedProfile((profile) =>
         profile
@@ -2026,6 +2136,7 @@ function App() {
               photoURL: publicProfilePhotoURL(nextUser.photoURL),
               balance,
               inventory: buildPublicInventory(ownedSkinIds),
+              specialInventory: buildPublicSpecialInventory(specialInventory),
               equippedSkins,
             }
           : profile,
@@ -2453,12 +2564,12 @@ function App() {
     }
 
     if ((!offeredItemId && offeredCredits <= 0) || (!requestedItemId && requestedCredits <= 0)) {
-      setTradesMessage("Choisis au moins un skin ou des credits de chaque cote.");
+      setTradesMessage("Choisis au moins un objet ou des credits de chaque cote.");
       return false;
     }
 
-    if (offeredItemId && !hasSkinCopy(ownedSkinIds, offeredItemId)) {
-      setTradesMessage("Tu ne possedes plus ce skin.");
+    if (offeredItemId && !hasTradeItemCopy(ownedSkinIds, specialInventory, offeredItemId)) {
+      setTradesMessage("Tu ne possedes plus cet objet.");
       return false;
     }
 
@@ -2468,9 +2579,14 @@ function App() {
     }
 
     const previousOwnedSkinIds = ownedSkinIds;
+    const previousSpecialInventory = specialInventory;
     const previousBalance = balance;
     if (offeredItemId) {
-      setOwnedSkinIds((current) => removeOneSkinCopy(current, offeredItemId));
+      if (parseSpecialTradeItemId(offeredItemId)) {
+        setSpecialInventory((current) => updateSpecialInventoryCopy(current, offeredItemId, -1));
+      } else {
+        setOwnedSkinIds((current) => removeOneSkinCopy(current, offeredItemId));
+      }
     }
     if (offeredCredits > 0) {
       setBalance((current) => current - offeredCredits);
@@ -2483,6 +2599,7 @@ function App() {
       return true;
     } catch (error) {
       setOwnedSkinIds(previousOwnedSkinIds);
+      setSpecialInventory(previousSpecialInventory);
       setBalance(previousBalance);
       const message = error instanceof Error ? error.message : "Erreur inconnue";
       setTradesMessage(`Echange impossible : ${message}`);
@@ -2527,8 +2644,8 @@ function App() {
       return false;
     }
 
-    if (status === "accepted" && trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId)) {
-      setTradesMessage("Tu n'as plus le skin demande pour accepter cet echange.");
+    if (status === "accepted" && trade.requestedItemId && !hasTradeItemCopy(ownedSkinIds, specialInventory, trade.requestedItemId)) {
+      setTradesMessage("Tu n'as plus l'objet demande pour accepter cet echange.");
       return false;
     }
 
@@ -3704,7 +3821,7 @@ function App() {
             onBuySpecialChest={buySpecialChest}
           />
         ) : activeSection === "inventory" ? (
-          <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} onEquip={handleEquipSkin} />
+          <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} specialInventory={specialInventory} onEquip={handleEquipSkin} />
         ) : activeSection === "bonus" ? (
           <RewardedAdsPanel
             balance={balance}
@@ -3730,6 +3847,7 @@ function App() {
             leaderboard={leaderboard}
             message={tradesMessage}
             ownedSkinIds={ownedSkinIds}
+            specialInventory={specialInventory}
             trades={skinTrades}
             onAnswer={handleAnswerSkinTrade}
             onCounter={handleCounterSkinTrade}
@@ -3858,7 +3976,17 @@ function App() {
 }
 
 function getTradeItemName(id: string) {
-  return id ? SHOP_ITEMS.find((item) => item.id === id)?.name ?? id : "";
+  if (!id) {
+    return "";
+  }
+
+  const specialItem = parseSpecialTradeItemId(id);
+  if (specialItem) {
+    const chest = getSpecialChestDefinition(specialItem.chestId);
+    return specialItem.kind === "chest" ? chest.title : specialItem.kind === "key" ? chest.keyName : chest.fragmentName;
+  }
+
+  return SHOP_ITEMS.find((item) => item.id === id)?.name ?? id;
 }
 
 function getTradeAssetLabel(itemId: string, credits: number) {
@@ -4778,6 +4906,7 @@ function TradesGame({
   leaderboard,
   message,
   ownedSkinIds,
+  specialInventory,
   trades,
   onAnswer,
   onCounter,
@@ -4789,6 +4918,7 @@ function TradesGame({
   leaderboard: LeaderboardEntry[];
   message: string;
   ownedSkinIds: string[];
+  specialInventory: SpecialInventory;
   trades: SkinTradeEntry[];
   onAnswer: (trade: SkinTradeEntry, status: "accepted" | "rejected" | "canceled") => Promise<boolean>;
   onCounter: (
@@ -4816,7 +4946,14 @@ function TradesGame({
   const [counterTradeId, setCounterTradeId] = useState("");
   const leaderboardById = new Map(leaderboard.map((entry) => [entry.uid, entry]));
   const ownedCounts = countOwnedSkins(ownedSkinIds);
-  const ownItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0));
+  const ownItems = [
+    ...sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0)).map((item) => ({
+      id: item.id,
+      name: item.name,
+      count: ownedCounts[item.id],
+    })),
+    ...buildSpecialTradeOptions(specialInventory),
+  ];
   const friends = friendRequests
     .filter((request) => request.status === "accepted" && (request.fromUid === currentUserId || request.toUid === currentUserId))
     .reduce<Array<{ uid: string; displayName: string; profile?: LeaderboardEntry }>>((items, request) => {
@@ -4847,14 +4984,18 @@ function TradesGame({
         }
       : undefined);
   const friendInventory = selectedFriend?.profile?.inventory ?? [];
-  const friendItems = friendInventory
+  const friendSkinItems = friendInventory
     .map((entry) => SHOP_ITEMS.find((item) => item.id === entry.id))
     .filter((item): item is ShopItem => Boolean(item));
+  const friendItems = [
+    ...friendSkinItems.map((item) => ({ id: item.id, name: item.name, count: friendInventory.find((entry) => entry.id === item.id)?.count ?? 1 })),
+    ...buildSpecialTradeOptions(sanitizeSpecialInventory(selectedFriend?.profile?.specialInventory)),
+  ];
   const offeredCredits = normalizeTradeCredits(offeredCreditsText);
   const requestedCredits = normalizeTradeCredits(requestedCreditsText);
 
   function tradeItemName(id: string) {
-    return id ? SHOP_ITEMS.find((item) => item.id === id)?.name ?? id : "Aucun skin";
+    return id ? getTradeItemName(id) : "Aucun objet";
   }
 
   function tradeCreditsLabel(credits: number) {
@@ -4876,6 +5017,22 @@ function TradesGame({
     return SHOP_ITEMS.find((item) => item.id === id);
   }
 
+  function tradeSpecialItem(id: string) {
+    const parsed = parseSpecialTradeItemId(id);
+    if (!parsed) {
+      return null;
+    }
+
+    const chest = getSpecialChestDefinition(parsed.chestId);
+    return {
+      ...parsed,
+      chest,
+      name: parsed.kind === "chest" ? chest.title : parsed.kind === "key" ? chest.keyName : chest.fragmentName,
+      detail: parsed.kind === "chest" ? "Coffre special" : parsed.kind === "key" ? "Cle de coffre" : "Fragment de cle",
+      icon: parsed.kind === "chest" ? "▣" : parsed.kind === "key" ? "◇" : "◆",
+    };
+  }
+
   function tradeStatusLabel(status: SkinTradeEntry["status"]) {
     if (status === "accepted") {
       return "Accepte";
@@ -4894,13 +5051,16 @@ function TradesGame({
 
   function TradeSkinPreview({ id, label }: { id: string; label: string }) {
     const item = tradeItem(id);
+    const specialItem = tradeSpecialItem(id);
 
     return (
       <div className={styles.tradeSkinPreview}>
         <span>{label}</span>
-        <div className={styles.inventoryPreview}>{item ? <SkinPreview item={item} /> : <strong>?</strong>}</div>
-        <strong>{item?.name ?? id}</strong>
-        <small>{item?.rarity ?? "Skin"}</small>
+        <div className={styles.inventoryPreview}>
+          {item ? <SkinPreview item={item} /> : specialItem ? <SpecialResourcePreview icon={specialItem.icon} theme={specialItem.chest.theme} /> : <strong>?</strong>}
+        </div>
+        <strong>{item?.name ?? specialItem?.name ?? id}</strong>
+        <small>{item?.rarity ?? specialItem?.detail ?? "Objet"}</small>
       </div>
     );
   }
@@ -4922,7 +5082,7 @@ function TradesGame({
   function startCounterOffer(trade: SkinTradeEntry) {
     setCounterTradeId(trade.id);
     setFriendUid(trade.fromUid);
-    setOfferedItemId(trade.requestedItemId && hasSkinCopy(ownedSkinIds, trade.requestedItemId) ? trade.requestedItemId : "");
+    setOfferedItemId(trade.requestedItemId && hasTradeItemCopy(ownedSkinIds, specialInventory, trade.requestedItemId) ? trade.requestedItemId : "");
     setRequestedItemId(trade.offeredItemId);
     setOfferedCreditsText(trade.requestedCredits > 0 ? String(trade.requestedCredits) : "0");
     setRequestedCreditsText(trade.offeredCredits > 0 ? String(trade.offeredCredits) : "0");
@@ -4968,7 +5128,7 @@ function TradesGame({
       <section className={styles.machine}>
         <div className={styles.shopHeader}>
           <div>
-            <h2>Echanges de skins</h2>
+            <h2>Echanges</h2>
             <p>{message}</p>
           </div>
           <strong>{trades.length} echange{trades.length > 1 ? "s" : ""}</strong>
@@ -4994,10 +5154,10 @@ function TradesGame({
           <label>
             Tu donnes
             <select value={offeredItemId} onChange={(event) => setOfferedItemId(event.target.value)}>
-              <option value="">Aucun skin</option>
+              <option value="">Aucun objet</option>
               {ownItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name} x{ownedCounts[item.id]}
+                  {item.name} x{item.count}
                 </option>
               ))}
             </select>
@@ -5016,10 +5176,10 @@ function TradesGame({
           <label>
             Tu demandes
             <select value={requestedItemId} onChange={(event) => setRequestedItemId(event.target.value)} disabled={!selectedFriend}>
-              <option value="">Aucun skin</option>
+              <option value="">Aucun objet</option>
               {friendItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name}
+                  {item.name} x{item.count}
                 </option>
               ))}
             </select>
@@ -5074,7 +5234,7 @@ function TradesGame({
                 <div className={styles.tradeCardBody}>
                   <div>
                     <strong>{trade.fromDisplayName}</strong>
-                    <small>Te propose un echange de skins.</small>
+                    <small>Te propose un echange.</small>
                   </div>
                   <div className={styles.tradeSummary}>
                     {trade.offeredItemId ? <TradeSkinPreview id={trade.offeredItemId} label="Tu recois" /> : null}
@@ -5082,8 +5242,8 @@ function TradesGame({
                     {trade.requestedItemId ? <TradeSkinPreview id={trade.requestedItemId} label="Tu donnes" /> : null}
                     <TradeCreditsPreview credits={trade.requestedCredits} label="Tu donnes" />
                   </div>
-                  {trade.requestedItemId && !hasSkinCopy(ownedSkinIds, trade.requestedItemId) ? (
-                    <small className={styles.tradeWarning}>Tu ne possedes plus le skin demande.</small>
+                  {trade.requestedItemId && !hasTradeItemCopy(ownedSkinIds, specialInventory, trade.requestedItemId) ? (
+                    <small className={styles.tradeWarning}>Tu ne possedes plus l'objet demande.</small>
                   ) : null}
                   {trade.requestedCredits > balance ? <small className={styles.tradeWarning}>Tu n'as pas assez de credits.</small> : null}
                 </div>
@@ -5092,7 +5252,7 @@ function TradesGame({
                     className={styles.primaryButton}
                     type="button"
                     onClick={() => onAnswer(trade, "accepted")}
-                    disabled={(trade.requestedItemId ? !hasSkinCopy(ownedSkinIds, trade.requestedItemId) : false) || trade.requestedCredits > balance}
+                    disabled={(trade.requestedItemId ? !hasTradeItemCopy(ownedSkinIds, specialInventory, trade.requestedItemId) : false) || trade.requestedCredits > balance}
                   >
                     Accepter
                   </button>
@@ -5123,7 +5283,7 @@ function TradesGame({
                 <div className={styles.tradeCardBody}>
                   <div>
                     <strong>{trade.toDisplayName}</strong>
-                    <small>Offre en attente. Ton skin est reserve.</small>
+                    <small>Offre en attente. Ton objet est reserve.</small>
                   </div>
                   <div className={styles.tradeSummary}>
                     {trade.offeredItemId ? <TradeSkinPreview id={trade.offeredItemId} label="Tu donnes" /> : null}
@@ -5973,6 +6133,33 @@ function PlayerProfileModal({
     category,
     items: inventory.filter(({ item }) => item.category === category),
   }));
+  const profileSpecialInventory = sanitizeSpecialInventory(player.specialInventory);
+  const profileSpecialItems = SPECIAL_CHESTS.flatMap((chest) => [
+    {
+      id: specialTradeItemId("chest", chest.id),
+      title: chest.title,
+      detail: "Coffre special",
+      count: profileSpecialInventory.chests[chest.id],
+      theme: chest.theme,
+      icon: "▣",
+    },
+    {
+      id: specialTradeItemId("key", chest.id),
+      title: chest.keyName,
+      detail: "Cle de coffre",
+      count: profileSpecialInventory.keys[chest.id],
+      theme: chest.theme,
+      icon: "◇",
+    },
+    {
+      id: specialTradeItemId("fragment", chest.id),
+      title: chest.fragmentName,
+      detail: "Fragment de cle",
+      count: profileSpecialInventory.fragments[chest.id],
+      theme: chest.theme,
+      icon: "◆",
+    },
+  ]).filter((item) => item.count > 0);
   const isCurrentUser = player.uid === currentUserId;
 
   async function handlePhotoFileChange(file: File | undefined) {
@@ -6099,35 +6286,57 @@ function PlayerProfileModal({
             </div>
 
             <div className={styles.profileInventory}>
-              {inventory.length === 0 ? (
+              {inventory.length === 0 && profileSpecialItems.length === 0 ? (
                 <p className={styles.empty}>Aucun inventaire public pour le moment.</p>
               ) : (
-                groupedInventory.map((group) =>
-                  group.items.length > 0 ? (
-                    <section className={styles.profileInventorySection} key={group.category}>
-                      <h3>{skinCategoryLabel(group.category)}</h3>
-                      <div className={styles.profileInventoryGrid}>
-                        {group.items.map(({ item, count }) => {
-                          const equipped = player.equippedSkins[item.category] === item.id;
+                <>
+                  {groupedInventory.map((group) =>
+                    group.items.length > 0 ? (
+                      <section className={styles.profileInventorySection} key={group.category}>
+                        <h3>{skinCategoryLabel(group.category)}</h3>
+                        <div className={styles.profileInventoryGrid}>
+                          {group.items.map(({ item, count }) => {
+                            const equipped = player.equippedSkins[item.category] === item.id;
 
-                          return (
-                            <article className={`${styles.profileInventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
-                              <div className={styles.inventoryPreview}>
-                                <SkinPreview item={item} large />
-                                <span className={styles.inventoryCount}>x{count}</span>
-                              </div>
-                              <div>
-                                <small>{rarityLabel(item.rarity)}</small>
-                                <h4>{item.name}</h4>
-                                <p>{equipped ? "Equipe" : "Dans l'inventaire"}</p>
-                              </div>
-                            </article>
-                          );
-                        })}
+                            return (
+                              <article className={`${styles.profileInventoryItem} ${styles[`rarity-${item.rarity}`]}`} key={item.id}>
+                                <div className={styles.inventoryPreview}>
+                                  <SkinPreview item={item} large />
+                                  <span className={styles.inventoryCount}>x{count}</span>
+                                </div>
+                                <div>
+                                  <small>{rarityLabel(item.rarity)}</small>
+                                  <h4>{item.name}</h4>
+                                  <p>{equipped ? "Equipe" : "Dans l'inventaire"}</p>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ) : null,
+                  )}
+                  {profileSpecialItems.length > 0 ? (
+                    <section className={styles.profileInventorySection}>
+                      <h3>Ressources speciales</h3>
+                      <div className={styles.profileInventoryGrid}>
+                        {profileSpecialItems.map((item) => (
+                          <article className={`${styles.profileInventoryItem} ${styles["rarity-rare"]}`} key={item.id}>
+                            <div className={styles.inventoryPreview}>
+                              <SpecialResourcePreview icon={item.icon} theme={item.theme} />
+                              <span className={styles.inventoryCount}>x{item.count}</span>
+                            </div>
+                            <div>
+                              <small>{item.detail}</small>
+                              <h4>{item.title}</h4>
+                              <p>Dans l'inventaire</p>
+                            </div>
+                          </article>
+                        ))}
                       </div>
                     </section>
-                  ) : null,
-                )
+                  ) : null}
+                </>
               )}
             </div>
           </>
@@ -7853,18 +8062,54 @@ function RewardedAdsPanel({
   );
 }
 
+function SpecialResourcePreview({ icon, theme }: { icon: string; theme: string }) {
+  return (
+    <div className={styles.specialResourcePreview} style={{ "--special-chest-color": theme } as CSSProperties}>
+      <span>{icon}</span>
+    </div>
+  );
+}
+
 function InventoryGame({
   equippedSkins,
   ownedSkinIds,
+  specialInventory,
   onEquip,
 }: {
   equippedSkins: EquippedSkins;
   ownedSkinIds: string[];
+  specialInventory: SpecialInventory;
   onEquip: (item: ShopItem) => void;
 }) {
   const ownedCounts = countOwnedSkins(ownedSkinIds);
   const ownedItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0));
   const totalCopies = ownedSkinIds.length;
+  const specialItems = SPECIAL_CHESTS.flatMap((chest) => [
+    {
+      id: specialTradeItemId("chest", chest.id),
+      title: chest.title,
+      detail: "Coffre special",
+      count: specialInventory.chests[chest.id],
+      theme: chest.theme,
+      icon: "▣",
+    },
+    {
+      id: specialTradeItemId("key", chest.id),
+      title: chest.keyName,
+      detail: "Cle de coffre",
+      count: specialInventory.keys[chest.id],
+      theme: chest.theme,
+      icon: "◇",
+    },
+    {
+      id: specialTradeItemId("fragment", chest.id),
+      title: chest.fragmentName,
+      detail: "Fragment de cle",
+      count: specialInventory.fragments[chest.id],
+      theme: chest.theme,
+      icon: "◆",
+    },
+  ]).filter((item) => item.count > 0);
   const inventorySections: Array<{ title: string; category: SkinCategory }> = [
     { title: "Plinko", category: "plinkoBall" },
     { title: "Blackjack", category: "cardBack" },
@@ -7942,6 +8187,35 @@ function InventoryGame({
             </section>
           );
         })}
+        <section className={styles.panel}>
+          <div className={styles.inventorySectionHeader}>
+            <div>
+              <h2>Ressources speciales</h2>
+              <p>{specialItems.reduce((sum, item) => sum + item.count, 0)} objet{specialItems.length > 1 ? "s" : ""}</p>
+            </div>
+            <small>Coffres, cles, fragments</small>
+          </div>
+
+          <div className={styles.inventoryGrid}>
+            {specialItems.length === 0 ? (
+              <p className={styles.empty}>Aucune ressource speciale pour le moment.</p>
+            ) : (
+              specialItems.map((item) => (
+                <article className={`${styles.inventoryItem} ${styles["rarity-rare"]}`} key={item.id}>
+                  <div className={styles.inventoryPreview}>
+                    <SpecialResourcePreview icon={item.icon} theme={item.theme} />
+                    <span className={styles.inventoryCount}>x{item.count}</span>
+                  </div>
+                  <div>
+                    <small>{item.detail}</small>
+                    <h3>{item.title}</h3>
+                    <p>Utilisable dans les coffres speciaux et les echanges.</p>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
       </div>
     </>
   );

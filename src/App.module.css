@@ -785,6 +785,28 @@
   box-shadow: 0 0 30px color-mix(in srgb, var(--special-chest-color) 55%, transparent);
 }
 
+.specialResourcePreview {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--special-chest-color) 68%, #ffffff 12%);
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.42), transparent 28%),
+    linear-gradient(135deg, color-mix(in srgb, var(--special-chest-color) 58%, #ffffff 8%), rgba(16, 18, 24, 0.9));
+  color: #101218;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--special-chest-color) 62%, transparent);
+  font-size: 1.65rem;
+  font-weight: 900;
+}
+
+.specialResourcePreview span {
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
+}
+
 .clawStage {
   display: grid;
   gap: 16px;
