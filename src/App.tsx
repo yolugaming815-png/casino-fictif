@@ -2757,7 +2757,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("home")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">⌂</span>
+            <MenuIcon name="home" />
             <span className={styles.tabLabel}>Accueil</span>
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
@@ -2766,7 +2766,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("games")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">◆</span>
+            <MenuIcon name="games" />
             <span className={styles.tabLabel}>Jeux</span>
             <span className={styles.tabChevron} aria-hidden="true">{activeSection === "games" ? "⌄" : "›"}</span>
           </button>
@@ -2777,7 +2777,7 @@ function App() {
                 type="button"
                 onClick={() => selectGame("slots")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">7</span>
+                <MenuIcon name="slots" />
                 <span className={styles.tabLabel}>Machine a sous</span>
               </button>
               <button
@@ -2785,7 +2785,7 @@ function App() {
                 type="button"
                 onClick={() => selectGame("blackjack")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">♠</span>
+                <MenuIcon name="blackjack" />
                 <span className={styles.tabLabel}>Blackjack</span>
               </button>
               <button
@@ -2793,7 +2793,7 @@ function App() {
                 type="button"
                 onClick={() => selectGame("plinko")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">P</span>
+                <MenuIcon name="plinko" />
                 <span className={styles.tabLabel}>Plinko</span>
               </button>
               <button
@@ -2801,7 +2801,7 @@ function App() {
                 type="button"
                 onClick={() => selectGame("roulette")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">◎</span>
+                <MenuIcon name="roulette" />
                 <span className={styles.tabLabel}>Roulette</span>
               </button>
               <button
@@ -2809,7 +2809,7 @@ function App() {
                 type="button"
                 onClick={() => selectGame("rocket")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">▲</span>
+                <MenuIcon name="rocket" />
                 <span className={styles.tabLabel}>Rocket Games</span>
               </button>
               <button
@@ -2817,7 +2817,7 @@ function App() {
                 type="button"
                 onClick={() => selectGame("claw")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">▣</span>
+                <MenuIcon name="claw" />
                 <span className={styles.tabLabel}>Machine a pince</span>
               </button>
             </div>
@@ -2827,7 +2827,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("online")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">◎</span>
+            <MenuIcon name="online" />
             <span className={styles.tabLabel}>Jeux en ligne</span>
             <span className={styles.tabChevron} aria-hidden="true">{activeSection === "online" ? "⌄" : "›"}</span>
           </button>
@@ -2838,7 +2838,7 @@ function App() {
                 type="button"
                 onClick={() => selectOnlineGame("duel")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">×</span>
+                <MenuIcon name="duel" />
                 <span className={styles.tabLabel}>Duel</span>
               </button>
               <button
@@ -2846,7 +2846,7 @@ function App() {
                 type="button"
                 onClick={() => selectOnlineGame("poker")}
               >
-                <span className={styles.tabIcon} aria-hidden="true">♠</span>
+                <MenuIcon name="poker" />
                 <span className={styles.tabLabel}>Poker</span>
               </button>
             </div>
@@ -2856,7 +2856,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("cases")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">□</span>
+            <MenuIcon name="cases" />
             <span className={styles.tabLabel}>Cases</span>
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
@@ -2865,7 +2865,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("shop")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">$</span>
+            <MenuIcon name="shop" />
             <span className={styles.tabLabel}>Boutique</span>
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
@@ -2874,7 +2874,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("inventory")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">▣</span>
+            <MenuIcon name="inventory" />
             <span className={styles.tabLabel}>Inventaire</span>
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
@@ -2883,7 +2883,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("bonus")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">+</span>
+            <MenuIcon name="bonus" />
             <span className={styles.tabLabel}>Bonus</span>
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
@@ -2892,7 +2892,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("friends")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">●</span>
+            <MenuIcon name="friends" />
             <span className={styles.tabLabel}>Amis</span>
             {pendingFriendRequestsCount > 0 ? <span className={styles.tabBadge}>{pendingFriendRequestsCount}</span> : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
@@ -2902,7 +2902,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("trades")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">⇄</span>
+            <MenuIcon name="trades" />
             <span className={styles.tabLabel}>Echanges</span>
             {pendingTradeOffersCount > 0 ? <span className={styles.tabBadge}>{pendingTradeOffersCount}</span> : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
@@ -2912,7 +2912,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("messages")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">✉</span>
+            <MenuIcon name="messages" />
             <span className={styles.tabLabel}>Messages</span>
             {unreadMessagesCount > 0 ? <span className={styles.tabBadge}>{unreadMessagesCount}</span> : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
@@ -2922,7 +2922,7 @@ function App() {
             type="button"
             onClick={() => selectMainSection("activity")}
           >
-            <span className={styles.tabIcon} aria-hidden="true">!</span>
+            <MenuIcon name="activity" />
             <span className={styles.tabLabel}>Activite</span>
             {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
@@ -2933,7 +2933,7 @@ function App() {
               type="button"
               onClick={() => selectMainSection("admin")}
             >
-              <span className={styles.tabIcon} aria-hidden="true">★</span>
+              <MenuIcon name="admin" />
               <span className={styles.tabLabel}>Admin</span>
               <span className={styles.tabChevron} aria-hidden="true">›</span>
             </button>
@@ -5361,6 +5361,176 @@ function PlayerProfileModal({
         </div>
       </section>
     </div>
+  );
+}
+
+type MenuIconName =
+  | "home"
+  | "games"
+  | "slots"
+  | "blackjack"
+  | "plinko"
+  | "roulette"
+  | "rocket"
+  | "claw"
+  | "online"
+  | "duel"
+  | "poker"
+  | "cases"
+  | "shop"
+  | "inventory"
+  | "bonus"
+  | "friends"
+  | "trades"
+  | "messages"
+  | "activity"
+  | "admin";
+
+function MenuIcon({ name }: { name: MenuIconName }) {
+  return (
+    <span className={styles.tabIcon} aria-hidden="true">
+      <svg viewBox="0 0 32 32" focusable="false">
+        {name === "home" && (
+          <>
+            <path d="M6 15.5 16 7l10 8.5" />
+            <path d="M9.5 14.5V25h13V14.5" />
+            <path d="M13.5 25v-7h5v7" />
+            <path d="M21.5 9.5v-3h3v5.5" />
+          </>
+        )}
+        {name === "games" && (
+          <>
+            <rect x="6" y="10" width="11" height="11" rx="2.5" transform="rotate(-12 11.5 15.5)" />
+            <rect x="15" y="12" width="11" height="11" rx="2.5" transform="rotate(10 20.5 17.5)" />
+            <circle cx="10.5" cy="14" r="0.8" />
+            <circle cx="13.5" cy="17" r="0.8" />
+            <circle cx="19" cy="16" r="0.8" />
+            <circle cx="22" cy="19" r="0.8" />
+          </>
+        )}
+        {name === "slots" && (
+          <>
+            <rect x="6" y="9" width="18" height="15" rx="2" />
+            <path d="M10 9V6h10v3M8 24h16M11 13h3M15 13h3M19 13h3" />
+            <path d="M12.5 18h7" />
+            <path d="M25 11h2v7h-2" />
+          </>
+        )}
+        {name === "blackjack" || name === "poker" ? (
+          <>
+            <path d="M16 6c4.8 4.2 8 7.4 8 11.2 0 3-2.3 5.1-5.2 5.1-1.1 0-2.1-.3-2.8-.9.4 2.5 1.6 3.8 3.7 4.6h-7.4c2.1-.8 3.3-2.1 3.7-4.6-.8.6-1.7.9-2.8.9-2.9 0-5.2-2.1-5.2-5.1C8 13.4 11.2 10.2 16 6Z" />
+            <path d="M16 9.5v12" />
+          </>
+        ) : null}
+        {name === "plinko" && (
+          <>
+            <circle cx="16" cy="16" r="10" />
+            <path d="M16 10v12M12 13h6.4a3 3 0 0 1 0 6H12" />
+            <path d="M8.5 9.5 6.8 7.8M23.5 9.5l1.7-1.7M8.5 22.5l-1.7 1.7M23.5 22.5l1.7 1.7" />
+          </>
+        )}
+        {name === "roulette" && (
+          <>
+            <circle cx="16" cy="16" r="10" />
+            <circle cx="16" cy="16" r="4" />
+            <path d="M16 6v20M6 16h20M9 9l14 14M23 9 9 23" />
+            <circle cx="20.8" cy="11.5" r="1.3" />
+          </>
+        )}
+        {name === "rocket" && (
+          <>
+            <path d="M17 5c4.2 3 5.8 8.2 3.8 13.5L14 11.7C15 8.5 16.1 6.2 17 5Z" />
+            <path d="M14 11.7 8 13l4.8 2.6M20.8 18.5 19.5 25l-2.8-4.7" />
+            <circle cx="17.9" cy="11.2" r="1.6" />
+            <path d="M11.5 20.5 7 25M9 18l-3 3M14 23l-3 3" />
+          </>
+        )}
+        {name === "claw" && (
+          <>
+            <rect x="7" y="9" width="12" height="14" rx="2" />
+            <rect x="10" y="13" width="6" height="5" rx="1" />
+            <path d="M21 8v15M19 8h4M21 23l-3 3M21 23l3 3" />
+            <path d="M8 26h10" />
+          </>
+        )}
+        {name === "online" && (
+          <>
+            <circle cx="16" cy="16" r="10" />
+            <path d="M6 16h20M16 6c3 3.1 4.4 6.5 4.4 10S19 22.9 16 26M16 6c-3 3.1-4.4 6.5-4.4 10S13 22.9 16 26" />
+          </>
+        )}
+        {name === "duel" && (
+          <>
+            <path d="M8 23 23 8M9.5 8.5l14 14" />
+            <path d="M6 20.5 11.5 26 8 26 6 24ZM20.5 6 26 11.5 26 8 24 6Z" />
+            <path d="M6 11.5 11.5 6 8 6 6 8ZM20.5 26 26 20.5 26 24 24 26Z" />
+          </>
+        )}
+        {name === "cases" && (
+          <>
+            <path d="M7 12 16 7l9 5-9 5Z" />
+            <path d="M7 12v9l9 5 9-5v-9M16 17v9" />
+            <path d="M11.5 9.5 20.5 14.5" />
+          </>
+        )}
+        {name === "shop" && (
+          <>
+            <path d="M7 9h3l2.2 11h10.3L25 12H11" />
+            <circle cx="14" cy="25" r="1.7" />
+            <circle cx="22" cy="25" r="1.7" />
+            <path d="M16 15h4M18 13v4" />
+          </>
+        )}
+        {name === "inventory" && (
+          <>
+            <rect x="8" y="10" width="16" height="15" rx="3" />
+            <path d="M11 10V8a5 5 0 0 1 10 0v2M8 17h16M12 21h8" />
+            <path d="M10 25v2M22 25v2" />
+          </>
+        )}
+        {name === "bonus" && (
+          <>
+            <rect x="7" y="13" width="18" height="12" rx="2" />
+            <path d="M6 13h20M16 13v12M8.5 10.5c0-2 1.5-3 3-2.5 1.7.6 3.2 3 4.5 5-2.8.1-5.4-.2-7.5-2.5ZM23.5 10.5c0-2-1.5-3-3-2.5-1.7.6-3.2 3-4.5 5 2.8.1 5.4-.2 7.5-2.5Z" />
+          </>
+        )}
+        {name === "friends" && (
+          <>
+            <circle cx="12" cy="12" r="3.5" />
+            <circle cx="21" cy="13" r="3" />
+            <path d="M5.5 25c.8-4.5 4-7 7.2-7s6.2 2.5 7 7" />
+            <path d="M18.5 25c.5-2.7 2.3-4.5 5-4.8 1.4.7 2.5 2.3 3 4.8" />
+          </>
+        )}
+        {name === "trades" && (
+          <>
+            <path d="M8 11h15l-3-3M24 21H9l3 3" />
+            <path d="M23 8v6M9 18v6" />
+            <circle cx="13" cy="16" r="2" />
+          </>
+        )}
+        {name === "messages" && (
+          <>
+            <rect x="6" y="9" width="20" height="15" rx="2.5" />
+            <path d="m7 11 9 7 9-7" />
+            <path d="m7 23 6.5-6M25 23l-6.5-6" />
+          </>
+        )}
+        {name === "activity" && (
+          <>
+            <path d="M16 7v11" />
+            <circle cx="16" cy="23" r="1.5" />
+            <path d="M10 10c1.5-2 3.5-3 6-3s4.5 1 6 3M9 25h14" />
+          </>
+        )}
+        {name === "admin" && (
+          <>
+            <path d="M16 6 25 10v6.5c0 5.1-3.4 8.6-9 10-5.6-1.4-9-4.9-9-10V10Z" />
+            <path d="m16 12 1.4 2.8 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4Z" />
+          </>
+        )}
+      </svg>
+    </span>
   );
 }
 
