@@ -1769,6 +1769,59 @@
   font-size: 1.35rem;
 }
 
+.menuAvatarFrame {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 56px;
+  overflow: visible;
+}
+
+.menuRankBadge,
+.menuAdminBadge {
+  position: absolute;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  color: #ffd166;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.42), transparent 38%),
+    linear-gradient(135deg, #5a4318, #221a0b);
+  border: 1px solid rgba(255, 209, 102, 0.72);
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.42),
+    0 0 14px rgba(255, 209, 102, 0.22);
+}
+
+.menuRankBadge {
+  top: -15px;
+  left: 50%;
+  width: 31px;
+  height: 23px;
+  border-radius: 8px 8px 5px 5px;
+  transform: translateX(-50%);
+}
+
+.menuAdminBadge {
+  right: 1px;
+  bottom: 1px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.menuRankBadge svg,
+.menuAdminBadge svg {
+  width: 72%;
+  height: 72%;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .tabIcon {
   width: 30px;
   height: 30px;

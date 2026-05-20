@@ -2813,6 +2813,8 @@ function App() {
     setMobileMenuOpen(false);
   }
 
+  const currentUserIsLeaderboardLeader = Boolean(accountUser && leaderboard[0]?.uid === accountUser.uid);
+
   return (
     <main className={styles.app}>
       <section className={styles.shell} aria-label="Casino fictif">
@@ -2890,7 +2892,28 @@ function App() {
 
         <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
           <button className={styles.menuProfile} type="button" onClick={handleOpenOwnProfile}>
-            <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={publicProfilePhotoURL(accountUser?.photoURL)} />
+            <span className={styles.menuAvatarFrame}>
+              {currentUserIsLeaderboardLeader ? (
+                <span className={styles.menuRankBadge} aria-label="Premier du classement">
+                  <svg viewBox="0 0 32 22" aria-hidden="true">
+                    <path d="M4 20 L7 7 L13 14 L16 3 L19 14 L25 7 L28 20 Z" />
+                    <path d="M7 20 H25" />
+                  </svg>
+                </span>
+              ) : null}
+              <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={publicProfilePhotoURL(accountUser?.photoURL)} />
+              {isAdmin ? (
+                <span className={styles.menuAdminBadge} aria-label="Admin">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M13 4 L20 11" />
+                    <path d="M11 6 L18 13" />
+                    <path d="M5 20 L14 11" />
+                    <path d="M3 18 L6 21" />
+                    <path d="M10 5 L14 1 L23 10 L19 14 Z" />
+                  </svg>
+                </span>
+              ) : null}
+            </span>
             <div>
               <strong>{accountUser?.displayName || "Joueur"}</strong>
               <small>{balance.toLocaleString("fr-FR")} credits</small>
