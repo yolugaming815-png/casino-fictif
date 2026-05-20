@@ -228,6 +228,25 @@ type RewardedAdState = {
   watched: number;
 };
 
+type MissionId = "solo-5" | "plinko-3" | "cases-2" | "bonus-1" | "claw-3";
+
+type MissionDefinition = {
+  id: MissionId;
+  title: string;
+  detail: string;
+  goal: number;
+  reward: number;
+  progress: (stats: MissionStats) => number;
+};
+
+type MissionStats = {
+  soloGames: number;
+  plinkoDrops: number;
+  casesOpened: number;
+  rewardedAdsWatched: number;
+  clawAttempts: number;
+};
+
 type SavedGameState = {
   version: 1;
   balance: number;
@@ -242,6 +261,7 @@ type SavedGameState = {
   specialInventory: SpecialInventory;
   clawHistory: ClawOutcome[];
   rewardedAds: RewardedAdState;
+  claimedMissionIds: MissionId[];
 };
 
 type ActivityItem = {
@@ -252,7 +272,7 @@ type ActivityItem = {
   timestamp?: unknown;
 };
 
-type MainSection = "home" | "games" | "online" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
+type MainSection = "home" | "games" | "online" | "missions" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
@@ -269,6 +289,48 @@ const PLINKO_MAX_BET = 1000;
 const DUEL_PLINKO_BALLS_PER_ROUND = 15;
 const DUEL_PLINKO_BET_PER_BALL = 10;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
+const MISSION_DEFINITIONS: MissionDefinition[] = [
+  {
+    id: "solo-5",
+    title: "Jouer 5 parties solo",
+    detail: "Machine a sous, blackjack, plinko, roulette ou rocket games.",
+    goal: 5,
+    reward: 500,
+    progress: (stats) => stats.soloGames,
+  },
+  {
+    id: "plinko-3",
+    title: "Lancer 3 billes Plinko",
+    detail: "Fais tomber des billes dans le Plinko.",
+    goal: 3,
+    reward: 350,
+    progress: (stats) => stats.plinkoDrops,
+  },
+  {
+    id: "cases-2",
+    title: "Ouvrir 2 cases",
+    detail: "Ouvre des cases ou coffres pour avancer.",
+    goal: 2,
+    reward: 450,
+    progress: (stats) => stats.casesOpened,
+  },
+  {
+    id: "bonus-1",
+    title: "Regarder 1 bonus pub",
+    detail: "Bonus volontaire, jamais force pendant une partie.",
+    goal: 1,
+    reward: 250,
+    progress: (stats) => stats.rewardedAdsWatched,
+  },
+  {
+    id: "claw-3",
+    title: "Tenter 3 fois la machine a pince",
+    detail: "Chaque tentative compte, meme sans gain.",
+    goal: 3,
+    reward: 400,
+    progress: (stats) => stats.clawAttempts,
+  },
+];
 const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-amber": plinkoAmberImage,
   "plinko-cloud": plinkoCloudImage,
@@ -633,6 +695,11 @@ function sanitizeCaseHistory(value: unknown) {
     .slice(0, 10);
 }
 
+function sanitizeClaimedMissionIds(value: unknown): MissionId[] {
+  const knownIds = new Set(MISSION_DEFINITIONS.map((mission) => mission.id));
+  return [...new Set(readArray<string>(value).filter((id): id is MissionId => knownIds.has(id as MissionId)))];
+}
+
 function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | null {
   if (!parsed) {
     return null;
@@ -659,6 +726,7 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     specialInventory: sanitizeSpecialInventory(parsed.specialInventory),
     clawHistory: readArray<ClawOutcome>(parsed.clawHistory).slice(0, 10),
     rewardedAds: normalizeRewardedAds(parsed.rewardedAds),
+    claimedMissionIds: sanitizeClaimedMissionIds(parsed.claimedMissionIds),
   };
 }
 
@@ -779,6 +847,7 @@ function App() {
   const [rewardedAds, setRewardedAds] = useState<RewardedAdState>(savedGame?.rewardedAds ?? normalizeRewardedAds(null));
   const [rewardedAdMessage, setRewardedAdMessage] = useState("Regarde une pub volontaire pour gagner des credits virtuels.");
   const [rewardedAdWatching, setRewardedAdWatching] = useState(false);
+  const [claimedMissionIds, setClaimedMissionIds] = useState<MissionId[]>(savedGame?.claimedMissionIds ?? []);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
@@ -951,6 +1020,16 @@ function App() {
     }),
     [adminPriceOverrides],
   );
+  const missionStats = useMemo<MissionStats>(
+    () => ({
+      soloGames: slotHistory.length + blackjackHistory.length + plinkoHistory.length + rouletteHistory.length + rocketHistory.length,
+      plinkoDrops: plinkoHistory.length,
+      casesOpened: caseHistory.length,
+      rewardedAdsWatched: normalizeRewardedAds(rewardedAds).watched,
+      clawAttempts: clawHistory.length,
+    }),
+    [slotHistory, blackjackHistory, plinkoHistory, rouletteHistory, rocketHistory, caseHistory, rewardedAds, clawHistory],
+  );
 
   useEffect(() => {
     saveGame({
@@ -967,6 +1046,7 @@ function App() {
       specialInventory,
       clawHistory,
       rewardedAds,
+      claimedMissionIds,
     });
   }, [
     balance,
@@ -981,6 +1061,7 @@ function App() {
     specialInventory,
     clawHistory,
     rewardedAds,
+    claimedMissionIds,
   ]);
 
   useEffect(() => {
@@ -1075,6 +1156,7 @@ function App() {
     specialInventory,
     clawHistory,
     rewardedAds,
+    claimedMissionIds,
   ]);
 
   useEffect(() => {
@@ -2106,6 +2188,7 @@ function App() {
       specialInventory,
       clawHistory,
       rewardedAds,
+      claimedMissionIds,
     };
   }
 
@@ -2122,6 +2205,7 @@ function App() {
     setSpecialInventory(importedSave.specialInventory);
     setClawHistory(importedSave.clawHistory);
     setRewardedAds(importedSave.rewardedAds);
+    setClaimedMissionIds(importedSave.claimedMissionIds);
     setLastCaseDrop(importedSave.caseHistory[0] ?? null);
     setActivePlinkoLaunches([]);
     setRocketAnimating(false);
@@ -2750,6 +2834,20 @@ function App() {
     }, REWARDED_AD_WATCH_MS);
   }
 
+  function claimMission(mission: MissionDefinition) {
+    if (claimedMissionIds.includes(mission.id)) {
+      return;
+    }
+
+    const progress = mission.progress(missionStats);
+    if (progress < mission.goal) {
+      return;
+    }
+
+    setClaimedMissionIds((current) => (current.includes(mission.id) ? current : [...current, mission.id]));
+    setBalance((current) => current + mission.reward);
+  }
+
   function launchRocket() {
     if (paused) {
       setRocketMessage("La pause responsable est active.");
@@ -3022,6 +3120,15 @@ function App() {
             </div>
           )}
           <button
+            className={activeSection === "missions" ? styles.activeTab : ""}
+            type="button"
+            onClick={() => selectMainSection("missions")}
+          >
+            <MenuIcon name="missions" />
+            <span className={styles.tabLabel}>Missions</span>
+            <span className={styles.tabChevron} aria-hidden="true">›</span>
+          </button>
+          <button
             className={activeSection === "cases" ? styles.activeTab : ""}
             type="button"
             onClick={() => selectMainSection("cases")}
@@ -3158,6 +3265,14 @@ function App() {
             onRaisePoker={handleRaisePoker}
             onStartDuel={handleStartDuelRoom}
             onStartPoker={handleStartPokerRoom}
+          />
+        ) : activeSection === "missions" ? (
+          <MissionsPanel
+            balance={balance}
+            claimedMissionIds={claimedMissionIds}
+            missions={MISSION_DEFINITIONS}
+            stats={missionStats}
+            onClaim={claimMission}
           />
         ) : activeSection === "cases" ? (
           <CaseOpeningGame
@@ -5633,6 +5748,7 @@ type MenuIconName =
   | "online"
   | "duel"
   | "poker"
+  | "missions"
   | "cases"
   | "shop"
   | "inventory"
@@ -5721,6 +5837,14 @@ function MenuIcon({ name }: { name: MenuIconName }) {
             <path d="M8 23 23 8M9.5 8.5l14 14" />
             <path d="M6 20.5 11.5 26 8 26 6 24ZM20.5 6 26 11.5 26 8 24 6Z" />
             <path d="M6 11.5 11.5 6 8 6 6 8ZM20.5 26 26 20.5 26 24 24 26Z" />
+          </>
+        )}
+        {name === "missions" && (
+          <>
+            <rect x="8" y="6" width="16" height="20" rx="2.5" />
+            <path d="M12 11h8M12 16h8M12 21h5" />
+            <path d="m11 16 1.6 1.6L16 14" />
+            <path d="M13 6h6l-1-2h-4Z" />
           </>
         )}
         {name === "cases" && (
@@ -7184,6 +7308,79 @@ function HomeDashboard({
         </button>
       </section>
     </>
+  );
+}
+
+function MissionsPanel({
+  balance,
+  claimedMissionIds,
+  missions,
+  stats,
+  onClaim,
+}: {
+  balance: number;
+  claimedMissionIds: MissionId[];
+  missions: MissionDefinition[];
+  stats: MissionStats;
+  onClaim: (mission: MissionDefinition) => void;
+}) {
+  const claimedSet = new Set(claimedMissionIds);
+  const completedCount = missions.filter((mission) => claimedSet.has(mission.id)).length;
+
+  return (
+    <section className={styles.machine}>
+      <div className={styles.shopHeader}>
+        <div>
+          <h2>Missions</h2>
+          <p>Complete des objectifs et reclame des credits virtuels.</p>
+        </div>
+        <strong>{balance.toLocaleString("fr-FR")} credits</strong>
+      </div>
+
+      <div className={styles.missionSummary}>
+        <span>
+          <strong>{completedCount}</strong>
+          missions terminees
+        </span>
+        <span>
+          <strong>{missions.length - completedCount}</strong>
+          missions restantes
+        </span>
+      </div>
+
+      <div className={styles.missionGrid}>
+        {missions.map((mission) => {
+          const rawProgress = mission.progress(stats);
+          const progress = Math.min(mission.goal, rawProgress);
+          const percent = Math.round((progress / mission.goal) * 100);
+          const claimed = claimedSet.has(mission.id);
+          const complete = progress >= mission.goal;
+
+          return (
+            <article className={styles.missionCard} key={mission.id}>
+              <div>
+                <small>+{mission.reward.toLocaleString("fr-FR")} credits</small>
+                <h3>{mission.title}</h3>
+                <p>{mission.detail}</p>
+              </div>
+
+              <div className={styles.missionProgress} aria-label={`${progress} sur ${mission.goal}`}>
+                <span style={{ width: `${percent}%` }} />
+              </div>
+
+              <div className={styles.missionFooter}>
+                <strong>
+                  {progress}/{mission.goal}
+                </strong>
+                <button className={complete && !claimed ? styles.primaryButton : styles.secondaryButton} type="button" onClick={() => onClaim(mission)} disabled={!complete || claimed}>
+                  {claimed ? "Reclamee" : complete ? "Reclamer" : "En cours"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

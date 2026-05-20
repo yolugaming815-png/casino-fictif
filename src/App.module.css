@@ -2033,6 +2033,85 @@
   object-fit: cover;
 }
 
+.missionSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.missionSummary span {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d5ddd9;
+  font-weight: 800;
+}
+
+.missionSummary strong {
+  color: #ffd166;
+  font-size: 1.35rem;
+}
+
+.missionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.missionCard {
+  display: grid;
+  gap: 14px;
+  align-content: space-between;
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.1), transparent 48%),
+    rgba(31, 34, 40, 0.88);
+}
+
+.missionCard small {
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.missionCard h3 {
+  margin: 6px 0;
+}
+
+.missionCard p {
+  margin: 0;
+  color: #d5ddd9;
+  line-height: 1.45;
+}
+
+.missionProgress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.missionProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffd166, #7cf2a2);
+}
+
+.missionFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.missionFooter strong {
+  color: #f9f7ef;
+}
+
 @media (min-width: 781px) {
   .homeCards button {
     min-height: 0;
