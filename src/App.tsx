@@ -106,6 +106,7 @@ import {
   markPrivateMessagesRead,
   markSkinTradeApplied,
   playDuelRound,
+  publicProfilePhotoURL,
   raisePokerPlayer,
   sendFriendRequest,
   sendPrivateMessage,
@@ -1432,7 +1433,7 @@ function App() {
       leaderboardProfile ?? {
         uid: accountUser.uid,
         displayName: accountUser.displayName || accountUser.email || "Joueur",
-        photoURL: accountUser.photoURL || "",
+        photoURL: publicProfilePhotoURL(accountUser.photoURL),
         balance,
         inventory: buildPublicInventory(ownedSkinIds),
         equippedSkins,
@@ -1461,7 +1462,7 @@ function App() {
           ? {
               ...profile,
               displayName: nextUser.displayName || "Joueur anonyme",
-              photoURL: nextUser.photoURL || "",
+              photoURL: publicProfilePhotoURL(nextUser.photoURL),
               balance,
               inventory: buildPublicInventory(ownedSkinIds),
               equippedSkins,
@@ -2744,7 +2745,7 @@ function App() {
 
         <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
           <button className={styles.menuProfile} type="button" onClick={handleOpenOwnProfile}>
-            <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={accountUser?.photoURL || ""} />
+            <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={publicProfilePhotoURL(accountUser?.photoURL)} />
             <div>
               <strong>{accountUser?.displayName || "Joueur"}</strong>
               <small>{balance.toLocaleString("fr-FR")} credits</small>
@@ -5368,11 +5369,9 @@ function ProfileAvatar({
   displayName: string;
   photoURL?: string;
 }) {
-  const initial = (displayName.trim()[0] || "♠").toUpperCase();
-
   return (
     <span className={className}>
-      {photoURL ? <img alt="" src={photoURL} /> : <span aria-hidden="true">{initial}</span>}
+      {photoURL ? <img alt="" src={photoURL} /> : <span aria-hidden="true">♠</span>}
     </span>
   );
 }

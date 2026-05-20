@@ -49,6 +49,11 @@ export type LeaderboardEntry = {
   updatedAt?: unknown;
 };
 
+export function publicProfilePhotoURL(photoURL: string | null | undefined) {
+  const value = (photoURL ?? "").trim();
+  return value.includes("googleusercontent.com") ? "" : value;
+}
+
 export type AdminPriceOverrides = {
   skins: Record<string, number>;
   cases: Record<string, number>;
@@ -327,7 +332,7 @@ export async function saveLeaderboardEntry(
     {
       uid: user.uid,
       displayName: user.displayName || "Joueur anonyme",
-      photoURL: user.photoURL || "",
+      photoURL: publicProfilePhotoURL(user.photoURL),
       balance,
       inventory,
       equippedSkins,
