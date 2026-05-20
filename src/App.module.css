@@ -5395,6 +5395,35 @@
     font-size: 1rem;
   }
 
+  .clawStage {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .clawMachine {
+    width: 100%;
+    min-height: min(112vw, 430px);
+  }
+
+  .clawMachine::before {
+    inset: 16px 14px auto;
+  }
+
+  .clawControls {
+    grid-template-columns: 64px minmax(0, 1fr) 64px;
+    gap: 8px;
+  }
+
+  .clawControls button {
+    min-width: 0;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .clawControls span {
+    font-size: 1.55rem;
+  }
+
   .caseModalBackdrop {
     padding: 8px;
   }
