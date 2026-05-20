@@ -5,6 +5,16 @@ import styles from "./App.module.css";
 import activityShortcutImage from "./assets/home/activite.png";
 import bonusShortcutImage from "./assets/home/bonus.png";
 import boutiqueShortcutImage from "./assets/home/boutique.png";
+import plinkoAmberImage from "./assets/plinko/plinko-amber.png";
+import plinkoCloudImage from "./assets/plinko/plinko-cloud.png";
+import plinkoEmeraldImage from "./assets/plinko/plinko-emerald.png";
+import plinkoGoldImage from "./assets/plinko/plinko-gold.png";
+import plinkoLilacImage from "./assets/plinko/plinko-lilac.png";
+import plinkoMintImage from "./assets/plinko/plinko-mint.png";
+import plinkoNeonImage from "./assets/plinko/plinko-neon.png";
+import plinkoOceanImage from "./assets/plinko/plinko-ocean.png";
+import plinkoRubyImage from "./assets/plinko/plinko-ruby.png";
+import plinkoStormImage from "./assets/plinko/plinko-storm.png";
 import {
   INITIAL_BALANCE,
   MIN_BET,
@@ -259,6 +269,18 @@ const PLINKO_MAX_BET = 1000;
 const DUEL_PLINKO_BALLS_PER_ROUND = 15;
 const DUEL_PLINKO_BET_PER_BALL = 10;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
+const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
+  "plinko-amber": plinkoAmberImage,
+  "plinko-cloud": plinkoCloudImage,
+  "plinko-emerald": plinkoEmeraldImage,
+  "plinko-gold": plinkoGoldImage,
+  "plinko-lilac": plinkoLilacImage,
+  "plinko-mint": plinkoMintImage,
+  "plinko-neon": plinkoNeonImage,
+  "plinko-ocean": plinkoOceanImage,
+  "plinko-ruby": plinkoRubyImage,
+  "plinko-storm": plinkoStormImage,
+};
 const PROFILE_PHOTO_PRESETS = [
   "",
   "https://api.dicebear.com/9.x/identicon/svg?seed=spade",
@@ -272,6 +294,36 @@ const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   epic: 2,
   legendary: 3,
 };
+
+const plinkoBallImageCache = new Map<string, { image: HTMLImageElement; loaded: boolean }>();
+
+function getPlinkoBallImageSource(id: string) {
+  return PLINKO_BALL_IMAGES[id] ?? "";
+}
+
+function getLoadedPlinkoBallImage(id: string) {
+  const source = getPlinkoBallImageSource(id);
+
+  if (!source || typeof Image === "undefined") {
+    return null;
+  }
+
+  const cached = plinkoBallImageCache.get(id);
+
+  if (cached) {
+    return cached.loaded ? cached.image : null;
+  }
+
+  const image = new Image();
+  const entry = { image, loaded: false };
+  image.onload = () => {
+    entry.loaded = true;
+  };
+  image.src = source;
+  plinkoBallImageCache.set(id, entry);
+
+  return null;
+}
 
 function parseBetInput(value: string, max?: number): Bet {
   const parsed = Math.floor(Number(value));
@@ -6245,6 +6297,26 @@ function drawCircle(context: CanvasRenderingContext2D, x: number, y: number, rad
 }
 
 function drawSkinnedBall(context: CanvasRenderingContext2D, x: number, y: number, radius: number, skin: ShopItem) {
+  const ballImage = getLoadedPlinkoBallImage(skin.id);
+
+  if (ballImage) {
+    context.save();
+    context.shadowColor = ballGlow(skin.id);
+    context.shadowBlur = radius * 1.8;
+    context.beginPath();
+    context.arc(x, y, radius * 1.08, 0, Math.PI * 2);
+    context.clip();
+    context.drawImage(ballImage, x - radius * 1.18, y - radius * 1.18, radius * 2.36, radius * 2.36);
+    context.shadowBlur = 0;
+    context.strokeStyle = "rgba(255, 255, 255, 0.3)";
+    context.lineWidth = Math.max(1, radius * 0.08);
+    context.beginPath();
+    context.arc(x, y, radius * 0.92, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+    return;
+  }
+
   context.save();
   context.shadowColor = ballGlow(skin.id);
   context.shadowBlur = radius * 1.8;
@@ -8059,6 +8131,22 @@ function SkinPreview({ item, large = false, showCardFace = false }: { item: Shop
         {vehiclePreviewSvg(item.id)}
       </svg>
     );
+  }
+
+  if (item.category === "plinkoBall") {
+    const imageSource = getPlinkoBallImageSource(item.id);
+
+    if (imageSource) {
+      return (
+        <img
+          className={large ? styles.caseImagePreview : styles.plinkoImagePreview}
+          src={imageSource}
+          style={{ "--shop-preview-glow": ballGlow(item.id) } as CSSProperties}
+          alt=""
+          aria-hidden="true"
+        />
+      );
+    }
   }
 
   return (

@@ -3005,6 +3005,20 @@
   box-shadow: 0 0 22px var(--shop-preview-glow);
 }
 
+.plinkoImagePreview {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px var(--shop-preview-glow));
+}
+
+.caseImagePreview {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 22px var(--shop-preview-glow));
+}
+
 .ballGold {
   background:
     radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.92) 0 10%, transparent 11%),
