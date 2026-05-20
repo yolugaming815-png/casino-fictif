@@ -82,6 +82,7 @@ import {
 } from "./rocketLogic";
 import {
   advancePokerPhase,
+  allInPokerPlayer,
   answerFriendRequest,
   answerSkinTrade,
   callPokerPlayer,
@@ -1792,6 +1793,43 @@ function App() {
     }
   }
 
+  async function handleAllInPoker(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour faire tapis.");
+      return;
+    }
+
+    const amountToCall = Math.max(0, room.pokerCurrentBet - (room.pokerContributions[accountUser.uid] ?? 0));
+
+    if (amountToCall <= 0) {
+      setOnlineMessage("Tu peux checker, il n'y a rien a suivre.");
+      return;
+    }
+
+    if (balance <= 0) {
+      setOnlineMessage("Tu n'as plus de credits pour faire tapis.");
+      return;
+    }
+
+    if (balance >= amountToCall) {
+      setOnlineMessage("Tu as assez de credits pour suivre normalement.");
+      return;
+    }
+
+    try {
+      setOnlineActionRoomId(room.id);
+      await allInPokerPlayer(room, accountUser, balance);
+      setBalance(0);
+      setOnlineMessage("Tapis envoye : les cartes sont revelees.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Tapis impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
+    }
+  }
+
   async function handleRaisePoker(room: OnlineRoomEntry, targetBet: number) {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour relancer.");
@@ -3015,6 +3053,7 @@ function App() {
           />
         ) : activeSection === "online" ? (
           <OnlineGames
+            balance={balance}
             currentUser={accountUser}
             duelHistory={duelHistory}
             friendRequests={friendRequests}
@@ -3026,6 +3065,7 @@ function App() {
             rooms={visibleOnlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
             onAdvancePoker={handleAdvancePokerPhase}
+            onAllInPoker={handleAllInPoker}
             onCallPoker={handleCallPoker}
             onCheckPoker={handleCheckPoker}
             onFoldPoker={handleFoldPoker}
@@ -4527,6 +4567,7 @@ function TradesGame({
 
 function OnlineGames({
   actionRoomId,
+  balance,
   currentUser,
   duelHistory,
   friendRequests,
@@ -4536,6 +4577,7 @@ function OnlineGames({
   now,
   rooms,
   onAdvancePoker,
+  onAllInPoker,
   onCallPoker,
   onCheckPoker,
   onCreateRoom,
@@ -4551,6 +4593,7 @@ function OnlineGames({
   onStartPoker,
 }: {
   actionRoomId: string | null;
+  balance: number;
   currentUser: CasinoUser | null;
   duelHistory: OnlineRoomEntry[];
   friendRequests: FriendRequestEntry[];
@@ -4560,6 +4603,7 @@ function OnlineGames({
   now: number;
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
+  onAllInPoker: (room: OnlineRoomEntry) => void;
   onCallPoker: (room: OnlineRoomEntry) => void;
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onCreateRoom: (type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) => void;
@@ -4674,6 +4718,7 @@ function OnlineGames({
         </section>
 
         <OnlineRoomsPanel
+          balance={balance}
           currentUserId={currentUser.uid}
           message={message}
           rooms={visibleRooms}
@@ -4683,6 +4728,7 @@ function OnlineGames({
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
         onAdvancePoker={onAdvancePoker}
+        onAllInPoker={onAllInPoker}
         onCallPoker={onCallPoker}
         onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
@@ -4740,6 +4786,7 @@ function OnlineGames({
       </section>
 
       <OnlineRoomsPanel
+        balance={balance}
         currentUserId={currentUser.uid}
         message={message}
         rooms={visibleRooms}
@@ -4749,6 +4796,7 @@ function OnlineGames({
         onRefreshRooms={onRefreshRooms}
         onStartDuel={onStartDuel}
         onAdvancePoker={onAdvancePoker}
+        onAllInPoker={onAllInPoker}
         onCallPoker={onCallPoker}
         onCheckPoker={onCheckPoker}
         onFoldPoker={onFoldPoker}
@@ -4775,11 +4823,13 @@ function OnlineGames({
 
 function OnlineRoomsPanel({
   actionRoomId,
+  balance,
   currentUserId,
   message,
   now,
   rooms,
   onAdvancePoker,
+  onAllInPoker,
   onCallPoker,
   onCheckPoker,
   onFoldPoker,
@@ -4793,11 +4843,13 @@ function OnlineRoomsPanel({
   onStartPoker,
 }: {
   actionRoomId: string | null;
+  balance: number;
   currentUserId: string;
   message: string;
   now: number;
   rooms: OnlineRoomEntry[];
   onAdvancePoker: (room: OnlineRoomEntry) => void;
+  onAllInPoker: (room: OnlineRoomEntry) => void;
   onCallPoker: (room: OnlineRoomEntry) => void;
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
@@ -4867,8 +4919,10 @@ function OnlineRoomsPanel({
                   <PokerRoomPanel
                     busy={busy}
                     currentUserId={currentUserId}
+                    playerBalance={balance}
                     room={room}
                     onAdvance={onAdvancePoker}
+                    onAllIn={onAllInPoker}
                     onCall={onCallPoker}
                     onCheck={onCheckPoker}
                     onFold={onFoldPoker}
@@ -5067,8 +5121,10 @@ function DuelHistoryPanel({ currentUserId, history }: { currentUserId: string; h
 function PokerRoomPanel({
   busy,
   currentUserId,
+  playerBalance,
   room,
   onAdvance,
+  onAllIn,
   onCall,
   onCheck,
   onFold,
@@ -5078,8 +5134,10 @@ function PokerRoomPanel({
 }: {
   busy: boolean;
   currentUserId: string;
+  playerBalance: number;
   room: OnlineRoomEntry;
   onAdvance: (room: OnlineRoomEntry) => void;
+  onAllIn: (room: OnlineRoomEntry) => void;
   onCall: (room: OnlineRoomEntry) => void;
   onCheck: (room: OnlineRoomEntry) => void;
   onFold: (room: OnlineRoomEntry) => void;
@@ -5108,14 +5166,15 @@ function PokerRoomPanel({
     room.status === "playing" &&
     activePlayers.every((player) => {
       const action = room.pokerActions[player.uid];
-      return (action === "checked" || action === "called" || action === "raised" || action === "folded") && (room.pokerContributions[player.uid] ?? 0) >= room.pokerCurrentBet;
+      return (action === "checked" || action === "called" || action === "raised" || action === "folded" || action === "all-in") && (room.pokerContributions[player.uid] ?? 0) >= room.pokerCurrentBet;
     });
   const isTurn = room.pokerTurnUid === currentUserId;
   const currentContribution = room.pokerContributions[currentUserId] ?? 0;
   const amountToCall = Math.max(0, room.pokerCurrentBet - currentContribution);
   const canAdvance = room.status === "playing" && isHost && phaseDone;
   const canCheck = room.status === "playing" && inRoom && !folded && isTurn && amountToCall === 0;
-  const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0;
+  const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0 && playerBalance >= amountToCall;
+  const canAllIn = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0 && playerBalance > 0 && playerBalance < amountToCall;
   const canFold = room.status === "playing" && inRoom && !folded && isTurn;
   const canRaise = room.status === "playing" && inRoom && !folded && isTurn && Number.isFinite(raiseTarget) && raiseTarget >= minimumRaiseTarget;
   const canRemoveTable = inRoom && (room.status === "playing" || room.status === "finished");
@@ -5130,6 +5189,8 @@ function PokerRoomPanel({
         ? `${winnerSummary}${room.pokerWinnerHandLabel ? ` avec ${room.pokerWinnerHandLabel}` : ""}`
         : phaseDone
           ? `Phase ${room.pokerPhase} terminee.`
+          : isTurn && amountToCall > playerBalance && playerBalance > 0
+            ? `Tu n'as pas assez pour suivre ${amountToCall} credits : fais tapis avec ${playerBalance} credits ou couche-toi.`
           : isTurn && amountToCall > 0
             ? `A toi de jouer : tu dois suivre ${amountToCall} credits, relancer, ou te coucher.`
           : `Tour de ${room.pokerTurnName || "joueur"}.`;
@@ -5215,9 +5276,11 @@ function PokerRoomPanel({
                 ? "suivi"
                 : action === "raised"
                   ? "relance"
-                  : room.pokerTurnUid === player.uid
-                    ? "joue"
-                    : "attend";
+                  : action === "all-in"
+                    ? "tapis"
+                    : room.pokerTurnUid === player.uid
+                      ? "joue"
+                      : "attend";
           const contribution = room.pokerContributions[player.uid] ?? 0;
 
           return (
@@ -5236,6 +5299,9 @@ function PokerRoomPanel({
         </button>
         <button className={styles.primaryButton} type="button" onClick={() => onCall(room)} disabled={busy || !canCall}>
           Suivre{amountToCall > 0 ? ` ${amountToCall}` : ""}
+        </button>
+        <button className={styles.primaryButton} type="button" onClick={() => onAllIn(room)} disabled={busy || !canAllIn}>
+          Tapis{canAllIn ? ` ${playerBalance}` : ""}
         </button>
         <label className={styles.visuallyHidden} htmlFor={`poker-raise-${room.id}`}>
           Montant de la mise

@@ -188,3 +188,21 @@ export function evaluatePokerHand(cards: string[]): PokerHandResult {
     return !bestHand || comparePokerHands(candidate, bestHand) > 0 ? candidate : bestHand;
   }, null) as PokerHandResult;
 }
+
+export function completeCommunityCards(deck: string[], communityCards: string[], targetCount = 5) {
+  const nextDeck = [...deck];
+  const nextCommunityCards = [...communityCards];
+
+  while (nextCommunityCards.length < targetCount && nextDeck.length > 0) {
+    const nextCard = nextDeck.shift();
+
+    if (nextCard) {
+      nextCommunityCards.push(nextCard);
+    }
+  }
+
+  return {
+    deck: nextDeck,
+    communityCards: nextCommunityCards,
+  };
+}

@@ -29,7 +29,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { comparePokerHands, evaluatePokerHand } from "./pokerLogic";
+import { comparePokerHands, completeCommunityCards, evaluatePokerHand } from "./pokerLogic";
 
 export type CasinoUser = {
   uid: string;
@@ -1137,7 +1137,7 @@ function nextPokerTurn(room: OnlineRoomEntry, currentUid: string, foldedPlayerId
 }
 
 function pokerActionSettlesTurn(action: string | undefined) {
-  return action === "checked" || action === "called" || action === "raised" || action === "folded";
+  return action === "checked" || action === "called" || action === "raised" || action === "folded" || action === "all-in";
 }
 
 function allActivePokerPlayersSettled(
@@ -1157,6 +1157,28 @@ function allActivePokerPlayersSettled(
 
 function foldedPokerActions(foldedPlayerIds: string[]) {
   return Object.fromEntries(foldedPlayerIds.map((uid) => [uid, "folded"]));
+}
+
+function createPokerShowdownFields(room: OnlineRoomEntry, deck = room.pokerDeck, communityCards = room.communityCards) {
+  const showdownRoom = {
+    ...room,
+    pokerDeck: deck,
+    communityCards,
+  };
+  const showdownResults = createShowdownResults(showdownRoom);
+  const winners = showdownResults.filter((result) => result.isWinner);
+
+  return {
+    pokerDeck: deck,
+    communityCards,
+    pokerWinnerUid: winners[0]?.uid ?? "",
+    pokerWinnerName: winners[0]?.displayName ?? "",
+    pokerWinnerUids: winners.map((result) => result.uid),
+    pokerWinnerNames: winners.map((result) => result.displayName),
+    pokerWinnerHandLabel: winners.length > 1 ? "Egalite" : winners[0]?.handLabel ?? "",
+    pokerWinnerHandCards: winners.length === 1 ? winners[0]?.handCards ?? [] : [],
+    pokerShowdownResults: showdownResults,
+  };
 }
 
 export async function startPokerRoom(room: OnlineRoomEntry, user: CasinoUser) {
@@ -1346,6 +1368,73 @@ export async function callPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
     pokerPot: room.pokerPot + amountToCall,
     pokerTurnUid: phaseDone ? "" : nextTurn?.uid ?? "",
     pokerTurnName: phaseDone ? "" : nextTurn?.displayName ?? "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function allInPokerPlayer(room: OnlineRoomEntry, user: CasinoUser, amount: number) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "poker" || room.status !== "playing" || room.pokerTurnUid !== user.uid) {
+    throw new Error("Ce n'est pas ton tour.");
+  }
+
+  if (room.foldedPlayerIds.includes(user.uid)) {
+    throw new Error("Tu es deja couche.");
+  }
+
+  const allInAmount = Number(amount);
+
+  if (!Number.isFinite(allInAmount) || allInAmount <= 0) {
+    throw new Error("Tu n'as pas assez de credits pour faire tapis.");
+  }
+
+  const currentContribution = room.pokerContributions[user.uid] ?? 0;
+  const amountToCall = Math.max(0, room.pokerCurrentBet - currentContribution);
+
+  if (amountToCall <= 0) {
+    throw new Error("Il n'y a rien a suivre, tu peux checker.");
+  }
+
+  if (allInAmount >= amountToCall) {
+    throw new Error("Tu as assez pour suivre normalement.");
+  }
+
+  const pokerContributions = {
+    ...room.pokerContributions,
+    [user.uid]: currentContribution + allInAmount,
+  };
+  const pokerPaidByPlayer = {
+    ...room.pokerPaidByPlayer,
+    [user.uid]: (room.pokerPaidByPlayer[user.uid] ?? 0) + allInAmount,
+  };
+  const pokerActions = {
+    ...room.pokerActions,
+    [user.uid]: "all-in",
+  };
+  const completed = completeCommunityCards(room.pokerDeck, room.communityCards);
+  const showdownRoom = {
+    ...room,
+    pokerActions,
+    pokerContributions,
+    pokerPaidByPlayer,
+    pokerPot: room.pokerPot + allInAmount,
+  };
+  const showdownFields = createPokerShowdownFields(showdownRoom, completed.deck, completed.communityCards);
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    status: "finished",
+    pokerPhase: "showdown",
+    pokerActions,
+    pokerContributions,
+    pokerPaidByPlayer,
+    pokerPot: room.pokerPot + allInAmount,
+    pokerTurnUid: "",
+    pokerTurnName: "",
+    ...showdownFields,
     updatedAt: serverTimestamp(),
   });
 }

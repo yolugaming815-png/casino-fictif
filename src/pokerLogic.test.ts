@@ -1,10 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { comparePokerHands, evaluatePokerHand } from "./pokerLogic.ts";
+import { comparePokerHands, completeCommunityCards, evaluatePokerHand } from "./pokerLogic.ts";
 
 test("detecte une paire et une double paire", () => {
   assert.equal(evaluatePokerHand(["A♠", "A♥", "9♣", "6♦", "3♠", "2♥", "K♣"]).rank, "pair");
   assert.equal(evaluatePokerHand(["A♠", "A♥", "9♣", "9♦", "3♠", "2♥", "K♣"]).rank, "two-pair");
+});
+
+test("complete les cartes communes jusqu'au showdown", () => {
+  const completed = completeCommunityCards(["A♠", "K♥", "Q♣"], ["2♠", "3♥", "4♦"]);
+
+  assert.deepEqual(completed.communityCards, ["2♠", "3♥", "4♦", "A♠", "K♥"]);
+  assert.deepEqual(completed.deck, ["Q♣"]);
 });
 
 test("detecte les grosses combinaisons", () => {
