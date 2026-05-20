@@ -251,6 +251,7 @@ const KEY_FRAGMENTS_REQUIRED = 9;
 const REWARDED_AD_CREDITS = 250;
 const DAILY_REWARDED_AD_LIMIT = 5;
 const REWARDED_AD_WATCH_MS = 6500;
+const PLINKO_MAX_BET = 1000;
 const DUEL_PLINKO_BALLS_PER_ROUND = 15;
 const DUEL_PLINKO_BET_PER_BALL = 10;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
@@ -268,9 +269,10 @@ const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   legendary: 3,
 };
 
-function parseBetInput(value: string): Bet {
+function parseBetInput(value: string, max?: number): Bet {
   const parsed = Math.floor(Number(value));
-  return Number.isFinite(parsed) ? Math.max(MIN_BET, parsed) : MIN_BET;
+  const minimumBet = Number.isFinite(parsed) ? Math.max(MIN_BET, parsed) : MIN_BET;
+  return max === undefined ? minimumBet : Math.min(max, minimumBet);
 }
 
 function getDuelGameKind(game: string): "plinko" | "roulette" | "quick" {
@@ -809,7 +811,7 @@ function App() {
 
   const slotBetAvailable = canPlaceBet(balance, slotBet);
   const blackjackBetAvailable = canPlaceBet(balance, blackjackBet);
-  const plinkoBetAvailable = canPlaceBet(balance, plinkoBet);
+  const plinkoBetAvailable = canPlaceBet(balance, plinkoBet) && plinkoBet <= PLINKO_MAX_BET;
   const plinkoAnimating = activePlinkoLaunches.length > 0;
   const rouletteBetAvailable = canPlaceBet(balance, rouletteBet);
   const rocketBetAvailable = canPlaceBet(balance, rocketBet);
@@ -2207,6 +2209,11 @@ function App() {
   function launchPlinko() {
     if (paused) {
       setPlinkoMessage("La pause responsable est active.");
+      return;
+    }
+
+    if (plinkoBet > PLINKO_MAX_BET) {
+      setPlinkoMessage(`La mise Plinko est limitee a ${PLINKO_MAX_BET.toLocaleString("fr-FR")} credits.`);
       return;
     }
 
@@ -3848,23 +3855,26 @@ function SlotGame({
 function BetAmountInput({
   disabled = false,
   id,
+  max,
   value,
   onChange,
 }: {
   disabled?: boolean;
   id: string;
+  max?: number;
   value: Bet;
   onChange: (bet: Bet) => void;
 }) {
   return (
     <input
       id={id}
+      max={max}
       min={MIN_BET}
       step="1"
       type="number"
       value={value}
       disabled={disabled}
-      onChange={(event) => onChange(parseBetInput(event.target.value))}
+      onChange={(event) => onChange(parseBetInput(event.target.value, max))}
     />
   );
 }
@@ -5786,7 +5796,7 @@ function PlinkoGame({
 
         <div className={styles.controls}>
           <label htmlFor="plinkoBet">Mise virtuelle</label>
-          <BetAmountInput id="plinkoBet" value={bet} onChange={onBetChange} />
+          <BetAmountInput id="plinkoBet" max={PLINKO_MAX_BET} value={bet} onChange={onBetChange} />
           <label htmlFor="plinkoRows">Rangees</label>
           <input id="plinkoRows" type="text" value={`${rows} rangees`} readOnly disabled={animating} />
           <button
@@ -5798,6 +5808,7 @@ function PlinkoGame({
             Lancer une bille
           </button>
         </div>
+        <small className={styles.betNote}>Mise Plinko maximum : {PLINKO_MAX_BET.toLocaleString("fr-FR")} credits virtuels.</small>
 
         {paused && (
           <div className={styles.pausePanel} role="status">
