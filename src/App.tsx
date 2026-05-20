@@ -2666,10 +2666,12 @@ function App() {
           />
         )}
 
-        <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
-          <span aria-hidden="true">☰</span>
-          Menu
-        </button>
+        {!mobileMenuOpen && (
+          <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
+            <span aria-hidden="true">☰</span>
+            Menu
+          </button>
+        )}
         {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
 
         <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
