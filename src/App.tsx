@@ -4112,11 +4112,11 @@ function AdminPanel({
     "/delete room ROOM_ID",
     "/finish room ROOM_ID",
   ];
-  const mentionMatch = command.match(/@[^ \t\r\n]*$/);
+  const mentionMatch = command.match(/@[^@]*$/);
   const mentionQuery = mentionMatch ? normalizeAdminMentionText(mentionMatch[0].replace(/^@+/, "").replace(/^,+/, "")) : "";
   const playerSuggestions = useMemo(() => {
     if (!mentionQuery) {
-      return [];
+      return mentionMatch ? players.slice(0, 8) : [];
     }
 
     return players

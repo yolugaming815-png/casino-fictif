@@ -1774,6 +1774,11 @@ function findAdminTarget(players: LeaderboardEntry[], target: string) {
   return players.find((player) => player.uid.toLowerCase() === normalized || normalizeAdminTarget(player.displayName) === normalized);
 }
 
+function extractAdminTarget(command: string) {
+  const match = command.match(/@.+$/);
+  return match ? match[0].trim() : "";
+}
+
 function parseRenameCommand(command: string) {
   const match = command.match(/^\/rename\s+"([^"]+)"\s+to\s+"([^"]+)"$/i);
   if (!match) {
@@ -1877,7 +1882,7 @@ export async function executeAdminCommand(admin: CasinoUser, command: string): P
   const parts = trimmed.split(" ");
   const action = parts[0].toLowerCase();
   const players = await loadAdminPlayers();
-  const targetToken = parts.find((part) => part.startsWith("@"));
+  const targetToken = extractAdminTarget(trimmed);
   const allTargets = targetToken ? normalizeAdminTarget(targetToken) === "all" : false;
   const target = targetToken && !allTargets ? findAdminTarget(players, targetToken) : null;
 
