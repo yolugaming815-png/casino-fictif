@@ -3,8 +3,8 @@ import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
 import {
-  BET_OPTIONS,
   INITIAL_BALANCE,
+  MIN_BET,
   SYMBOLS,
   canPlaceBet,
   createReels,
@@ -253,6 +253,11 @@ const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   epic: 2,
   legendary: 3,
 };
+
+function parseBetInput(value: string): Bet {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) ? Math.max(MIN_BET, parsed) : MIN_BET;
+}
 
 function emptySpecialInventory(): SpecialInventory {
   return SPECIAL_CHESTS.reduce(
@@ -3611,17 +3616,7 @@ function SlotGame({
 
         <div className={styles.controls}>
           <label htmlFor="slotBet">Mise virtuelle</label>
-          <select
-            id="slotBet"
-            value={bet}
-            onChange={(event) => onBetChange(Number(event.target.value) as Bet)}
-          >
-            {BET_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option} credits
-              </option>
-            ))}
-          </select>
+          <BetAmountInput id="slotBet" value={bet} onChange={onBetChange} />
           <button className={styles.primaryButton} type="button" onClick={onSpin} disabled={paused || !canSpin || spinning}>
             Lancer
           </button>
@@ -3665,6 +3660,30 @@ function SlotGame({
         </HistoryPanel>
       </section>
     </>
+  );
+}
+
+function BetAmountInput({
+  disabled = false,
+  id,
+  value,
+  onChange,
+}: {
+  disabled?: boolean;
+  id: string;
+  value: Bet;
+  onChange: (bet: Bet) => void;
+}) {
+  return (
+    <input
+      id={id}
+      min={MIN_BET}
+      step="1"
+      type="number"
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(parseBetInput(event.target.value))}
+    />
   );
 }
 
@@ -5104,18 +5123,7 @@ function BlackjackGame({
 
         <div className={styles.controls}>
           <label htmlFor="blackjackBet">Mise virtuelle</label>
-          <select
-            id="blackjackBet"
-            value={bet}
-            onChange={(event) => onBetChange(Number(event.target.value) as Bet)}
-            disabled={phase === "player"}
-          >
-            {BET_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option} credits
-              </option>
-            ))}
-          </select>
+          <BetAmountInput id="blackjackBet" value={bet} onChange={onBetChange} disabled={phase === "player"} />
 
           {phase === "player" ? (
             <>
@@ -5287,13 +5295,7 @@ function PlinkoGame({
 
         <div className={styles.controls}>
           <label htmlFor="plinkoBet">Mise virtuelle</label>
-          <select id="plinkoBet" value={bet} onChange={(event) => onBetChange(Number(event.target.value) as Bet)}>
-            {BET_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option} credits
-              </option>
-            ))}
-          </select>
+          <BetAmountInput id="plinkoBet" value={bet} onChange={onBetChange} />
           <label htmlFor="plinkoRows">Rangees</label>
           <input id="plinkoRows" type="text" value={`${rows} rangees`} readOnly disabled={animating} />
           <button
@@ -5799,13 +5801,7 @@ function RouletteGame({
 
         <div className={styles.controls}>
           <label htmlFor="rouletteBet">Mise virtuelle</label>
-          <select id="rouletteBet" value={bet} onChange={(event) => onBetChange(Number(event.target.value) as Bet)}>
-            {BET_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option} credits
-              </option>
-            ))}
-          </select>
+          <BetAmountInput id="rouletteBet" value={bet} onChange={onBetChange} />
 
           <label htmlFor="rouletteKind">Pari</label>
           <select
@@ -7019,13 +7015,7 @@ function RocketGame({
 
         <div className={styles.controls}>
           <label htmlFor="rocketBet">Mise virtuelle</label>
-          <select id="rocketBet" value={bet} onChange={(event) => onBetChange(Number(event.target.value) as Bet)}>
-            {BET_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option} credits
-              </option>
-            ))}
-          </select>
+          <BetAmountInput id="rocketBet" value={bet} onChange={onBetChange} />
           <label htmlFor="rocketTarget">Cible</label>
           <input
             id="rocketTarget"

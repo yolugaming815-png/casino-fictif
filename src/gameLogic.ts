@@ -1,9 +1,10 @@
 export const SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "7️⃣", "💎", "🍀", "🍉"] as const;
+export const MIN_BET = 10;
 export const BET_OPTIONS = [10, 25, 50, 100] as const;
 export const INITIAL_BALANCE = 1000;
 
 export type SlotSymbol = (typeof SYMBOLS)[number];
-export type Bet = (typeof BET_OPTIONS)[number];
+export type Bet = number;
 export type Reels = readonly [SlotSymbol, SlotSymbol, SlotSymbol];
 
 export type SpinOutcome = {
@@ -58,7 +59,7 @@ export function getMultiplier(reels: Reels): number {
 }
 
 export function canPlaceBet(balance: number, bet: number): boolean {
-  return balance >= bet;
+  return Number.isFinite(bet) && bet >= MIN_BET && balance >= bet;
 }
 
 function pickSymbol(rng: () => number): SlotSymbol {

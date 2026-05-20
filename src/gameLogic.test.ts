@@ -48,4 +48,6 @@ test("la generation aleatoire accepte une source RNG injectable", () => {
 test("une mise est possible uniquement si le solde suffit", () => {
   assert.equal(canPlaceBet(50, 50), true);
   assert.equal(canPlaceBet(49, 50), false);
+  assert.equal(canPlaceBet(1000, 9), false);
+  assert.equal(canPlaceBet(1000, -100), false);
 });
