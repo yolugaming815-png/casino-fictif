@@ -118,7 +118,7 @@ export type SkinTradeEntry = {
   updatedAt?: unknown;
 };
 
-export type OnlineRoomType = "duel" | "poker";
+export type OnlineRoomType = "duel" | "poker" | "russian-roulette";
 export type OnlineRoomStatus = "waiting" | "playing" | "finished";
 
 export type OnlineRoomPlayer = {
@@ -141,6 +141,14 @@ export type DuelPlayerScore = {
 };
 
 export type PokerPhase = "waiting" | "preflop" | "flop" | "turn" | "river" | "showdown";
+
+export type RussianRouletteShot = {
+  uid: string;
+  displayName: string;
+  round: number;
+  survived: boolean;
+  amount: number;
+};
 
 export type OnlineRoomEntry = {
   id: string;
@@ -178,6 +186,15 @@ export type OnlineRoomEntry = {
   pokerWinnerHandLabel?: string;
   pokerWinnerHandCards: string[];
   pokerShowdownResults: PokerShowdownResult[];
+  russianBet: number;
+  russianPot: number;
+  russianRound: number;
+  russianAliveUids: string[];
+  russianEliminatedUids: string[];
+  russianPaidRound: Record<string, number>;
+  russianShots: RussianRouletteShot[];
+  russianTurnUid?: string;
+  russianTurnName?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -191,6 +208,8 @@ export type DuelStats = {
 const STALE_WAITING_ROOM_MS = 30 * 60 * 1000;
 const INACTIVE_POKER_ROOM_MS = 30 * 60 * 1000;
 const POKER_MAX_PLAYERS = 10;
+const RUSSIAN_ROULETTE_MAX_PLAYERS = 6;
+const RUSSIAN_ROULETTE_ELIMINATION_CHANCE = 1 / 6;
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA95a2M9sm2EXwQNU3KFeMShp3tLYqmtCo",
@@ -719,7 +738,7 @@ export function isInactivePokerRoom(room: OnlineRoomEntry, now = Date.now()) {
 }
 
 function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomEntry {
-  const type = data.type === "poker" ? "poker" : "duel";
+  const type = data.type === "poker" ? "poker" : data.type === "russian-roulette" ? "russian-roulette" : "duel";
   const status = data.status === "playing" || data.status === "finished" ? data.status : "waiting";
   const players = Array.isArray(data.players)
     ? data.players
@@ -785,17 +804,44 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
         })
         .filter((result) => result.uid)
     : [];
+  const rawRussianPaidRound = data.russianPaidRound && typeof data.russianPaidRound === "object" ? (data.russianPaidRound as Record<string, unknown>) : {};
+  const russianPaidRound = Object.fromEntries(
+    Object.entries(rawRussianPaidRound)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
+      .map(([uid, amount]) => [uid, amount]),
+  );
+  const russianShots = Array.isArray(data.russianShots)
+    ? data.russianShots
+        .map((shot) => {
+          const parsedShot = shot && typeof shot === "object" ? (shot as Record<string, unknown>) : {};
+          return {
+            uid: typeof parsedShot.uid === "string" ? parsedShot.uid : "",
+            displayName: typeof parsedShot.displayName === "string" ? parsedShot.displayName : "Joueur anonyme",
+            round: typeof parsedShot.round === "number" && Number.isFinite(parsedShot.round) ? parsedShot.round : 1,
+            survived: parsedShot.survived !== false,
+            amount: typeof parsedShot.amount === "number" && Number.isFinite(parsedShot.amount) ? parsedShot.amount : 0,
+          };
+        })
+        .filter((shot) => shot.uid)
+    : [];
 
   return {
     id,
     type,
-    game: typeof data.game === "string" ? data.game : type === "poker" ? "Poker" : "Duel",
+    game: typeof data.game === "string" ? data.game : type === "poker" ? "Poker" : type === "russian-roulette" ? "Roulette russe" : "Duel",
     status,
     hostUid: typeof data.hostUid === "string" ? data.hostUid : "",
     hostName: typeof data.hostName === "string" ? data.hostName : "Joueur anonyme",
     players,
     playerIds: Array.isArray(data.playerIds) ? data.playerIds.filter((id): id is string => typeof id === "string") : players.map((player) => player.uid),
-    maxPlayers: typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers) ? data.maxPlayers : type === "poker" ? POKER_MAX_PLAYERS : 2,
+    maxPlayers:
+      typeof data.maxPlayers === "number" && Number.isFinite(data.maxPlayers)
+        ? data.maxPlayers
+        : type === "poker"
+          ? POKER_MAX_PLAYERS
+          : type === "russian-roulette"
+            ? RUSSIAN_ROULETTE_MAX_PLAYERS
+            : 2,
     invitedUid: typeof data.invitedUid === "string" ? data.invitedUid : undefined,
     invitedName: typeof data.invitedName === "string" ? data.invitedName : undefined,
     duelRewardMode: typeof data.duelRewardMode === "string" ? data.duelRewardMode : undefined,
@@ -822,12 +868,21 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
     pokerWinnerHandLabel: typeof data.pokerWinnerHandLabel === "string" ? data.pokerWinnerHandLabel : undefined,
     pokerWinnerHandCards: Array.isArray(data.pokerWinnerHandCards) ? data.pokerWinnerHandCards.filter((card): card is string => typeof card === "string") : [],
     pokerShowdownResults,
+    russianBet: typeof data.russianBet === "number" && Number.isFinite(data.russianBet) ? data.russianBet : 25,
+    russianPot: typeof data.russianPot === "number" && Number.isFinite(data.russianPot) ? data.russianPot : 0,
+    russianRound: typeof data.russianRound === "number" && Number.isFinite(data.russianRound) ? data.russianRound : 1,
+    russianAliveUids: Array.isArray(data.russianAliveUids) ? data.russianAliveUids.filter((uid): uid is string => typeof uid === "string") : [],
+    russianEliminatedUids: Array.isArray(data.russianEliminatedUids) ? data.russianEliminatedUids.filter((uid): uid is string => typeof uid === "string") : [],
+    russianPaidRound,
+    russianShots,
+    russianTurnUid: typeof data.russianTurnUid === "string" ? data.russianTurnUid : undefined,
+    russianTurnName: typeof data.russianTurnName === "string" ? data.russianTurnName : undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
 }
 
-export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer) {
+export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer, options: { russianBet?: number } = {}) {
   const app = getFirebaseApp();
   if (!app) {
     return null;
@@ -843,7 +898,7 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     hostName: player.displayName,
     players: [player],
     playerIds,
-    maxPlayers: type === "poker" ? POKER_MAX_PLAYERS : 2,
+    maxPlayers: type === "poker" ? POKER_MAX_PLAYERS : type === "russian-roulette" ? RUSSIAN_ROULETTE_MAX_PLAYERS : 2,
     invitedUid: invitedPlayer?.uid ?? "",
     invitedName: invitedPlayer?.displayName ?? "",
     duelScores: {},
@@ -867,6 +922,15 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
     pokerWinnerHandLabel: "",
     pokerWinnerHandCards: [],
     pokerShowdownResults: [],
+    russianBet: Math.max(25, Math.floor(Number(options.russianBet ?? 25))),
+    russianPot: 0,
+    russianRound: 1,
+    russianAliveUids: [],
+    russianEliminatedUids: [],
+    russianPaidRound: {},
+    russianShots: [],
+    russianTurnUid: "",
+    russianTurnName: "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -893,7 +957,7 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
 
   return parsedRooms
     .filter((room) => !staleWaitingRooms.some((staleRoom) => staleRoom.id === room.id))
-    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker"));
+    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker" || room.type === "russian-roulette"));
 }
 
 function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[]) {
@@ -904,7 +968,7 @@ function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[]) {
       const createdAt = timestampToMillis(room.createdAt);
       return !(room.status === "waiting" && createdAt !== null && now - createdAt > STALE_WAITING_ROOM_MS);
     })
-    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker"));
+    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker" || room.type === "russian-roulette"));
 }
 
 export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => void, onError?: () => void) {
@@ -1079,6 +1143,156 @@ export async function startDuelRoom(room: OnlineRoomEntry, user: CasinoUser) {
     pokerShowdownResults: room.pokerShowdownResults,
     updatedAt: serverTimestamp(),
   });
+}
+
+function nextRussianRouletteTurn(
+  players: OnlineRoomPlayer[],
+  aliveUids: string[],
+  paidRound: Record<string, number>,
+  round: number,
+  currentUid = "",
+) {
+  const alivePlayers = players.filter((player) => aliveUids.includes(player.uid));
+  const unpaidPlayers = alivePlayers.filter((player) => paidRound[player.uid] !== round);
+
+  if (!unpaidPlayers.length) {
+    return null;
+  }
+
+  const currentIndex = Math.max(0, alivePlayers.findIndex((player) => player.uid === currentUid));
+
+  for (let offset = 1; offset <= alivePlayers.length; offset += 1) {
+    const candidate = alivePlayers[(currentIndex + offset) % alivePlayers.length];
+    if (candidate && paidRound[candidate.uid] !== round) {
+      return candidate;
+    }
+  }
+
+  return unpaidPlayers[0] ?? null;
+}
+
+export async function startRussianRouletteRoom(room: OnlineRoomEntry, user: CasinoUser) {
+  const app = getFirebaseApp();
+  if (!app) {
+    return;
+  }
+
+  if (room.type !== "russian-roulette" || room.hostUid !== user.uid || room.players.length < 2 || room.status !== "waiting") {
+    throw new Error("La roulette russe ne peut pas encore etre lancee.");
+  }
+
+  const aliveUids = room.players.map((player) => player.uid);
+
+  await updateDoc(doc(getFirestore(app), "onlineRooms", room.id), {
+    status: "playing",
+    players: room.players,
+    playerIds: Array.from(new Set([...room.playerIds, ...aliveUids])),
+    russianBet: Math.max(25, Math.floor(room.russianBet || 25)),
+    russianPot: 0,
+    russianRound: 1,
+    russianAliveUids: aliveUids,
+    russianEliminatedUids: [],
+    russianPaidRound: {},
+    russianShots: [],
+    russianTurnUid: room.players[0]?.uid ?? "",
+    russianTurnName: room.players[0]?.displayName ?? "",
+    winnerUid: "",
+    winnerName: "",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function playRussianRouletteTurn(
+  room: OnlineRoomEntry,
+  user: CasinoUser,
+): Promise<{ eliminated: boolean; winnerUid?: string; winnerName?: string; pot: number; bet: number; round: number } | null> {
+  const app = getFirebaseApp();
+  if (!app) {
+    return null;
+  }
+
+  const db = getFirestore(app);
+  let result: { eliminated: boolean; winnerUid?: string; winnerName?: string; pot: number; bet: number; round: number } | null = null;
+
+  await runTransaction(db, async (transaction) => {
+    const roomRef = doc(db, "onlineRooms", room.id);
+    const snapshot = await transaction.get(roomRef);
+
+    if (!snapshot.exists()) {
+      throw new Error("Cette partie n'existe plus.");
+    }
+
+    const freshRoom = parseOnlineRoom(snapshot.id, snapshot.data());
+
+    if (freshRoom.type !== "russian-roulette" || freshRoom.status !== "playing") {
+      throw new Error("Cette roulette russe n'est pas lancee.");
+    }
+
+    if (freshRoom.russianTurnUid !== user.uid) {
+      throw new Error("Ce n'est pas ton tour.");
+    }
+
+    if (!freshRoom.russianAliveUids.includes(user.uid)) {
+      throw new Error("Tu es deja elimine.");
+    }
+
+    const bet = Math.max(25, Math.floor(freshRoom.russianBet || 25));
+    const round = Math.max(1, Math.floor(freshRoom.russianRound || 1));
+    const eliminated = Math.random() < RUSSIAN_ROULETTE_ELIMINATION_CHANCE;
+    const aliveAfterShot = eliminated ? freshRoom.russianAliveUids.filter((uid) => uid !== user.uid) : [...freshRoom.russianAliveUids];
+    const eliminatedUids = eliminated ? Array.from(new Set([...freshRoom.russianEliminatedUids, user.uid])) : freshRoom.russianEliminatedUids;
+    const pot = freshRoom.russianPot + bet;
+    const paidRound = {
+      ...freshRoom.russianPaidRound,
+      [user.uid]: round,
+    };
+    const shots = [
+      ...freshRoom.russianShots,
+      {
+        uid: user.uid,
+        displayName: user.displayName || "Joueur anonyme",
+        round,
+        survived: !eliminated,
+        amount: bet,
+      },
+    ].slice(-60);
+    const winner = aliveAfterShot.length === 1 ? freshRoom.players.find((player) => player.uid === aliveAfterShot[0]) : undefined;
+    let nextRound = round;
+    let nextPaidRound = paidRound;
+    let nextTurn = winner ? null : nextRussianRouletteTurn(freshRoom.players, aliveAfterShot, paidRound, round, user.uid);
+
+    if (!winner && !nextTurn) {
+      nextRound = round + 1;
+      nextPaidRound = {};
+      nextTurn = freshRoom.players.find((player) => aliveAfterShot.includes(player.uid)) ?? null;
+    }
+
+    transaction.update(roomRef, {
+      status: winner ? "finished" : "playing",
+      russianPot: pot,
+      russianRound: nextRound,
+      russianAliveUids: aliveAfterShot,
+      russianEliminatedUids: eliminatedUids,
+      russianPaidRound: nextPaidRound,
+      russianShots: shots,
+      russianTurnUid: nextTurn?.uid ?? "",
+      russianTurnName: nextTurn?.displayName ?? "",
+      winnerUid: winner?.uid ?? "",
+      winnerName: winner?.displayName ?? "",
+      updatedAt: serverTimestamp(),
+    });
+
+    result = {
+      eliminated,
+      winnerUid: winner?.uid,
+      winnerName: winner?.displayName,
+      pot,
+      bet,
+      round,
+    };
+  });
+
+  return result;
 }
 
 function createDuelRoundScore(game: string) {

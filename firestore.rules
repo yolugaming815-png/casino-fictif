@@ -170,7 +170,7 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && request.resource.data.hostUid == request.auth.uid
-        && request.resource.data.type in ["duel", "poker"]
+        && request.resource.data.type in ["duel", "poker", "russian-roulette"]
         && request.resource.data.status == "waiting"
         && request.resource.data.players is list
         && request.resource.data.playerIds is list
@@ -189,7 +189,16 @@ service cloud.firestore {
         && request.resource.data.pokerWinnerNames is list
         && request.resource.data.pokerWinnerHandLabel is string
         && request.resource.data.pokerWinnerHandCards is list
-        && request.resource.data.pokerShowdownResults is list;
+        && request.resource.data.pokerShowdownResults is list
+        && request.resource.data.russianBet is number
+        && request.resource.data.russianPot is number
+        && request.resource.data.russianRound is number
+        && request.resource.data.russianAliveUids is list
+        && request.resource.data.russianEliminatedUids is list
+        && request.resource.data.russianPaidRound is map
+        && request.resource.data.russianShots is list
+        && request.resource.data.russianTurnUid is string
+        && request.resource.data.russianTurnName is string;
       allow update: if request.auth != null
         && (
           isAdmin()
@@ -221,6 +230,15 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(["pokerWinnerHandLabel"]) || request.resource.data.pokerWinnerHandLabel is string)
         && (!request.resource.data.keys().hasAny(["pokerWinnerHandCards"]) || request.resource.data.pokerWinnerHandCards is list)
         && (!request.resource.data.keys().hasAny(["pokerShowdownResults"]) || request.resource.data.pokerShowdownResults is list)
+        && (!request.resource.data.keys().hasAny(["russianBet"]) || request.resource.data.russianBet is number)
+        && (!request.resource.data.keys().hasAny(["russianPot"]) || request.resource.data.russianPot is number)
+        && (!request.resource.data.keys().hasAny(["russianRound"]) || request.resource.data.russianRound is number)
+        && (!request.resource.data.keys().hasAny(["russianAliveUids"]) || request.resource.data.russianAliveUids is list)
+        && (!request.resource.data.keys().hasAny(["russianEliminatedUids"]) || request.resource.data.russianEliminatedUids is list)
+        && (!request.resource.data.keys().hasAny(["russianPaidRound"]) || request.resource.data.russianPaidRound is map)
+        && (!request.resource.data.keys().hasAny(["russianShots"]) || request.resource.data.russianShots is list)
+        && (!request.resource.data.keys().hasAny(["russianTurnUid"]) || request.resource.data.russianTurnUid is string)
+        && (!request.resource.data.keys().hasAny(["russianTurnName"]) || request.resource.data.russianTurnName is string)
           )
         );
       allow delete: if request.auth != null
