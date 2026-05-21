@@ -5914,6 +5914,9 @@ function RussianRouletteRoomPanel({
   const canStart = room.status === "waiting" && isHost && room.players.length >= 2;
   const canPlay = room.status === "playing" && isPlayer && isAlive && isTurn && balance >= bet;
   const recentShots = room.russianShots.slice(-6).reverse();
+  const lastShot = room.russianShots.at(-1);
+  const shotState = lastShot ? (lastShot.survived ? "safe" : "danger") : room.status === "playing" ? "armed" : "idle";
+  const chamberIndex = room.russianShots.length % 6;
   const statusText =
     room.status === "waiting"
       ? room.players.length < 2
@@ -5930,6 +5933,55 @@ function RussianRouletteRoomPanel({
   return (
     <div className={styles.duelRoomPanel}>
       <p className={styles.duelStatus}>{statusText}</p>
+      <div className={styles.russianScene} data-state={shotState} key={`${lastShot?.uid ?? "start"}-${lastShot?.round ?? 0}-${lastShot?.survived ?? "none"}`}>
+        <div className={styles.russianRevolverWrap}>
+          <svg className={styles.russianRevolver} viewBox="0 0 260 150" aria-hidden="true">
+            <defs>
+              <linearGradient id={`barrel-${room.id}`} x1="0" x2="1">
+                <stop offset="0%" stopColor="#f6d77a" />
+                <stop offset="48%" stopColor="#6f5530" />
+                <stop offset="100%" stopColor="#fef2b8" />
+              </linearGradient>
+              <linearGradient id={`steel-${room.id}`} x1="0" x2="1">
+                <stop offset="0%" stopColor="#2f333b" />
+                <stop offset="45%" stopColor="#858c9a" />
+                <stop offset="100%" stopColor="#1a1d23" />
+              </linearGradient>
+            </defs>
+            <path className={styles.revolverFlash} d="M238 58 258 49 248 67 260 80 240 78 231 94 229 74 211 66 230 59Z" />
+            <path className={styles.revolverBarrel} d="M145 44h90c8 0 14 6 14 14v14c0 8-6 14-14 14h-91Z" fill={`url(#barrel-${room.id})`} />
+            <path className={styles.revolverFrame} d="M50 57c8-25 44-38 74-20 23 14 28 47 10 66-17 18-51 18-72 2-15-11-18-30-12-48Z" fill={`url(#steel-${room.id})`} />
+            <circle className={styles.revolverCylinder} cx="96" cy="66" r="32" />
+            {Array.from({ length: 6 }).map((_, index) => {
+              const angle = (Math.PI * 2 * index) / 6 - Math.PI / 2;
+              const cx = 96 + Math.cos(angle) * 18;
+              const cy = 66 + Math.sin(angle) * 18;
+              return <circle key={index} className={index === chamberIndex ? styles.revolverChamberActive : styles.revolverChamber} cx={cx} cy={cy} r="6" />;
+            })}
+            <circle className={styles.revolverCenter} cx="96" cy="66" r="7" />
+            <path className={styles.revolverGrip} d="M86 96h43c5 22-7 41-23 49-10-14-19-29-20-49Z" />
+            <path className={styles.revolverTrigger} d="M137 91c16 3 19 21 5 31" />
+            <path className={styles.revolverSight} d="M213 39h19" />
+          </svg>
+        </div>
+        <div className={styles.russianSceneInfo}>
+          <span>{room.status === "playing" ? `Tour de ${room.russianTurnName || "un joueur"}` : room.status === "finished" ? "Partie terminee" : "En attente"}</span>
+          <strong>
+            {lastShot
+              ? lastShot.survived
+                ? `${lastShot.displayName} survit`
+                : `${lastShot.displayName} est elimine`
+              : "Le barillet est pret"}
+          </strong>
+          <small>
+            {room.status === "playing"
+              ? `${room.russianAliveUids.length}/${room.players.length} survivants`
+              : room.status === "finished"
+                ? `Pot final : ${room.russianPot.toLocaleString("fr-FR")} credits`
+                : "L'hote lance la partie quand au moins 2 joueurs sont presents."}
+          </small>
+        </div>
+      </div>
       <div className={styles.pokerPotRow}>
         <span>Mise par round</span>
         <strong>{bet.toLocaleString("fr-FR")} credits</strong>

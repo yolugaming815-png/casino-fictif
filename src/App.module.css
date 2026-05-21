@@ -1404,6 +1404,180 @@
   font-weight: 900;
 }
 
+.russianScene {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(180px, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 209, 102, 0.24);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 18% 50%, rgba(255, 209, 102, 0.22), transparent 34%),
+    linear-gradient(135deg, rgba(16, 18, 24, 0.92), rgba(33, 26, 19, 0.78));
+}
+
+.russianRevolverWrap {
+  position: relative;
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+}
+
+.russianRevolver {
+  width: min(100%, 310px);
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.38));
+  transform-origin: 58% 47%;
+}
+
+.russianScene[data-state="armed"] .russianRevolver {
+  animation: russianAim 1.15s ease-in-out infinite;
+}
+
+.russianScene[data-state="safe"] .russianRevolver {
+  animation: russianSafe 0.85s ease both;
+}
+
+.russianScene[data-state="danger"] .russianRevolver {
+  animation: russianShot 0.75s ease both;
+}
+
+.revolverBarrel,
+.revolverFrame,
+.revolverGrip {
+  stroke: rgba(255, 241, 188, 0.45);
+  stroke-width: 2;
+}
+
+.revolverCylinder {
+  fill: rgba(22, 25, 31, 0.94);
+  stroke: #ffd166;
+  stroke-width: 3;
+}
+
+.revolverChamber {
+  fill: rgba(0, 0, 0, 0.48);
+  stroke: rgba(255, 241, 188, 0.32);
+  stroke-width: 1.5;
+}
+
+.revolverChamberActive {
+  fill: #ffd166;
+  stroke: #fff6cf;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 9px rgba(255, 209, 102, 0.75));
+}
+
+.revolverCenter {
+  fill: #2a2d34;
+  stroke: rgba(255, 209, 102, 0.9);
+  stroke-width: 2;
+}
+
+.revolverGrip {
+  fill: #372211;
+}
+
+.revolverTrigger,
+.revolverSight {
+  fill: none;
+  stroke: #e9eef2;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.revolverFlash {
+  fill: #ffd166;
+  opacity: 0;
+  filter: drop-shadow(0 0 16px rgba(255, 111, 82, 0.85));
+}
+
+.russianScene[data-state="danger"] .revolverFlash {
+  animation: russianFlash 0.75s ease both;
+}
+
+.russianSceneInfo {
+  display: grid;
+  gap: 6px;
+}
+
+.russianSceneInfo span {
+  color: #ffd166;
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.russianSceneInfo strong {
+  color: #fff9df;
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+  line-height: 1;
+}
+
+.russianSceneInfo small {
+  color: #d5ddd9;
+  font-weight: 800;
+}
+
+.russianScene[data-state="safe"] .russianSceneInfo strong {
+  color: #79e29f;
+}
+
+.russianScene[data-state="danger"] .russianSceneInfo strong {
+  color: #ff8e8e;
+}
+
+@keyframes russianAim {
+  0%,
+  100% {
+    transform: rotate(-1deg) translateX(0);
+  }
+  50% {
+    transform: rotate(1.5deg) translateX(5px);
+  }
+}
+
+@keyframes russianSafe {
+  0% {
+    transform: rotate(-2deg) translateX(0);
+  }
+  32% {
+    transform: rotate(8deg) translateX(12px);
+  }
+  100% {
+    transform: rotate(0) translateX(0);
+  }
+}
+
+@keyframes russianShot {
+  0% {
+    transform: translateX(0) rotate(0);
+  }
+  22% {
+    transform: translateX(-16px) rotate(-7deg);
+  }
+  48% {
+    transform: translateX(4px) rotate(2deg);
+  }
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+}
+
+@keyframes russianFlash {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+  18%,
+  42% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
 .duelScoreGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5442,10 +5616,12 @@
   .shopFooter,
   .inventorySectionHeader,
   .shopSectionHeader,
+  .russianScene,
   .onlineRoomCard,
   .activityItem,
   .socialItem {
     display: grid;
+    grid-template-columns: 1fr;
   }
 
   .socialActions {

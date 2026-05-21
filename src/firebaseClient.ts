@@ -738,7 +738,12 @@ export function isInactivePokerRoom(room: OnlineRoomEntry, now = Date.now()) {
 }
 
 function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomEntry {
-  const type = data.type === "poker" ? "poker" : data.type === "russian-roulette" ? "russian-roulette" : "duel";
+  const type =
+    data.type === "poker"
+      ? "poker"
+      : data.type === "russian-roulette" || data.onlineMode === "russian-roulette" || data.game === "Roulette russe"
+        ? "russian-roulette"
+        : "duel";
   const status = data.status === "playing" || data.status === "finished" ? data.status : "waiting";
   const players = Array.isArray(data.players)
     ? data.players
@@ -890,8 +895,10 @@ export async function createOnlineRoom(user: CasinoUser, type: OnlineRoomType, g
 
   const player = casinoPlayer(user);
   const playerIds = invitedPlayer ? [user.uid, invitedPlayer.uid] : [user.uid];
+  const storedType = type === "russian-roulette" ? "duel" : type;
   const room = await addDoc(collection(getFirestore(app), "onlineRooms"), {
-    type,
+    type: storedType,
+    onlineMode: type,
     game,
     status: "waiting",
     hostUid: user.uid,
@@ -1018,7 +1025,7 @@ export async function loadDuelHistory(userId: string): Promise<OnlineRoomEntry[]
 
   return snapshot.docs
     .map((room) => parseOnlineRoom(room.id, room.data()))
-    .filter((room) => room.status === "finished" && room.playerIds.includes(userId));
+    .filter((room) => room.type === "duel" && room.status === "finished" && room.playerIds.includes(userId));
 }
 
 export function subscribeDuelHistory(userId: string, onChange: (rooms: OnlineRoomEntry[]) => void, onError?: () => void) {
@@ -1036,7 +1043,7 @@ export function subscribeDuelHistory(userId: string, onChange: (rooms: OnlineRoo
       onChange(
         snapshot.docs
           .map((room) => parseOnlineRoom(room.id, room.data()))
-          .filter((room) => room.status === "finished" && room.playerIds.includes(userId)),
+          .filter((room) => room.type === "duel" && room.status === "finished" && room.playerIds.includes(userId)),
       );
     },
     () => {
