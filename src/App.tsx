@@ -5935,33 +5935,54 @@ function RussianRouletteRoomPanel({
       <p className={styles.duelStatus}>{statusText}</p>
       <div className={styles.russianScene} data-state={shotState} key={`${lastShot?.uid ?? "start"}-${lastShot?.round ?? 0}-${lastShot?.survived ?? "none"}`}>
         <div className={styles.russianRevolverWrap}>
-          <svg className={styles.russianRevolver} viewBox="0 0 260 150" aria-hidden="true">
+          <svg className={styles.russianRevolver} viewBox="0 0 320 170" aria-hidden="true">
             <defs>
               <linearGradient id={`barrel-${room.id}`} x1="0" x2="1">
-                <stop offset="0%" stopColor="#f6d77a" />
-                <stop offset="48%" stopColor="#6f5530" />
-                <stop offset="100%" stopColor="#fef2b8" />
+                <stop offset="0%" stopColor="#6b4a1f" />
+                <stop offset="20%" stopColor="#f7d46b" />
+                <stop offset="50%" stopColor="#8f6a30" />
+                <stop offset="78%" stopColor="#fff0af" />
+                <stop offset="100%" stopColor="#5b411e" />
               </linearGradient>
               <linearGradient id={`steel-${room.id}`} x1="0" x2="1">
-                <stop offset="0%" stopColor="#2f333b" />
-                <stop offset="45%" stopColor="#858c9a" />
-                <stop offset="100%" stopColor="#1a1d23" />
+                <stop offset="0%" stopColor="#171b22" />
+                <stop offset="18%" stopColor="#5e6673" />
+                <stop offset="42%" stopColor="#d7d2bb" />
+                <stop offset="68%" stopColor="#3e4652" />
+                <stop offset="100%" stopColor="#101319" />
+              </linearGradient>
+              <linearGradient id={`wood-${room.id}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#6a3518" />
+                <stop offset="52%" stopColor="#2d160d" />
+                <stop offset="100%" stopColor="#8d4b1f" />
               </linearGradient>
             </defs>
-            <path className={styles.revolverFlash} d="M238 58 258 49 248 67 260 80 240 78 231 94 229 74 211 66 230 59Z" />
-            <path className={styles.revolverBarrel} d="M145 44h90c8 0 14 6 14 14v14c0 8-6 14-14 14h-91Z" fill={`url(#barrel-${room.id})`} />
-            <path className={styles.revolverFrame} d="M50 57c8-25 44-38 74-20 23 14 28 47 10 66-17 18-51 18-72 2-15-11-18-30-12-48Z" fill={`url(#steel-${room.id})`} />
-            <circle className={styles.revolverCylinder} cx="96" cy="66" r="32" />
+            <ellipse className={styles.revolverShadow} cx="157" cy="139" rx="118" ry="14" />
+            <path className={styles.revolverFlash} d="M282 58 315 45 301 69 319 87 288 83 276 108 272 79 245 67 274 60Z" />
+            <path className={styles.revolverBarrelUnder} d="M170 82h105c13 0 23 9 23 21v2H165Z" />
+            <path className={styles.revolverBarrel} d="M164 47h107c14 0 25 11 25 25s-11 25-25 25H164Z" fill={`url(#barrel-${room.id})`} />
+            <path className={styles.revolverBarrelLine} d="M174 58h90M174 86h96" />
+            <path className={styles.revolverMuzzle} d="M272 54h12c9 0 16 8 16 18s-7 18-16 18h-12Z" />
+            <path className={styles.revolverHammer} d="M72 37c-11-7-19-11-28-10 6 8 16 16 29 21Z" />
+            <path className={styles.revolverFrame} d="M55 57c10-31 50-48 86-31 18 9 31 25 34 44l16 7-18 20c-6 16-21 28-40 33-31 8-66-6-80-31-8-14-8-28 2-42Z" fill={`url(#steel-${room.id})`} />
+            <path className={styles.revolverFrameCut} d="M133 93c18-3 30-14 32-29 9 12 8 29-3 42-9 11-23 17-40 17 7-8 11-18 11-30Z" />
+            <circle className={styles.revolverCylinder} cx="105" cy="67" r="39" />
+            <circle className={styles.revolverCylinderInner} cx="105" cy="67" r="28" />
             {Array.from({ length: 6 }).map((_, index) => {
               const angle = (Math.PI * 2 * index) / 6 - Math.PI / 2;
-              const cx = 96 + Math.cos(angle) * 18;
-              const cy = 66 + Math.sin(angle) * 18;
-              return <circle key={index} className={index === chamberIndex ? styles.revolverChamberActive : styles.revolverChamber} cx={cx} cy={cy} r="6" />;
+              const cx = 105 + Math.cos(angle) * 21;
+              const cy = 67 + Math.sin(angle) * 21;
+              return <circle key={index} className={index === chamberIndex ? styles.revolverChamberActive : styles.revolverChamber} cx={cx} cy={cy} r="7.5" />;
             })}
-            <circle className={styles.revolverCenter} cx="96" cy="66" r="7" />
-            <path className={styles.revolverGrip} d="M86 96h43c5 22-7 41-23 49-10-14-19-29-20-49Z" />
-            <path className={styles.revolverTrigger} d="M137 91c16 3 19 21 5 31" />
-            <path className={styles.revolverSight} d="M213 39h19" />
+            <circle className={styles.revolverCenter} cx="105" cy="67" r="9" />
+            <path className={styles.revolverGripBack} d="M99 103h57c-1 30-16 52-40 62-15-18-25-39-17-62Z" />
+            <path className={styles.revolverGrip} d="M106 105h42c-2 20-12 37-29 47-9-13-16-29-13-47Z" fill={`url(#wood-${room.id})`} />
+            <path className={styles.revolverWoodLine} d="M116 111c2 12 8 24 18 34M134 108c-2 15-8 27-18 38" />
+            <path className={styles.revolverTriggerGuard} d="M159 91c28 8 26 43 1 51-17-9-18-33-1-51Z" />
+            <path className={styles.revolverTrigger} d="M170 102c11 8 9 24-2 31" />
+            <path className={styles.revolverSight} d="M238 41h22M246 37v8" />
+            <circle className={styles.revolverScrew} cx="71" cy="84" r="4" />
+            <circle className={styles.revolverScrew} cx="136" cy="44" r="3.5" />
           </svg>
         </div>
         <div className={styles.russianSceneInfo}>
