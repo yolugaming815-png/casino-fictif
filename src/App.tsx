@@ -2,9 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
-import activityShortcutAnimatedImage from "./assets/animated/activite.gif.gif";
-import bonusShortcutAnimatedImage from "./assets/animated/bonus.gif.gif";
-import boutiqueShortcutAnimatedImage from "./assets/animated/boutique.gif.gif";
 import activityShortcutImage from "./assets/home/activite.png";
 import bonusShortcutImage from "./assets/home/bonus.png";
 import boutiqueShortcutImage from "./assets/home/boutique.png";
@@ -8270,52 +8267,20 @@ function HomeDashboard({
   onOpenProfile: (player: LeaderboardEntry) => void;
 }) {
   const remainingAds = Math.max(0, DAILY_REWARDED_AD_LIMIT - rewardedAds.watched);
-  const [animatedShortcutId, setAnimatedShortcutId] = useState<string | null>(null);
-  const shortcuts = [
-    {
-      id: "shop",
-      label: "Ouvrir la boutique",
-      image: boutiqueShortcutImage,
-      animatedImage: boutiqueShortcutAnimatedImage,
-      section: "shop" as const,
-    },
-    {
-      id: "activity",
-      label: "Ouvrir l'activite",
-      image: activityShortcutImage,
-      animatedImage: activityShortcutAnimatedImage,
-      section: "activity" as const,
-    },
-    {
-      id: "bonus",
-      label: "Ouvrir les bonus",
-      image: bonusShortcutImage,
-      animatedImage: bonusShortcutAnimatedImage,
-      section: "bonus" as const,
-    },
-  ];
 
   return (
     <>
       <LeaderboardPanel currentUserId={currentUserId} entries={leaderboard} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
       <section className={styles.homeCards} aria-label="Raccourcis">
-        {shortcuts.map((shortcut) => (
-          <button
-            key={shortcut.id}
-            type="button"
-            onClick={() => onGoTo(shortcut.section)}
-            onPointerEnter={() => setAnimatedShortcutId(shortcut.id)}
-            onPointerDown={() => setAnimatedShortcutId(shortcut.id)}
-            onPointerLeave={() => setAnimatedShortcutId(null)}
-            onPointerCancel={() => setAnimatedShortcutId(null)}
-            onBlur={() => setAnimatedShortcutId(null)}
-            aria-label={shortcut.label}
-            data-animated={animatedShortcutId === shortcut.id ? "true" : "false"}
-          >
-            <img src={shortcut.image} alt="" className={styles.homeCardStill} />
-            <img src={shortcut.animatedImage} alt="" className={styles.homeCardAnimated} />
-          </button>
-        ))}
+        <button type="button" onClick={() => onGoTo("shop")} aria-label="Ouvrir la boutique">
+          <img src={boutiqueShortcutImage} alt="" />
+        </button>
+        <button type="button" onClick={() => onGoTo("activity")} aria-label="Ouvrir l'activite">
+          <img src={activityShortcutImage} alt="" />
+        </button>
+        <button type="button" onClick={() => onGoTo("bonus")} aria-label="Ouvrir les bonus">
+          <img src={bonusShortcutImage} alt="" />
+        </button>
       </section>
     </>
   );

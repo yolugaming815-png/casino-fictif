@@ -2286,35 +2286,6 @@
   object-fit: cover;
 }
 
-.homeCardStill,
-.homeCardAnimated {
-  grid-area: 1 / 1;
-}
-
-.homeCardStill {
-  opacity: 1;
-  transition: opacity 160ms ease;
-}
-
-.homeCardAnimated {
-  opacity: 0;
-  transition: opacity 160ms ease;
-}
-
-.homeCards button:hover .homeCardAnimated,
-.homeCards button:focus-visible .homeCardAnimated,
-.homeCards button:active .homeCardAnimated,
-.homeCards button[data-animated="true"] .homeCardAnimated {
-  opacity: 1;
-}
-
-.homeCards button:hover .homeCardStill,
-.homeCards button:focus-visible .homeCardStill,
-.homeCards button:active .homeCardStill,
-.homeCards button[data-animated="true"] .homeCardStill {
-  opacity: 0;
-}
-
 .missionSummary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
