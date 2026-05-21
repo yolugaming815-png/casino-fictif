@@ -944,7 +944,7 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
     return [];
   }
 
-  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), limit(20));
+  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), orderBy("createdAt", "desc"), limit(80));
   const snapshot = await getDocs(roomsQuery);
   const now = Date.now();
   const parsedRooms = snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data()));
@@ -978,7 +978,7 @@ export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => voi
     return () => undefined;
   }
 
-  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), limit(50));
+  const roomsQuery = query(collection(getFirestore(app), "onlineRooms"), orderBy("createdAt", "desc"), limit(80));
 
   return onSnapshot(
     roomsQuery,
