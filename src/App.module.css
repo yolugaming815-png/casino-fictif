@@ -806,9 +806,12 @@
 }
 
 .specialChestReward small {
+  display: block;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   min-height: 2.3em;
-  overflow: visible;
+  overflow: hidden;
   color: #d5ddd9;
   font-size: 0.58rem;
   font-weight: 800;
