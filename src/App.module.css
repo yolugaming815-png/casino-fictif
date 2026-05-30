@@ -2718,14 +2718,14 @@
 
 .lobbyTournaments button {
   display: grid;
-  grid-template-columns: minmax(112px, 0.4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "art copy"
-    "art prize";
-  column-gap: 18px;
-  row-gap: 8px;
-  align-items: center;
-  min-height: 132px;
+    "art"
+    "copy"
+    "prize";
+  row-gap: 12px;
+  align-content: start;
+  min-height: 0;
   padding: 14px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2747,7 +2747,6 @@
 .tournamentArt {
   grid-area: art;
   width: 100%;
-  max-width: 154px;
   aspect-ratio: 16 / 9;
   border-radius: 8px;
   border: 1px solid rgba(255, 209, 102, 0.2);
@@ -2758,6 +2757,7 @@
 .lobbyTournaments button > span {
   grid-area: copy;
   min-width: 0;
+  align-self: start;
 }
 
 .lobbyTournaments strong,
@@ -2766,7 +2766,7 @@
 }
 
 .lobbyTournaments strong {
-  font-size: clamp(1rem, 1.1vw, 1.22rem);
+  font-size: clamp(1rem, 1vw, 1.16rem);
   line-height: 1.08;
   text-transform: uppercase;
   text-wrap: balance;
@@ -2781,9 +2781,10 @@
 
 .lobbyTournaments em {
   grid-area: prize;
+  align-self: end;
   color: #ffd166;
   font-style: normal;
-  font-size: clamp(1.25rem, 1.5vw, 1.62rem);
+  font-size: clamp(1.25rem, 1.35vw, 1.5rem);
   font-weight: 950;
   line-height: 1;
 }
