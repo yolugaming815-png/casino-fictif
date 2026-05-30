@@ -57,7 +57,7 @@ export type LeaderboardEntry = {
 
 export function publicProfilePhotoURL(photoURL: string | null | undefined) {
   const value = (photoURL ?? "").trim();
-  return value.includes("googleusercontent.com") ? "" : value;
+  return value.includes("googleusercontent.com") || value.includes("api.dicebear.com") ? "" : value;
 }
 
 export type AdminPriceOverrides = {

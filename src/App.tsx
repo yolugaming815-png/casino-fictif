@@ -2,10 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
-import activityShortcutImage from "./assets/home/activite.png";
-import bonusShortcutImage from "./assets/home/bonus.png";
-import boutiqueShortcutImage from "./assets/home/boutique.png";
 import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
+import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
 import plinkoAmberImage from "./assets/plinko/plinko-amber.png";
 import plinkoCloudImage from "./assets/plinko/plinko-cloud.png";
 import plinkoEmeraldImage from "./assets/plinko/plinko-emerald.png";
@@ -574,13 +572,6 @@ const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-storm": plinkoStormImage,
 };
 const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-20";
-const PROFILE_PHOTO_PRESETS = [
-  "",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=spade",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=gold",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=casino",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=royal",
-];
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   common: 0,
   rare: 1,
@@ -3618,7 +3609,12 @@ function App() {
                   </svg>
                 </span>
               ) : null}
-              <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={publicProfilePhotoURL(accountUser?.photoURL)} />
+              <ProfileAvatar
+                avatarSeed={accountUser?.uid || accountUser?.email || accountUser?.displayName || "joueur"}
+                className={styles.menuAvatar}
+                displayName={accountUser?.displayName || "Joueur"}
+                photoURL={accountUser?.photoURL}
+              />
               {isAdmin ? (
                 <span className={styles.menuAdminBadge} aria-label="Admin">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -6532,6 +6528,14 @@ function PlayerProfileModal({
     },
   ]).filter((item) => item.count > 0);
   const isCurrentUser = player.uid === currentUserId;
+  const avatarChoices = [
+    { id: "auto", label: "Auto", photoURL: "" },
+    ...CASINO_AVATAR_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.shortLabel,
+      photoURL: casinoAvatarToken(preset.id),
+    })),
+  ];
 
   async function handlePhotoFileChange(file: File | undefined) {
     if (!file) {
@@ -6561,7 +6565,7 @@ function PlayerProfileModal({
                 </svg>
               </span>
             ) : null}
-            <ProfileAvatar className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
+            <ProfileAvatar avatarSeed={player.uid} className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
             {isPlayerAdmin ? (
               <span className={styles.profileAdminBadge} aria-label="Admin">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -6597,7 +6601,7 @@ function PlayerProfileModal({
               <label htmlFor="profilePhotoURL">Photo de profil</label>
               <input
                 id="profilePhotoURL"
-                placeholder="Lien d'image ou photo Google"
+                placeholder="Lien d'image ou avatar casino"
                 value={draftPhotoURL}
                 onChange={(event) => setDraftPhotoURL(event.target.value)}
               />
@@ -6612,15 +6616,20 @@ function PlayerProfileModal({
               </label>
               <small>{photoFileMessage || "Sur telephone, ce bouton ouvre ta galerie photo."}</small>
               <div className={styles.profileAvatarChoices} aria-label="Choix rapides de photo">
-                {PROFILE_PHOTO_PRESETS.map((preset, index) => (
+                {avatarChoices.map((choice) => (
                   <button
-                    className={draftPhotoURL === preset ? styles.activeAvatarChoice : ""}
-                    key={preset || "default"}
+                    className={draftPhotoURL === choice.photoURL ? styles.activeAvatarChoice : ""}
+                    key={choice.id}
                     type="button"
-                    onClick={() => setDraftPhotoURL(preset)}
+                    onClick={() => setDraftPhotoURL(choice.photoURL)}
                   >
-                    <ProfileAvatar className={styles.profileAvatarChoice} displayName={player.displayName} photoURL={preset} />
-                    <span>{index === 0 ? "Defaut" : `Style ${index}`}</span>
+                    <ProfileAvatar
+                      avatarSeed={choice.id === "auto" ? player.uid : choice.id}
+                      className={styles.profileAvatarChoice}
+                      displayName={player.displayName}
+                      photoURL={choice.photoURL}
+                    />
+                    <span>{choice.label}</span>
                   </button>
                 ))}
               </div>
@@ -6897,17 +6906,21 @@ function MenuIcon({ name }: { name: MenuIconName }) {
 }
 
 function ProfileAvatar({
+  avatarSeed,
   className,
   displayName,
   photoURL,
 }: {
+  avatarSeed?: string;
   className: string;
   displayName: string;
-  photoURL?: string;
+  photoURL?: string | null;
 }) {
+  const avatar = publicCasinoAvatarUrl(photoURL, avatarSeed || displayName || "joueur");
+
   return (
-    <span className={className}>
-      {photoURL ? <img alt="" src={photoURL} /> : <span aria-hidden="true">♠</span>}
+    <span className={className} data-avatar-source={avatar.source}>
+      <img alt="" src={avatar.url} />
     </span>
   );
 }
@@ -8329,6 +8342,13 @@ function AnimatedMedia({
       aria-label={label ?? asset.title}
       style={style}
     >
+      <img
+        alt=""
+        aria-hidden="true"
+        className={styles.animatedMediaImage}
+        loading={asset.id === "hero-duel-16x9" ? "eager" : "lazy"}
+        src={asset.image}
+      />
       {children}
     </div>
   );
@@ -8337,11 +8357,7 @@ function AnimatedMedia({
 function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournaments: () => void }) {
   return (
     <section className={styles.lobbyHero}>
-      <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium">
-        <span className={styles.heroVs}>VS</span>
-        <span className={styles.heroChipOne} />
-        <span className={styles.heroChipTwo} />
-      </AnimatedMedia>
+      <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium" />
       <div className={styles.heroContent}>
         <p className={styles.heroSafety}>Credits virtuels uniquement</p>
         <h2>
@@ -8402,12 +8418,14 @@ function PopularGames({
     {
       title: "Battle Poker",
       subtitle: "VS",
+      assetId: "battle-poker-card-9x16",
       tone: "#9a4cff",
       onClick: () => onSelectOnlineGame("poker"),
     },
     {
       title: "Gems Quest",
       subtitle: "Cases",
+      assetId: "gems-quest-card-9x16",
       tone: "#36b7ff",
       onClick: () => onGoTo("cases"),
     },
@@ -8425,12 +8443,9 @@ function PopularGames({
         {gameCards.map((card) => (
           <button className={styles.lobbyGameCard} key={card.title} type="button" onClick={card.onClick} style={{ "--game-card-tone": card.tone } as CSSProperties}>
             {card.assetId ? (
-              <AnimatedMedia assetId={card.assetId} className={styles.lobbyGameArt}>
-                <span className={styles.lobbyGameGlyph}>{card.title.slice(0, 1)}</span>
-              </AnimatedMedia>
+              <AnimatedMedia assetId={card.assetId} className={styles.lobbyGameArt} />
             ) : (
               <span className={`${styles.lobbyGameArt} ${styles.lobbyGameArtStatic}`} aria-hidden="true">
-                <span className={styles.lobbyGameGlyph}>{card.title.slice(0, 1)}</span>
               </span>
             )}
             <strong>{card.title}</strong>
@@ -8464,7 +8479,7 @@ function LobbyLeaderboard({
           <li className={entry.uid === currentUserId ? styles.lobbyCurrentPlayer : ""} key={entry.uid}>
             <button type="button" onClick={() => onOpenProfile(entry)}>
               <span className={styles.lobbyRank}>{index + 1}</span>
-              <ProfileAvatar className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={publicProfilePhotoURL(entry.photoURL)} />
+              <ProfileAvatar avatarSeed={entry.uid} className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
               <strong>{entry.displayName}</strong>
               <em>{entry.balance.toLocaleString("fr-FR")}</em>
             </button>
@@ -8499,7 +8514,7 @@ function LobbySocialFeed({
         ) : (
           visibleEntries.map((entry, index) => (
             <article key={entry.uid}>
-              <ProfileAvatar className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={publicProfilePhotoURL(entry.photoURL)} />
+              <ProfileAvatar avatarSeed={entry.uid} className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
               <p>
                 <strong>{entry.displayName}</strong>
                 {index === 0 ? " GG pour le top classement !" : index === 1 ? " Pret pour le prochain duel ?" : " Cette salle est active."}
@@ -8517,9 +8532,9 @@ function LobbySocialFeed({
 
 function LobbyTournaments({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: MainSection) => void; onSelectOnlineGame: (game: OnlineRoomType) => void }) {
   const tournaments = [
-    { title: "Coupe des legendes", detail: "Duels en 3 manches", prize: "50,000", action: () => onSelectOnlineGame("duel") },
-    { title: "Bataille royale", detail: "Table poker", prize: "25,000", action: () => onSelectOnlineGame("poker") },
-    { title: "Mission master", detail: "Objectifs horaires", prize: "10,000", action: () => onGoTo("missions") },
+    { title: "Coupe des legendes", detail: "Duels en 3 manches", prize: "50,000", assetId: "tournament-cup-16x9" as const, action: () => onSelectOnlineGame("duel") },
+    { title: "Bataille royale", detail: "Table poker", prize: "25,000", assetId: "battle-poker-card-9x16" as const, action: () => onSelectOnlineGame("poker") },
+    { title: "Mission master", detail: "Objectifs horaires", prize: "10,000", assetId: "gems-quest-card-9x16" as const, action: () => onGoTo("missions") },
   ];
 
   return (
@@ -8533,7 +8548,7 @@ function LobbyTournaments({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: Ma
       <div className={styles.lobbyTournaments}>
         {tournaments.map((tournament) => (
           <button key={tournament.title} type="button" onClick={tournament.action}>
-            <span className={styles.tournamentTrophy} aria-hidden="true" />
+            <AnimatedMedia assetId={tournament.assetId} className={styles.tournamentArt} />
             <span>
               <strong>{tournament.title}</strong>
               <small>{tournament.detail}</small>
@@ -8549,9 +8564,7 @@ function LobbyTournaments({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: Ma
 function RewardStrip({ remainingAds, onGoTo }: { remainingAds: number; onGoTo: (section: MainSection) => void }) {
   return (
     <section className={styles.rewardStrip}>
-      <AnimatedMedia assetId="reward-chest-16x9" className={styles.rewardArt}>
-        <span className={styles.rewardChest} />
-      </AnimatedMedia>
+      <AnimatedMedia assetId="reward-chest-16x9" className={styles.rewardArt} />
       <div>
         <h2>Recompense du jour</h2>
         <p>{remainingAds > 0 ? `${remainingAds} bonus virtuel${remainingAds > 1 ? "s" : ""} encore disponible${remainingAds > 1 ? "s" : ""}.` : "Reviens demain pour de nouveaux bonus virtuels."}</p>
@@ -8565,16 +8578,16 @@ function RewardStrip({ remainingAds, onGoTo }: { remainingAds: number; onGoTo: (
 
 function LobbyPromoGrid({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: MainSection) => void; onSelectOnlineGame: (game: OnlineRoomType) => void }) {
   const promos = [
-    { title: "Defie tes amis", detail: "Cree une table privee et lance un duel.", image: activityShortcutImage, action: () => onSelectOnlineGame("duel") },
-    { title: "Personnalise ton profil", detail: "Equipe tes skins et marque ton style.", image: boutiqueShortcutImage, action: () => onGoTo("inventory") },
-    { title: "Gagne des recompenses", detail: "Bonus, coffres et fragments virtuels.", image: bonusShortcutImage, action: () => onGoTo("shop") },
+    { title: "Defie tes amis", detail: "Cree une table privee et lance un duel.", assetId: "promo-friends-16x9" as const, action: () => onSelectOnlineGame("duel") },
+    { title: "Personnalise ton profil", detail: "Equipe tes skins et marque ton style.", assetId: "promo-profile-16x9" as const, action: () => onGoTo("inventory") },
+    { title: "Gagne des recompenses", detail: "Bonus, coffres et fragments virtuels.", assetId: "promo-rewards-16x9" as const, action: () => onGoTo("shop") },
   ];
 
   return (
     <section className={styles.lobbyPromoGrid} aria-label="Actions rapides">
       {promos.map((promo) => (
         <button key={promo.title} type="button" onClick={promo.action}>
-          <img src={promo.image} alt="" />
+          <AnimatedMedia assetId={promo.assetId} className={styles.promoArt} />
           <span>
             <strong>{promo.title}</strong>
             <small>{promo.detail}</small>

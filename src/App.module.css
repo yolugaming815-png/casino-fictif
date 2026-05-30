@@ -414,17 +414,20 @@
 
 .profileAvatarChoices {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 10px;
+  max-height: min(360px, 45vh);
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .profileAvatarChoices button {
   display: grid;
   justify-items: center;
-  gap: 6px;
-  min-height: auto;
+  gap: 8px;
+  min-height: 92px;
   min-width: 0;
-  padding: 8px 6px;
+  padding: 10px 6px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
@@ -442,10 +445,12 @@
 .profileAvatarChoice {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 52px;
+  height: 52px;
   border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.28);
   background: rgba(255, 209, 102, 0.16);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
   color: #ffd166;
   font-weight: 900;
 }
@@ -2320,43 +2325,33 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
+.animatedMedia {
+  position: relative;
+  overflow: hidden;
+}
+
+.animatedMediaImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .heroBackdrop {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 78% 28%, rgba(54, 183, 255, 0.38), transparent 22%),
-    radial-gradient(circle at 64% 60%, rgba(255, 63, 199, 0.34), transparent 24%),
-    radial-gradient(circle at 32% 42%, rgba(143, 57, 255, 0.48), transparent 26%),
-    linear-gradient(120deg, #080818, #1a0634 54%, #050713);
 }
 
-.heroBackdrop::before,
 .heroBackdrop::after {
   content: "";
   position: absolute;
-  top: 12%;
-  width: 28%;
-  aspect-ratio: 0.72;
-  border-radius: 48% 48% 30% 30%;
+  inset: 0;
   background:
-    radial-gradient(circle at 50% 18%, rgba(255, 226, 143, 0.28), transparent 14%),
-    linear-gradient(135deg, rgba(35, 46, 99, 0.96), rgba(13, 17, 42, 0.82));
-  box-shadow:
-    0 0 42px rgba(143, 57, 255, 0.38),
-    inset 0 0 36px rgba(255, 255, 255, 0.05);
-  opacity: 0.9;
-}
-
-.heroBackdrop::before {
-  left: 4%;
-  transform: rotate(-9deg);
-}
-
-.heroBackdrop::after {
-  right: 4%;
-  transform: rotate(9deg);
+    linear-gradient(90deg, rgba(5, 6, 18, 0.94), rgba(5, 6, 18, 0.54) 44%, rgba(5, 6, 18, 0.18)),
+    linear-gradient(180deg, rgba(5, 6, 18, 0.08), rgba(5, 6, 18, 0.72));
 }
 
 .heroContent {
@@ -2364,11 +2359,11 @@
   z-index: 2;
   display: grid;
   gap: 16px;
-  justify-items: center;
-  width: min(580px, 90%);
-  margin: 0 auto;
-  padding: clamp(42px, 6vw, 76px) 20px;
-  text-align: center;
+  justify-items: start;
+  width: min(540px, 90%);
+  margin: 0;
+  padding: clamp(42px, 6vw, 76px) clamp(24px, 5vw, 54px);
+  text-align: left;
 }
 
 .heroSafety {
@@ -2411,7 +2406,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .lobby .primaryButton {
@@ -2426,43 +2421,6 @@
   border-color: rgba(168, 89, 255, 0.42);
   background: rgba(17, 13, 36, 0.78);
   color: #f7f0ff;
-}
-
-.heroVs {
-  position: absolute;
-  left: 50%;
-  bottom: 7%;
-  z-index: 0;
-  transform: translateX(-50%);
-  color: #ffd166;
-  font-size: clamp(2.2rem, 5vw, 4.4rem);
-  font-weight: 950;
-  text-shadow:
-    0 0 22px rgba(255, 63, 199, 0.78),
-    0 0 44px rgba(255, 209, 102, 0.3);
-  opacity: 0.86;
-}
-
-.heroChipOne,
-.heroChipTwo {
-  position: absolute;
-  z-index: 1;
-  width: 42px;
-  aspect-ratio: 1;
-  border-radius: 999px;
-  border: 6px dashed rgba(255, 209, 102, 0.84);
-  background: rgba(14, 12, 32, 0.78);
-  box-shadow: 0 0 24px rgba(255, 209, 102, 0.22);
-}
-
-.heroChipOne {
-  left: 36%;
-  top: 33%;
-}
-
-.heroChipTwo {
-  right: 34%;
-  top: 48%;
 }
 
 .lobbySection,
@@ -2557,10 +2515,7 @@
   position: absolute;
   inset: 0;
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 50% 32%, color-mix(in srgb, var(--game-card-tone) 72%, white 8%), transparent 18%),
-    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--game-card-tone) 42%, transparent), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.22));
+  background: rgba(4, 5, 13, 0.84);
 }
 
 .lobbyGameArt::after {
@@ -2574,22 +2529,8 @@
   display: block;
 }
 
-.lobbyGameGlyph {
-  position: absolute;
-  top: 24%;
-  left: 50%;
-  z-index: 1;
-  transform: translateX(-50%);
-  color: #fff;
-  font-size: clamp(3rem, 5vw, 4.8rem);
-  font-weight: 950;
-  text-shadow:
-    0 0 28px color-mix(in srgb, var(--game-card-tone) 70%, transparent),
-    0 5px 22px rgba(0, 0, 0, 0.54);
-}
-
 .lobbyGameCard strong,
-.lobbyGameCard span:not(.lobbyGameArt):not(.lobbyGameGlyph) {
+.lobbyGameCard span:not(.lobbyGameArt) {
   position: relative;
   z-index: 2;
 }
@@ -2601,7 +2542,7 @@
   text-transform: uppercase;
 }
 
-.lobbyGameCard span:not(.lobbyGameArt):not(.lobbyGameGlyph) {
+.lobbyGameCard span:not(.lobbyGameArt) {
   color: #c8bee1;
   font-size: 0.82rem;
   font-weight: 900;
@@ -2728,7 +2669,7 @@
 
 .lobbyTournaments button {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
+  grid-template-columns: 68px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   min-height: 86px;
@@ -2750,13 +2691,12 @@
   outline: 2px solid rgba(255, 209, 102, 0.16);
 }
 
-.tournamentTrophy {
-  width: 54px;
-  aspect-ratio: 1;
+.tournamentArt {
+  width: 68px;
+  aspect-ratio: 16 / 9;
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 50% 22%, #fff1ad, transparent 16%),
-    linear-gradient(135deg, #ffd166, #6d35d8);
+  border: 1px solid rgba(255, 209, 102, 0.2);
+  background: #080a18;
   box-shadow: 0 0 24px rgba(143, 57, 255, 0.32);
 }
 
@@ -2796,10 +2736,7 @@
 .rewardArt {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 56% 52%, rgba(255, 209, 102, 0.36), transparent 18%),
-    radial-gradient(circle at 62% 58%, rgba(255, 63, 199, 0.26), transparent 32%),
-    linear-gradient(90deg, rgba(23, 11, 48, 0.94), rgba(87, 27, 156, 0.56), rgba(8, 10, 24, 0.94));
+  background: rgba(8, 10, 24, 0.9);
 }
 
 .rewardArt::after {
@@ -2807,23 +2744,6 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, rgba(8, 10, 24, 0.95), rgba(8, 10, 24, 0.4), rgba(8, 10, 24, 0.9));
-}
-
-.rewardChest {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 1;
-  width: 110px;
-  height: 70px;
-  border-radius: 12px 12px 8px 8px;
-  transform: translate(-50%, -42%);
-  background:
-    linear-gradient(180deg, #ffe58a 0 28%, #7c3cdf 28% 62%, #2a154b 62%),
-    linear-gradient(90deg, #ffd166, #fff1ad);
-  box-shadow:
-    0 0 30px rgba(255, 209, 102, 0.42),
-    0 18px 40px rgba(0, 0, 0, 0.42);
 }
 
 .rewardStrip > div:not(.rewardArt),
@@ -2865,12 +2785,9 @@
   outline: 2px solid rgba(255, 209, 102, 0.16);
 }
 
-.lobbyPromoGrid img {
+.promoArt {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
   opacity: 0.82;
 }
 
@@ -2932,6 +2849,10 @@
 
 .lobbyGameCard:hover .animatedMedia[data-animation-trigger="hover"],
 .lobbyGameCard:focus-visible .animatedMedia[data-animation-trigger="hover"],
+.lobbyPromoGrid button:hover .animatedMedia[data-animation-trigger="hover"],
+.lobbyPromoGrid button:focus-visible .animatedMedia[data-animation-trigger="hover"],
+.lobbyTournaments button:hover .animatedMedia[data-animation-trigger="hover"],
+.lobbyTournaments button:focus-visible .animatedMedia[data-animation-trigger="hover"],
 .rewardStrip:hover .animatedMedia[data-animation-trigger="hover"],
 .rewardStrip:focus-within .animatedMedia[data-animation-trigger="hover"] {
   animation: casinoHoverLoop 1.8s ease-in-out infinite;
@@ -6922,6 +6843,10 @@
   .animatedMedia,
   .lobbyGameCard:hover .animatedMedia[data-animation-trigger="hover"],
   .lobbyGameCard:focus-visible .animatedMedia[data-animation-trigger="hover"],
+  .lobbyPromoGrid button:hover .animatedMedia[data-animation-trigger="hover"],
+  .lobbyPromoGrid button:focus-visible .animatedMedia[data-animation-trigger="hover"],
+  .lobbyTournaments button:hover .animatedMedia[data-animation-trigger="hover"],
+  .lobbyTournaments button:focus-visible .animatedMedia[data-animation-trigger="hover"],
   .rewardStrip:hover .animatedMedia[data-animation-trigger="hover"],
   .rewardStrip:focus-within .animatedMedia[data-animation-trigger="hover"] {
     animation: none;
