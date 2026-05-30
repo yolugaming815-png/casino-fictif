@@ -500,12 +500,14 @@ export function getBlackjackCardFaceModel(card: DeckCard, skinId: string): Black
   const suit = theme.suits[card.suit];
 
   if (isFigureRank(card.rank)) {
+    const figure = theme.figures[card.rank];
+
     return {
       kind: "figure",
       rank: card.rank,
       suit,
       theme,
-      figure: theme.figures[card.rank],
+      figure: card.rank === "A" ? { ...figure, assetCell: suit.illustration.assetCell } : figure,
     };
   }
 

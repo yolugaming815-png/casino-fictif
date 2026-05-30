@@ -3351,14 +3351,14 @@
 
 .themedCardFace::before {
   background:
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--card-face-accent) 12%, transparent), transparent 34%),
-    repeating-linear-gradient(135deg, color-mix(in srgb, var(--card-face-border) 10%, transparent) 0 1px, transparent 1px 12px);
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--card-face-accent) 8%, transparent), transparent 36%),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--card-face-border) 6%, transparent) 0 1px, transparent 1px 18px);
 }
 
 .themedCardFace::after {
-  inset: 7px;
-  border: 1px solid color-mix(in srgb, var(--card-face-border) 32%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-face-foil) 18%, transparent);
+  inset: 9px;
+  border: 1px solid color-mix(in srgb, var(--card-face-border) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-face-foil) 12%, transparent);
 }
 
 .themedCardFace[data-theme="midnight"]::before {
@@ -3384,19 +3384,19 @@
 .themedCardFace[data-theme="linen"]::before,
 .themedCardFace[data-theme="silver"]::before {
   background:
-    repeating-linear-gradient(135deg, color-mix(in srgb, var(--card-face-border) 12%, transparent) 0 1px, transparent 1px 10px),
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-face-foil) 12%, transparent), transparent);
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--card-face-border) 7%, transparent) 0 1px, transparent 1px 18px),
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-face-foil) 8%, transparent), transparent);
 }
 
 .cardCorner {
   position: absolute;
   z-index: 3;
-  top: 9px;
-  left: 9px;
+  top: 10px;
+  left: 10px;
   display: grid;
-  gap: 1px;
+  gap: 0;
   justify-items: center;
-  min-width: 18px;
+  min-width: 13px;
   line-height: 1;
   color: var(--card-suit-color);
   text-shadow: 0 1px 5px var(--card-suit-shadow);
@@ -3404,13 +3404,13 @@
 
 .cardCorner strong {
   color: var(--card-face-ink);
-  font-size: 1.02rem;
+  font-size: 0.82rem;
   letter-spacing: 0;
 }
 
 .cardCorner .cardCornerSuit {
   display: block;
-  width: 16px;
+  width: 10px;
   aspect-ratio: 1;
   filter: drop-shadow(0 1px 5px var(--card-suit-shadow));
 }
@@ -3446,18 +3446,18 @@
 .cardCornerBottom {
   top: auto;
   left: auto;
-  right: 9px;
-  bottom: 9px;
+  right: 10px;
+  bottom: 10px;
   rotate: 180deg;
 }
 
 .themedPipGrid {
   position: absolute;
   z-index: 2;
-  inset: 26px 18px 24px;
+  inset: 33px 22px 31px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(5, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
   align-items: center;
   justify-items: center;
 }
@@ -3465,16 +3465,18 @@
 .themedCardFace .themedPip {
   display: grid;
   place-items: center;
-  width: 24px;
+  width: 15px;
   aspect-ratio: 1;
   filter:
-    drop-shadow(0 1px 4px rgba(0, 0, 0, 0.12))
-    drop-shadow(0 2px 8px var(--card-suit-shadow));
+    drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12))
+    drop-shadow(0 2px 6px var(--card-suit-shadow));
 }
 
 .themedCardFace[data-rank="10"] .themedPip,
-.themedCardFace[data-rank="9"] .themedPip {
-  width: 19px;
+.themedCardFace[data-rank="9"] .themedPip,
+.themedCardFace[data-rank="8"] .themedPip,
+.themedCardFace[data-rank="7"] .themedPip {
+  width: 13px;
 }
 
 .themedCardFace .themedPipRotated {
@@ -3484,7 +3486,7 @@
 .themedFigureArt {
   position: absolute;
   z-index: 2;
-  inset: 26px 14px 21px;
+  inset: 31px 14px 27px;
   display: grid;
   place-items: center;
   border-radius: 8px;
@@ -3499,19 +3501,18 @@
 
 .themedFigureHalo {
   position: absolute;
-  width: 70px;
-  height: 70px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle, color-mix(in srgb, var(--card-face-accent) 20%, transparent), transparent 68%),
-    conic-gradient(from 45deg, transparent 0 20%, color-mix(in srgb, var(--card-face-foil) 28%, transparent) 20% 25%, transparent 25% 70%, color-mix(in srgb, var(--card-face-foil) 24%, transparent) 70% 75%, transparent 75%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--card-face-accent) 18%, transparent), transparent 70%);
+  opacity: 0.7;
 }
 
 .themedCardFace .themedFigureImage {
   position: relative;
   z-index: 2;
   display: block;
-  width: min(100%, 72px);
+  width: min(92%, 58px);
   aspect-ratio: 1;
   overflow: hidden;
   filter:
@@ -3520,11 +3521,21 @@
 }
 
 .themedFigureArt[data-role="ace"] {
-  border-radius: 50%;
+  inset: 34px 20px 32px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.themedFigureArt[data-role="ace"] .themedFigureHalo {
+  width: 54px;
+  height: 54px;
+  opacity: 0.34;
 }
 
 .themedFigureArt[data-role="ace"] .themedFigureImage {
-  width: min(86%, 64px);
+  width: min(82%, 50px);
 }
 
 .themedFigureArt[data-role="jack"] {

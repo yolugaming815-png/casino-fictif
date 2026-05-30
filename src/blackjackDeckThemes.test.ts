@@ -66,4 +66,15 @@ describe("blackjack deck themes", () => {
     assert.equal(model.suit.illustration.assetCell.id, "spade");
     assert.ok(model.theme.figureStyle.ornament.length > 0);
   });
+
+  it("uses the matching suit illustration as the ace centerpiece", () => {
+    const card: Card = { rank: "A", suit: "♥" };
+    const model = getBlackjackCardFaceModel(card, "cards-emerald");
+
+    assert.equal(model.kind, "figure");
+    assert.equal(model.rank, "A");
+    assert.equal(model.figure.role, "ace");
+    assert.equal(model.figure.assetCell.id, "heart");
+    assert.equal(model.suit.illustration.assetCell.id, "heart");
+  });
 });
