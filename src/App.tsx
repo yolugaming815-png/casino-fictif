@@ -46,6 +46,7 @@ import {
   type BlackjackPayout,
   type Card,
 } from "./blackjackLogic";
+import { getBlackjackCardFaceModel, type BlackjackCardFaceModel, type DeckArtCell } from "./blackjackDeckThemes";
 import {
   calculatePlinkoPayout,
   generatePlinkoPath,
@@ -7115,22 +7116,120 @@ function CardHand({
                 ?
               </div>
             ) : (
-              <div
-                className={`${styles.card} ${styles.cardFaceImage} ${styles.cardAnimated} ${cardFaceClass(cardBackSkin.id)}`}
-                style={{ "--card-index": index, ...blackjackFaceImageStyle(cardBackSkin.id) } as CSSProperties}
+              <ThemedBlackjackCard
+                card={card}
+                skinId={cardBackSkin.id}
+                className={styles.cardAnimated}
+                style={{ "--card-index": index } as CSSProperties}
                 key={`${card.rank}-${card.suit}-${index}`}
-              >
-                <strong>{card.rank}</strong>
-                <i className={styles.cardOrnament} aria-hidden="true" />
-                <b className={styles.cardMedallion} aria-hidden="true" />
-                <span>{card.suit}</span>
-              </div>
+              />
             ),
           )
         )}
       </div>
     </div>
   );
+}
+
+function ThemedBlackjackCard({
+  card,
+  skinId,
+  className = "",
+  style,
+  preview = false,
+}: {
+  card: Card;
+  skinId: string;
+  className?: string;
+  style?: CSSProperties;
+  preview?: boolean;
+}) {
+  const model = getBlackjackCardFaceModel(card, skinId);
+  const corner = (
+    <>
+      <strong>{model.rank}</strong>
+      <DeckArtSprite className={styles.cardCornerSuit} cell={model.suit.illustration.assetCell} skinId={model.theme.id} />
+    </>
+  );
+
+  return (
+    <div
+      className={`${styles.card} ${styles.themedCardFace} ${preview ? styles.themedPreviewCard : ""} ${className}`}
+      data-theme={model.theme.pattern}
+      data-kind={model.kind}
+      data-rank={model.rank}
+      data-suit={model.suit.baseSuit}
+      aria-label={`${model.rank} ${model.suit.baseSuit}`}
+      style={{ ...blackjackCardFaceStyle(model), ...style }}
+    >
+      <span className={styles.cardCorner}>{corner}</span>
+      {model.kind === "figure" ? <ThemedFigureArtwork model={model} /> : <ThemedPipArtwork model={model} />}
+      <span className={`${styles.cardCorner} ${styles.cardCornerBottom}`}>{corner}</span>
+    </div>
+  );
+}
+
+function ThemedPipArtwork({ model }: { model: Extract<BlackjackCardFaceModel, { kind: "pip" }> }) {
+  return (
+    <span className={styles.themedPipGrid} aria-hidden="true">
+      {model.pips.map((pip, index) => (
+        <span
+          className={pip.rotate ? styles.themedPipRotated : ""}
+          style={{ gridColumn: pip.column, gridRow: pip.row } as CSSProperties}
+          key={`${pip.column}-${pip.row}-${index}`}
+        >
+          <DeckArtSprite className={styles.themedPip} cell={pip.assetCell} skinId={model.theme.id} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function ThemedFigureArtwork({ model }: { model: Extract<BlackjackCardFaceModel, { kind: "figure" }> }) {
+  return (
+    <span className={styles.themedFigureArt} data-role={model.figure.role} data-frame={model.figure.frame} aria-hidden="true">
+      <span className={styles.themedFigureHalo} />
+      <DeckArtSprite className={styles.themedFigureImage} cell={model.figure.assetCell} skinId={model.theme.id} />
+    </span>
+  );
+}
+
+function DeckArtSprite({
+  cell,
+  className = "",
+  skinId,
+}: {
+  cell: DeckArtCell;
+  className?: string;
+  skinId: string;
+}) {
+  const atlas = blackjackSkinImages(skinId)?.art;
+
+  return (
+    <span className={`${styles.cardArtSprite} ${className}`} data-art-cell={cell.id} style={blackjackArtCellStyle(cell)} aria-hidden="true">
+      {atlas ? <img className={styles.cardArtAtlasImage} src={atlas} alt="" draggable={false} /> : null}
+    </span>
+  );
+}
+
+function blackjackCardFaceStyle(model: BlackjackCardFaceModel): CSSProperties {
+  return {
+    "--card-face-surface": model.theme.surface,
+    "--card-face-surface-alt": model.theme.surfaceAlt,
+    "--card-face-ink": model.theme.ink,
+    "--card-face-border": model.theme.border,
+    "--card-face-accent": model.theme.accent,
+    "--card-face-foil": model.theme.foil,
+    "--card-suit-color": model.suit.color,
+    "--card-suit-shadow": model.suit.shadow,
+  } as CSSProperties;
+}
+
+function blackjackArtCellStyle(cell: DeckArtCell): CSSProperties {
+  return {
+    "--card-art-translate-x": `${cell.column * -25}%`,
+    "--card-art-translate-y": `${cell.row * -50}%`,
+  } as CSSProperties;
 }
 
 function PlinkoGame({
@@ -9487,49 +9586,49 @@ function formatRouletteColor(color: RouletteOutcome["color"]): string {
 
 type BlackjackSkinImages = {
   back: string;
-  face: string;
+  art: string;
 };
 
 const BLACKJACK_SKIN_IMAGES: Record<string, BlackjackSkinImages> = {
   "cards-aqua": {
     back: new URL("./assets/blackjack/cards-aqua-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-aqua-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-aqua-art.png", import.meta.url).href,
   },
   "cards-club": {
     back: new URL("./assets/blackjack/cards-club-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-club-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-club-art.png", import.meta.url).href,
   },
   "cards-emerald": {
     back: new URL("./assets/blackjack/cards-emerald-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-emerald-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-emerald-art.png", import.meta.url).href,
   },
   "cards-linen": {
     back: new URL("./assets/blackjack/cards-linen-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-linen-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-linen-art.png", import.meta.url).href,
   },
   "cards-midnight": {
     back: new URL("./assets/blackjack/cards-midnight-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-midnight-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-midnight-art.png", import.meta.url).href,
   },
   "cards-obsidian": {
     back: new URL("./assets/blackjack/cards-obsidian-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-obsidian-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-obsidian-art.png", import.meta.url).href,
   },
   "cards-royal": {
     back: new URL("./assets/blackjack/cards-royal-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-royal-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-royal-art.png", import.meta.url).href,
   },
   "cards-ruby": {
     back: new URL("./assets/blackjack/cards-ruby-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-ruby-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-ruby-art.png", import.meta.url).href,
   },
   "cards-silver": {
     back: new URL("./assets/blackjack/cards-silver-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-silver-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-silver-art.png", import.meta.url).href,
   },
   "cards-sunset": {
     back: new URL("./assets/blackjack/cards-sunset-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-sunset-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-sunset-art.png", import.meta.url).href,
   },
 };
 
@@ -9541,12 +9640,6 @@ function blackjackSkinImageStyle(id: string): CSSProperties {
   const image = blackjackSkinImages(id)?.back;
 
   return image ? ({ "--blackjack-skin-image": `url(${image})` } as CSSProperties) : {};
-}
-
-function blackjackFaceImageStyle(id: string): CSSProperties {
-  const image = blackjackSkinImages(id)?.face;
-
-  return image ? ({ "--blackjack-face-image": `url(${image})` } as CSSProperties) : {};
 }
 
 function cardBackClass(id: string): string {
@@ -9757,7 +9850,7 @@ function SkinPreview({ item, large = false, showCardFace = false }: { item: Shop
         >
           {showCardFace ? (
             <>
-              <img src={images.face} alt="" />
+              <ThemedBlackjackCard card={{ rank: "K", suit: "♠" }} skinId={item.id} preview />
               <img src={images.back} alt="" />
             </>
           ) : (

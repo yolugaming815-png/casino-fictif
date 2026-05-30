@@ -20,7 +20,7 @@ describe("shop asset coverage", () => {
 
     for (const item of publicItems.filter((item) => item.category === "cardBack")) {
       assert.equal(existsSync(`${root}/src/assets/blackjack/${item.id}-back.png`), true, `${item.id} back`);
-      assert.equal(existsSync(`${root}/src/assets/blackjack/${item.id}-face.png`), true, `${item.id} face`);
+      assert.equal(existsSync(`${root}/src/assets/blackjack/art/${item.id}-art.png`), true, `${item.id} art atlas`);
     }
   });
 });
