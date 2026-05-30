@@ -79,6 +79,15 @@ import {
   type SkinRarity,
 } from "./shopLogic";
 import {
+  ROCKET_SHIP_ATLAS_COLUMNS,
+  ROCKET_SHIP_ATLAS_ROWS,
+  SPECIAL_CHEST_ATLAS_COLUMNS,
+  SPECIAL_CHEST_ATLAS_ROWS,
+  getRocketShipArtCell,
+  getSpecialChestArtCell,
+  type AtlasCell,
+} from "./shopVisualAssets";
+import {
   CASES,
   RARITY_WEIGHTS,
   SPECIAL_CHESTS,
@@ -8387,11 +8396,9 @@ function CaseThemePreview({ category }: { category: SkinCategory }) {
 }
 
 function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
-  const category = SHOP_ITEMS.find((item) => item.id === chest.itemIds[0])?.category ?? "plinkoBall";
-
   return (
     <div className={styles.specialChestPreview} style={{ "--special-chest-color": chest.theme } as CSSProperties}>
-      <CaseThemePreview category={category} />
+      <SpecialChestArtwork chestId={chest.id} />
       <strong>{chest.title}</strong>
     </div>
   );
@@ -9468,18 +9475,11 @@ function RocketGame({
             </div>
             <div className={animating ? `${styles.rocketPathLine} ${styles.rocketPathLineFlying}` : styles.rocketPathLine} />
             <div className={animating ? `${styles.rocketTrail} ${styles.rocketTrailFlying}` : styles.rocketTrail} />
-            <svg
-              className={`${animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft} ${rocketShipClass(shipSkin.id)}`}
-              viewBox="0 0 120 86"
-              style={
-                {
-                  "--rocket-accent": shipSkin.preview,
-                  "--rocket-glow": rocketGlow(shipSkin.id),
-                } as CSSProperties
-              }
-            >
-              {vehiclePreviewSvg(shipSkin.id)}
-            </svg>
+            <RocketShipArtwork
+              id={shipSkin.id}
+              className={animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft}
+              style={{ "--rocket-accent": shipSkin.preview } as CSSProperties}
+            />
           </div>
           <div className={styles.rocketMetrics}>
             <span>Cible</span>
@@ -9589,6 +9589,9 @@ type BlackjackSkinImages = {
   art: string;
 };
 
+const ROCKET_SHIP_ATLAS_IMAGE = new URL("./assets/rocket/rocket-ships-atlas.png", import.meta.url).href;
+const SPECIAL_CHEST_ATLAS_IMAGE = new URL("./assets/chests/special-chests-atlas.png", import.meta.url).href;
+
 const BLACKJACK_SKIN_IMAGES: Record<string, BlackjackSkinImages> = {
   "cards-aqua": {
     back: new URL("./assets/blackjack/cards-aqua-back.png", import.meta.url).href,
@@ -9634,6 +9637,77 @@ const BLACKJACK_SKIN_IMAGES: Record<string, BlackjackSkinImages> = {
 
 function blackjackSkinImages(id: string): BlackjackSkinImages | undefined {
   return BLACKJACK_SKIN_IMAGES[id];
+}
+
+function ShopAtlasSprite({
+  image,
+  cell,
+  columns,
+  rows,
+  className = "",
+  style,
+}: {
+  image: string;
+  cell: AtlasCell;
+  columns: number;
+  rows: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const spriteStyle = {
+    ...style,
+    "--shop-atlas-image-width": `${columns * 100}%`,
+    "--shop-atlas-image-height": `${rows * 100}%`,
+    "--shop-atlas-translate-x": cell.translateX,
+    "--shop-atlas-translate-y": cell.translateY,
+  } as CSSProperties;
+
+  return (
+    <span className={`${styles.shopAtlasSprite} ${className}`} style={spriteStyle} aria-hidden="true">
+      <img className={styles.shopAtlasSpriteImage} src={image} alt="" draggable={false} />
+    </span>
+  );
+}
+
+function RocketShipArtwork({
+  id,
+  className = "",
+  large = false,
+  style,
+}: {
+  id: string;
+  className?: string;
+  large?: boolean;
+  style?: CSSProperties;
+}) {
+  const cell = getRocketShipArtCell(id);
+
+  if (!cell) {
+    return null;
+  }
+
+  return (
+    <ShopAtlasSprite
+      image={ROCKET_SHIP_ATLAS_IMAGE}
+      cell={cell}
+      columns={ROCKET_SHIP_ATLAS_COLUMNS}
+      rows={ROCKET_SHIP_ATLAS_ROWS}
+      className={`${styles.rocketShipSprite} ${large ? styles.rocketShipSpriteLarge : ""} ${className}`}
+      style={{ ...style, "--rocket-glow": rocketGlow(id) } as CSSProperties}
+    />
+  );
+}
+
+function SpecialChestArtwork({ chestId }: { chestId: SpecialChestId }) {
+  return (
+    <ShopAtlasSprite
+      image={SPECIAL_CHEST_ATLAS_IMAGE}
+      cell={getSpecialChestArtCell(chestId)}
+      columns={SPECIAL_CHEST_ATLAS_COLUMNS}
+      rows={SPECIAL_CHEST_ATLAS_ROWS}
+      className={styles.specialChestImage}
+    />
+  );
 }
 
 function blackjackSkinImageStyle(id: string): CSSProperties {
@@ -9798,33 +9872,29 @@ function ballGlow(id: string): string {
   return "rgba(249, 247, 239, 0.75)";
 }
 
-function rocketShipClass(id: string): string {
-  if (id === "rocket-comet") {
-    return styles.rocketComet;
-  }
-
-  if (id === "rocket-solar") {
-    return styles.rocketSolar;
-  }
-
-  if (id === "rocket-nebula") {
-    return styles.rocketNebula;
-  }
-
-  return styles.rocketClassic;
-}
-
 function rocketGlow(id: string): string {
-  if (id === "rocket-comet") {
+  if (id === "rocket-comet" || id === "rocket-ion-wing" || id === "rocket-blackbird") {
     return "rgba(124, 199, 255, 0.88)";
   }
 
-  if (id === "rocket-solar") {
-    return "rgba(174, 230, 255, 0.86)";
+  if (id === "rocket-solar" || id === "rocket-starlancer") {
+    return "rgba(255, 209, 102, 0.88)";
   }
 
-  if (id === "rocket-nebula") {
+  if (id === "rocket-nebula" || id === "rocket-eclipse") {
     return "rgba(249, 247, 239, 0.92)";
+  }
+
+  if (id === "rocket-capsule-v" || id === "rocket-orbital-x") {
+    return "rgba(121, 226, 159, 0.9)";
+  }
+
+  if (id === "rocket-redcap") {
+    return "rgba(255, 107, 107, 0.86)";
+  }
+
+  if (id === "rocket-cargo") {
+    return "rgba(255, 209, 102, 0.82)";
   }
 
   return "rgba(249, 247, 239, 0.72)";
@@ -9884,16 +9954,7 @@ function SkinPreview({ item, large = false, showCardFace = false }: { item: Shop
   }
 
   if (item.category === "rocketShip") {
-    return (
-      <svg
-        className={large ? styles.vehicleSvgLarge : styles.vehicleSvgSmall}
-        viewBox="0 0 120 86"
-        style={{ "--rocket-glow": rocketGlow(item.id) } as CSSProperties}
-        aria-hidden="true"
-      >
-        {vehiclePreviewSvg(item.id)}
-      </svg>
-    );
+    return <RocketShipArtwork id={item.id} large={large} />;
   }
 
   if (item.category === "plinkoBall" || item.category === "rouletteBall") {
@@ -9972,148 +10033,6 @@ function ballSkinClass(id: string): string {
   }
 
   return styles.ballGold;
-}
-
-function vehiclePreviewSvg(id: string): ReactNode {
-  if (id === "rocket-scout") {
-    return (
-      <g>
-        <path d="M60 12 C72 26 73 51 64 68 H56 C47 51 48 26 60 12Z" fill="#d8e2e8" />
-        <path d="M50 52 L24 66 L52 68Z" fill="#7c8b97" />
-        <path d="M70 52 L96 66 L68 68Z" fill="#7c8b97" />
-        <circle cx="60" cy="34" r="7" fill="#8fd3ff" />
-        <path d="M55 68 L60 82 L65 68Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-cargo") {
-    return (
-      <g>
-        <rect x="42" y="20" width="36" height="48" rx="10" fill="#bfa36f" />
-        <path d="M42 32 L20 58 L42 58Z" fill="#8e7750" />
-        <path d="M78 32 L100 58 L78 58Z" fill="#8e7750" />
-        <rect x="49" y="32" width="22" height="12" rx="4" fill="#243142" />
-        <path d="M48 68 L60 84 L72 68Z" fill="#ff9b42" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-redcap") {
-    return (
-      <g>
-        <path d="M60 6 L72 26 H48Z" fill="#ff6b6b" />
-        <path d="M49 25 H71 L66 72 H54Z" fill="#f7fbff" />
-        <path d="M48 55 L22 78 L52 70Z" fill="#cf3d3d" />
-        <path d="M72 55 L98 78 L68 70Z" fill="#cf3d3d" />
-        <circle cx="60" cy="40" r="8" fill="#aee6ff" />
-        <path d="M54 72 L60 86 L66 72Z" fill="#ffb347" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-delta") {
-    return (
-      <g>
-        <path d="M60 7 L103 70 L60 58 L17 70Z" fill="#5eb8f1" />
-        <path d="M60 7 L70 70 H50Z" fill="#d7f4ff" opacity="0.8" />
-        <path d="M53 40 H67 V51 H53Z" fill="#101218" />
-        <path d="M55 62 L60 84 L65 62Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-falcon") {
-    return (
-      <g>
-        <path d="M60 8 C78 20 88 52 106 64 C83 66 70 57 60 44 C50 57 37 66 14 64 C32 52 42 20 60 8Z" fill="#d5ddd9" />
-        <path d="M52 32 H68 L64 70 H56Z" fill="#4d596b" />
-        <ellipse cx="60" cy="30" rx="10" ry="6" fill="#8fd3ff" />
-        <path d="M55 70 L60 86 L65 70Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-eclipse") {
-    return (
-      <g>
-        <path d="M60 6 L94 62 L66 54 L60 78 L54 54 L26 62Z" fill="#252b35" />
-        <path d="M60 14 L70 54 H50Z" fill="#3b4a6b" />
-        <circle cx="60" cy="34" r="7" fill="#7cc7ff" />
-        <path d="M52 72 L60 86 L68 72Z" fill="#7cc7ff" />
-      </g>
-    );
-  }
-
-  if (id.includes("ion") || id.includes("starlancer") || id.includes("blackbird") || id.includes("capsule") || id.includes("orbital")) {
-    return (
-      <g>
-        <path d="M60 5 C82 24 86 57 72 78 H48 C34 57 38 24 60 5Z" fill={id.includes("blackbird") ? "#252b35" : id.includes("starlancer") ? "#ffd166" : "#dff7ff"} />
-        <path d="M38 50 L6 74 L45 68Z" fill={id.includes("capsule") ? "#79e29f" : "#5eb8f1"} />
-        <path d="M82 50 L114 74 L75 68Z" fill={id.includes("capsule") ? "#79e29f" : "#5eb8f1"} />
-        <ellipse cx="60" cy="34" rx="10" ry="8" fill="#101218" />
-        <ellipse cx="60" cy="34" rx="5" ry="4" fill="#aeefff" />
-        <path d="M53 76 L60 86 L67 76Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-comet") {
-    return (
-      <g>
-        <ellipse cx="60" cy="52" rx="40" ry="15" fill="#2f8bd0" />
-        <ellipse cx="60" cy="48" rx="30" ry="11" fill="#76c8f6" />
-        <path d="M24 52 C36 38 84 38 96 52 C82 64 38 64 24 52Z" fill="#1f6da9" />
-        <ellipse cx="61" cy="31" rx="17" ry="13" fill="#bcecff" />
-        <ellipse cx="61" cy="29" rx="11" ry="8" fill="#e5fbff" opacity="0.75" />
-        <path d="M25 56 L10 66 L36 65Z" fill="#70d6ff" opacity="0.6" />
-        <path d="M95 56 L110 66 L84 65Z" fill="#70d6ff" opacity="0.6" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-solar") {
-    return (
-      <g>
-        <path d="M60 7 L75 58 L64 80 H56 L45 58Z" fill="#dfe6ec" />
-        <path d="M60 7 L64 80 H56Z" fill="#8b98a6" opacity="0.55" />
-        <path d="M46 44 L10 66 L50 65Z" fill="#586574" />
-        <path d="M74 44 L110 66 L70 65Z" fill="#586574" />
-        <path d="M51 61 L32 79 L54 75Z" fill="#3f4a56" />
-        <path d="M69 61 L88 79 L66 75Z" fill="#3f4a56" />
-        <rect x="52" y="30" width="16" height="12" rx="6" fill="#101218" />
-        <path d="M55 78 L60 86 L65 78Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-nebula") {
-    return (
-      <g>
-        <path d="M60 5 C76 20 76 58 67 76 H53 C44 58 44 20 60 5Z" fill="#f7fbff" />
-        <path d="M53 16 H58 V74 H53Z" fill="#101218" />
-        <path d="M62 16 H67 V74 H62Z" fill="#101218" />
-        <circle cx="60" cy="34" r="9" fill="#101218" />
-        <circle cx="60" cy="34" r="5" fill="#d8f5ff" />
-        <path d="M53 68 L35 82 L52 79Z" fill="#101218" />
-        <path d="M67 68 L85 82 L68 79Z" fill="#101218" />
-        <path d="M54 78 L60 86 L66 78Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  return (
-    <g>
-      <path d="M60 7 C76 25 77 54 66 72 H54 C43 54 44 25 60 7Z" fill="#fff4df" />
-      <path d="M60 7 C66 20 67 55 62 72 H54 C43 54 44 25 60 7Z" fill="#e8edf0" opacity="0.75" />
-      <path d="M51 56 L24 76 L51 74Z" fill="#e84745" />
-      <path d="M69 56 L96 76 L69 74Z" fill="#e84745" />
-      <circle cx="60" cy="34" r="9" fill="#aee6ff" />
-      <circle cx="57" cy="31" r="3" fill="#ffffff" opacity="0.8" />
-      <path d="M53 72 L60 86 L67 72Z" fill="#ff9b42" />
-      <path d="M48 19 L60 7 L72 19Z" fill="#ffd166" />
-    </g>
-  );
 }
 
 function rarityLabel(rarity: SkinRarity): string {

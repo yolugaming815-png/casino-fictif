@@ -777,23 +777,17 @@
   display: grid;
   place-items: center;
   gap: 8px;
-  min-height: 120px;
+  min-height: 136px;
   border-radius: 8px;
   background:
     radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--special-chest-color) 38%, transparent), transparent 48%),
     rgba(255, 255, 255, 0.06);
 }
 
-.specialChestPreview > span {
-  width: 112px;
-  height: 62px;
-  border-radius: 8px;
-  border: 2px solid color-mix(in srgb, var(--special-chest-color) 70%, #ffffff);
-  background:
-    linear-gradient(135deg, transparent 0 18%, color-mix(in srgb, var(--special-chest-color) 55%, transparent) 18% 24%, transparent 24% 44%, color-mix(in srgb, var(--special-chest-color) 35%, transparent) 44% 52%, transparent 52%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(16, 18, 24, 0.5)),
-    color-mix(in srgb, var(--special-chest-color) 36%, #20242d);
-  box-shadow: 0 0 30px color-mix(in srgb, var(--special-chest-color) 55%, transparent);
+.specialChestImage {
+  width: min(192px, 86%);
+  aspect-ratio: 13 / 9;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.36)) drop-shadow(0 0 24px color-mix(in srgb, var(--special-chest-color) 58%, transparent));
 }
 
 .specialResourcePreview {
@@ -4250,6 +4244,34 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.shopAtlasSprite {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.shopAtlasSpriteImage {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: var(--shop-atlas-image-width);
+  height: var(--shop-atlas-image-height);
+  max-width: none;
+  transform: translate(var(--shop-atlas-translate-x), var(--shop-atlas-translate-y));
+  user-select: none;
+  pointer-events: none;
+}
+
+.rocketShipSprite {
+  width: 92px;
+  aspect-ratio: 18 / 13;
+  filter: drop-shadow(0 0 16px var(--rocket-glow, rgba(124, 199, 255, 0.36)));
+}
+
+.rocketShipSpriteLarge {
+  width: 118px;
+}
+
 .shopOrbPreview {
   width: 48px;
   height: 48px;
@@ -4661,10 +4683,7 @@
 .inventoryPreview .caseCardBackPreview,
 .inventoryPreview .shopCardPreviewPair,
 .inventoryPreview .caseCardPreviewPair,
-.inventoryPreview .vehiclePreviewSmall,
-.inventoryPreview .vehiclePreviewLarge,
-.inventoryPreview .vehicleSvgSmall,
-.inventoryPreview .vehicleSvgLarge {
+.inventoryPreview .rocketShipSprite {
   position: relative;
   z-index: 1;
 }
@@ -5437,28 +5456,8 @@
   grid-column: 2;
 }
 
-.caseItem .vehiclePreviewSmall {
-  width: 56px;
-  height: 56px;
-}
-
-.vehicleSvgSmall,
-.vehicleSvgLarge {
-  display: block;
-  width: 86px;
-  height: 62px;
-  overflow: visible;
-  filter: drop-shadow(0 0 14px var(--rocket-glow, rgba(124, 199, 255, 0.36)));
-}
-
-.vehicleSvgLarge {
-  width: 108px;
-  height: 78px;
-}
-
-.caseItem .vehicleSvgSmall {
-  width: 64px;
-  height: 48px;
+.caseItem .rocketShipSprite {
+  width: 70px;
 }
 
 .caseModalBackdrop {
@@ -5609,6 +5608,10 @@
 .caseReelItem small {
   color: #b8c2bd;
   font-size: 0.72rem;
+}
+
+.caseReelItem .rocketShipSprite {
+  width: 76px;
 }
 
 .caseReelWinner {
@@ -5791,10 +5794,9 @@
 .rocketCraft {
   z-index: 4;
   bottom: 42px;
-  width: 72px;
-  height: 118px;
+  width: 112px;
   transform: rotate(14deg);
-  filter: drop-shadow(0 0 18px var(--rocket-glow, rgba(124, 199, 255, 0.28)));
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 22px var(--rocket-glow, rgba(124, 199, 255, 0.28)));
 }
 
 .rocketCraftFlying {
