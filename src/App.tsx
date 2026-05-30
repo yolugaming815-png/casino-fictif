@@ -5,6 +5,7 @@ import styles from "./App.module.css";
 import activityShortcutImage from "./assets/home/activite.png";
 import bonusShortcutImage from "./assets/home/bonus.png";
 import boutiqueShortcutImage from "./assets/home/boutique.png";
+import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
 import plinkoAmberImage from "./assets/plinko/plinko-amber.png";
 import plinkoCloudImage from "./assets/plinko/plinko-cloud.png";
 import plinkoEmeraldImage from "./assets/plinko/plinko-emerald.png";
@@ -288,6 +289,8 @@ type ActivityItem = {
   kind: "friend" | "trade" | "message" | "duel" | "poker";
   timestamp?: unknown;
 };
+
+type CasinoGame = "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw";
 
 type MainSection = "home" | "games" | "online" | "missions" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
@@ -1209,7 +1212,7 @@ function App() {
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
   const [activeSection, setActiveSection] = useState<MainSection>("home");
-  const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw">("slots");
+  const [activeGame, setActiveGame] = useState<CasinoGame>("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<OnlineRoomType>("duel");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -3513,7 +3516,7 @@ function App() {
     }
   }
 
-  function selectGame(game: "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw") {
+  function selectGame(game: CasinoGame) {
     setActiveGame(game);
     setActiveSection("games");
     setMobileMenuOpen(false);
@@ -3852,12 +3855,15 @@ function App() {
         {activeSection === "home" ? (
           <HomeDashboard
             activityCount={activityBadgeCount}
+            balance={balance}
             currentUserId={accountUser?.uid ?? null}
             leaderboard={leaderboard}
             leaderboardMessage={leaderboardMessage}
-            rewardedAds={normalizeRewardedAds(rewardedAds)}
+            remainingAds={Math.max(0, DAILY_REWARDED_AD_LIMIT - normalizeRewardedAds(rewardedAds).watched)}
             onGoTo={(section) => setActiveSection(section)}
             onOpenProfile={handleOpenPlayerProfile}
+            onSelectGame={selectGame}
+            onSelectOnlineGame={selectOnlineGame}
           />
         ) : activeSection === "online" ? (
           <OnlineGames
@@ -8251,38 +8257,361 @@ function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
 
 function HomeDashboard({
   activityCount,
+  balance,
   currentUserId,
   leaderboard,
   leaderboardMessage,
-  rewardedAds,
+  remainingAds,
   onGoTo,
   onOpenProfile,
+  onSelectGame,
+  onSelectOnlineGame,
 }: {
   activityCount: number;
+  balance: number;
   currentUserId: string | null;
   leaderboard: LeaderboardEntry[];
   leaderboardMessage: string;
-  rewardedAds: RewardedAdState;
+  remainingAds: number;
   onGoTo: (section: MainSection) => void;
   onOpenProfile: (player: LeaderboardEntry) => void;
+  onSelectGame: (game: CasinoGame) => void;
+  onSelectOnlineGame: (game: OnlineRoomType) => void;
 }) {
-  const remainingAds = Math.max(0, DAILY_REWARDED_AD_LIMIT - rewardedAds.watched);
+  const topPlayers = leaderboard.slice(0, 5);
 
   return (
-    <>
-      <LeaderboardPanel currentUserId={currentUserId} entries={leaderboard} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
-      <section className={styles.homeCards} aria-label="Raccourcis">
-        <button type="button" onClick={() => onGoTo("shop")} aria-label="Ouvrir la boutique">
-          <img src={boutiqueShortcutImage} alt="" />
+    <section className={styles.lobby} aria-label="Lobby casino fictif">
+      <div className={styles.lobbyMain}>
+        <LobbyHero onPlay={() => onSelectGame("slots")} onTournaments={() => onGoTo("missions")} />
+        <PopularGames onSelectGame={onSelectGame} onSelectOnlineGame={onSelectOnlineGame} onGoTo={onGoTo} />
+        <LobbyTournaments onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
+        <RewardStrip remainingAds={remainingAds} onGoTo={onGoTo} />
+        <LobbyPromoGrid onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
+        <LobbyStats activityCount={activityCount} balance={balance} leaderboardCount={leaderboard.length} remainingAds={remainingAds} />
+      </div>
+
+      <aside className={styles.lobbySideColumn} aria-label="Classement et activite">
+        <LobbyLeaderboard currentUserId={currentUserId} entries={topPlayers} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
+        <LobbySocialFeed activityCount={activityCount} entries={topPlayers} onGoTo={onGoTo} />
+      </aside>
+    </section>
+  );
+}
+
+function AnimatedMedia({
+  assetId,
+  children,
+  className = "",
+  label,
+  style,
+}: {
+  assetId: AnimationAssetId;
+  children?: ReactNode;
+  className?: string;
+  label?: string;
+  style?: CSSProperties;
+}) {
+  const asset = getAnimationAsset(assetId);
+
+  if (!asset) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`${styles.animatedMedia} ${className}`}
+      data-animatable-id={asset.id}
+      data-aspect={asset.aspect}
+      data-animation-trigger={asset.trigger}
+      data-animation-prompt={asset.prompt}
+      role="img"
+      aria-label={label ?? asset.title}
+      style={style}
+    >
+      {children}
+    </div>
+  );
+}
+
+function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournaments: () => void }) {
+  return (
+    <section className={styles.lobbyHero}>
+      <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium">
+        <span className={styles.heroVs}>VS</span>
+        <span className={styles.heroChipOne} />
+        <span className={styles.heroChipTwo} />
+      </AnimatedMedia>
+      <div className={styles.heroContent}>
+        <p className={styles.heroSafety}>Credits virtuels uniquement</p>
+        <h2>
+          Joue. Defie.
+          <span>Deviens legende.</span>
+        </h2>
+        <p>Affronte tes amis, grimpe au classement et debloque des skins sans argent reel.</p>
+        <div className={styles.heroActions}>
+          <button className={styles.primaryButton} type="button" onClick={onPlay}>
+            Jouer
+          </button>
+          <button className={styles.secondaryButton} type="button" onClick={onTournaments}>
+            Voir les tournois
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PopularGames({
+  onGoTo,
+  onSelectGame,
+  onSelectOnlineGame,
+}: {
+  onGoTo: (section: MainSection) => void;
+  onSelectGame: (game: CasinoGame) => void;
+  onSelectOnlineGame: (game: OnlineRoomType) => void;
+}) {
+  const gameCards: Array<{
+    title: string;
+    subtitle: string;
+    assetId?: AnimationAssetId;
+    tone: string;
+    onClick: () => void;
+  }> = [
+    {
+      title: "Dragon Spin",
+      subtitle: "Slots",
+      assetId: "dragon-spin-card-9x16",
+      tone: "#ffb629",
+      onClick: () => onSelectGame("slots"),
+    },
+    {
+      title: "Blackjack",
+      subtitle: "Live",
+      assetId: "blackjack-card-9x16",
+      tone: "#33df8d",
+      onClick: () => onSelectGame("blackjack"),
+    },
+    {
+      title: "Roulette",
+      subtitle: "European",
+      assetId: "roulette-card-9x16",
+      tone: "#ff4f4f",
+      onClick: () => onSelectGame("roulette"),
+    },
+    {
+      title: "Battle Poker",
+      subtitle: "VS",
+      tone: "#9a4cff",
+      onClick: () => onSelectOnlineGame("poker"),
+    },
+    {
+      title: "Gems Quest",
+      subtitle: "Cases",
+      tone: "#36b7ff",
+      onClick: () => onGoTo("cases"),
+    },
+  ];
+
+  return (
+    <section className={styles.lobbySection} aria-labelledby="popular-games-title">
+      <div className={styles.lobbySectionHeader}>
+        <h2 id="popular-games-title">Jeux populaires</h2>
+        <button type="button" onClick={() => onGoTo("games")}>
+          Voir tous les jeux
         </button>
-        <button type="button" onClick={() => onGoTo("activity")} aria-label="Ouvrir l'activite">
-          <img src={activityShortcutImage} alt="" />
+      </div>
+      <div className={styles.popularGames}>
+        {gameCards.map((card) => (
+          <button className={styles.lobbyGameCard} key={card.title} type="button" onClick={card.onClick} style={{ "--game-card-tone": card.tone } as CSSProperties}>
+            {card.assetId ? (
+              <AnimatedMedia assetId={card.assetId} className={styles.lobbyGameArt}>
+                <span className={styles.lobbyGameGlyph}>{card.title.slice(0, 1)}</span>
+              </AnimatedMedia>
+            ) : (
+              <span className={`${styles.lobbyGameArt} ${styles.lobbyGameArtStatic}`} aria-hidden="true">
+                <span className={styles.lobbyGameGlyph}>{card.title.slice(0, 1)}</span>
+              </span>
+            )}
+            <strong>{card.title}</strong>
+            <span>{card.subtitle}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LobbyLeaderboard({
+  currentUserId,
+  entries,
+  message,
+  onOpenProfile,
+}: {
+  currentUserId: string | null;
+  entries: LeaderboardEntry[];
+  message: string;
+  onOpenProfile: (entry: LeaderboardEntry) => void;
+}) {
+  return (
+    <section className={styles.lobbyLeaderboard} aria-label="Classement global">
+      <div className={styles.lobbyPanelHeader}>
+        <h2>Classement</h2>
+        <span>Semaine</span>
+      </div>
+      <ol>
+        {entries.map((entry, index) => (
+          <li className={entry.uid === currentUserId ? styles.lobbyCurrentPlayer : ""} key={entry.uid}>
+            <button type="button" onClick={() => onOpenProfile(entry)}>
+              <span className={styles.lobbyRank}>{index + 1}</span>
+              <ProfileAvatar className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={publicProfilePhotoURL(entry.photoURL)} />
+              <strong>{entry.displayName}</strong>
+              <em>{entry.balance.toLocaleString("fr-FR")}</em>
+            </button>
+          </li>
+        ))}
+      </ol>
+      {entries.length === 0 ? <p className={styles.empty}>{message}</p> : null}
+    </section>
+  );
+}
+
+function LobbySocialFeed({
+  activityCount,
+  entries,
+  onGoTo,
+}: {
+  activityCount: number;
+  entries: LeaderboardEntry[];
+  onGoTo: (section: MainSection) => void;
+}) {
+  const visibleEntries = entries.slice(0, 4);
+
+  return (
+    <section className={styles.lobbySocialFeed} aria-label="Chat du salon">
+      <div className={styles.lobbyPanelHeader}>
+        <h2>Chat du salon</h2>
+        <span>{Math.max(12, entries.length * 17 + activityCount)} en ligne</span>
+      </div>
+      <div className={styles.lobbyChatList}>
+        {visibleEntries.length === 0 ? (
+          <p className={styles.empty}>Connecte-toi pour voir les joueurs actifs.</p>
+        ) : (
+          visibleEntries.map((entry, index) => (
+            <article key={entry.uid}>
+              <ProfileAvatar className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={publicProfilePhotoURL(entry.photoURL)} />
+              <p>
+                <strong>{entry.displayName}</strong>
+                {index === 0 ? " GG pour le top classement !" : index === 1 ? " Pret pour le prochain duel ?" : " Cette salle est active."}
+              </p>
+            </article>
+          ))
+        )}
+      </div>
+      <button className={styles.lobbyGhostButton} type="button" onClick={() => onGoTo("messages")}>
+        Ouvrir les messages
+      </button>
+    </section>
+  );
+}
+
+function LobbyTournaments({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: MainSection) => void; onSelectOnlineGame: (game: OnlineRoomType) => void }) {
+  const tournaments = [
+    { title: "Coupe des legendes", detail: "Duels en 3 manches", prize: "50,000", action: () => onSelectOnlineGame("duel") },
+    { title: "Bataille royale", detail: "Table poker", prize: "25,000", action: () => onSelectOnlineGame("poker") },
+    { title: "Mission master", detail: "Objectifs horaires", prize: "10,000", action: () => onGoTo("missions") },
+  ];
+
+  return (
+    <section className={styles.lobbySection} aria-labelledby="lobby-tournaments-title">
+      <div className={styles.lobbySectionHeader}>
+        <h2 id="lobby-tournaments-title">Tournois</h2>
+        <button type="button" onClick={() => onGoTo("online")}>
+          Voir tous
         </button>
-        <button type="button" onClick={() => onGoTo("bonus")} aria-label="Ouvrir les bonus">
-          <img src={bonusShortcutImage} alt="" />
+      </div>
+      <div className={styles.lobbyTournaments}>
+        {tournaments.map((tournament) => (
+          <button key={tournament.title} type="button" onClick={tournament.action}>
+            <span className={styles.tournamentTrophy} aria-hidden="true" />
+            <span>
+              <strong>{tournament.title}</strong>
+              <small>{tournament.detail}</small>
+            </span>
+            <em>{tournament.prize}</em>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RewardStrip({ remainingAds, onGoTo }: { remainingAds: number; onGoTo: (section: MainSection) => void }) {
+  return (
+    <section className={styles.rewardStrip}>
+      <AnimatedMedia assetId="reward-chest-16x9" className={styles.rewardArt}>
+        <span className={styles.rewardChest} />
+      </AnimatedMedia>
+      <div>
+        <h2>Recompense du jour</h2>
+        <p>{remainingAds > 0 ? `${remainingAds} bonus virtuel${remainingAds > 1 ? "s" : ""} encore disponible${remainingAds > 1 ? "s" : ""}.` : "Reviens demain pour de nouveaux bonus virtuels."}</p>
+      </div>
+      <button className={styles.primaryButton} type="button" onClick={() => onGoTo("bonus")}>
+        Recuperer
+      </button>
+    </section>
+  );
+}
+
+function LobbyPromoGrid({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: MainSection) => void; onSelectOnlineGame: (game: OnlineRoomType) => void }) {
+  const promos = [
+    { title: "Defie tes amis", detail: "Cree une table privee et lance un duel.", image: activityShortcutImage, action: () => onSelectOnlineGame("duel") },
+    { title: "Personnalise ton profil", detail: "Equipe tes skins et marque ton style.", image: boutiqueShortcutImage, action: () => onGoTo("inventory") },
+    { title: "Gagne des recompenses", detail: "Bonus, coffres et fragments virtuels.", image: bonusShortcutImage, action: () => onGoTo("shop") },
+  ];
+
+  return (
+    <section className={styles.lobbyPromoGrid} aria-label="Actions rapides">
+      {promos.map((promo) => (
+        <button key={promo.title} type="button" onClick={promo.action}>
+          <img src={promo.image} alt="" />
+          <span>
+            <strong>{promo.title}</strong>
+            <small>{promo.detail}</small>
+          </span>
         </button>
-      </section>
-    </>
+      ))}
+    </section>
+  );
+}
+
+function LobbyStats({
+  activityCount,
+  balance,
+  leaderboardCount,
+  remainingAds,
+}: {
+  activityCount: number;
+  balance: number;
+  leaderboardCount: number;
+  remainingAds: number;
+}) {
+  const stats = [
+    { label: "Credits virtuels", value: balance.toLocaleString("fr-FR") },
+    { label: "Joueurs classes", value: Math.max(leaderboardCount, 0).toLocaleString("fr-FR") },
+    { label: "Alertes sociales", value: activityCount.toLocaleString("fr-FR") },
+    { label: "Bonus restants", value: remainingAds.toLocaleString("fr-FR") },
+  ];
+
+  return (
+    <section className={styles.lobbyStats} aria-label="Statistiques du lobby">
+      {stats.map((stat) => (
+        <div key={stat.label}>
+          <strong>{stat.value}</strong>
+          <span>{stat.label}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 
