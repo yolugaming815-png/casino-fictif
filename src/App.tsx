@@ -14,6 +14,16 @@ import plinkoNeonImage from "./assets/plinko/plinko-neon.png";
 import plinkoOceanImage from "./assets/plinko/plinko-ocean.png";
 import plinkoRubyImage from "./assets/plinko/plinko-ruby.png";
 import plinkoStormImage from "./assets/plinko/plinko-storm.png";
+import rouletteAzureImage from "./assets/roulette/roulette-azure.png";
+import rouletteCopperImage from "./assets/roulette/roulette-copper.png";
+import rouletteEclipseImage from "./assets/roulette/roulette-eclipse.png";
+import rouletteIvoryImage from "./assets/roulette/roulette-ivory.png";
+import rouletteJadeImage from "./assets/roulette/roulette-jade.png";
+import roulettePearlImage from "./assets/roulette/roulette-pearl.png";
+import rouletteRoseImage from "./assets/roulette/roulette-rose.png";
+import rouletteSapphireImage from "./assets/roulette/roulette-sapphire.png";
+import rouletteSunImage from "./assets/roulette/roulette-sun.png";
+import rouletteVioletImage from "./assets/roulette/roulette-violet.png";
 import {
   INITIAL_BALANCE,
   MIN_BET,
@@ -572,6 +582,19 @@ const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-storm": plinkoStormImage,
 };
 const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-20";
+const ROULETTE_BALL_IMAGES: Partial<Record<string, string>> = {
+  "roulette-azure": rouletteAzureImage,
+  "roulette-copper": rouletteCopperImage,
+  "roulette-eclipse": rouletteEclipseImage,
+  "roulette-ivory": rouletteIvoryImage,
+  "roulette-jade": rouletteJadeImage,
+  "roulette-pearl": roulettePearlImage,
+  "roulette-rose": rouletteRoseImage,
+  "roulette-sapphire": rouletteSapphireImage,
+  "roulette-sun": rouletteSunImage,
+  "roulette-violet": rouletteVioletImage,
+};
+const ROULETTE_BALL_IMAGE_VERSION = "roulette-skins-2026-05-30";
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   common: 0,
   rare: 1,
@@ -584,6 +607,11 @@ const plinkoBallImageCache = new Map<string, { image: HTMLImageElement; loaded: 
 function getPlinkoBallImageSource(id: string) {
   const source = PLINKO_BALL_IMAGES[id] ?? "";
   return source ? `${source}?v=${PLINKO_BALL_IMAGE_VERSION}` : "";
+}
+
+function getRouletteBallImageSource(id: string) {
+  const source = ROULETTE_BALL_IMAGES[id] ?? "";
+  return source ? `${source}?v=${ROULETTE_BALL_IMAGE_VERSION}` : "";
 }
 
 function getLoadedPlinkoBallImage(id: string) {
@@ -7841,6 +7869,7 @@ function RouletteBall({
   spinning: boolean;
 }) {
   const [style, setStyle] = useState({ "--ball-x": "50%", "--ball-y": "8%" } as CSSProperties);
+  const ballImage = getRouletteBallImageSource(ballSkin.id);
 
   useEffect(() => {
     if (!spinning) {
@@ -7882,6 +7911,7 @@ function RouletteBall({
       style={
         {
           ...style,
+          ...(ballImage ? { background: `center / contain no-repeat url(${ballImage})` } : {}),
           "--roulette-ball-color": ballSkin.preview,
           "--roulette-ball-glow": ballGlow(ballSkin.id),
         } as CSSProperties
@@ -9773,8 +9803,9 @@ function SkinPreview({ item, large = false, showCardFace = false }: { item: Shop
     );
   }
 
-  if (item.category === "plinkoBall") {
-    const imageSource = getPlinkoBallImageSource(item.id);
+  if (item.category === "plinkoBall" || item.category === "rouletteBall") {
+    const imageSource =
+      item.category === "plinkoBall" ? getPlinkoBallImageSource(item.id) : getRouletteBallImageSource(item.id);
 
     if (imageSource) {
       return (
