@@ -7104,10 +7104,14 @@ function ThemedBlackjackCard({
   preview?: boolean;
 }) {
   const model = getBlackjackCardFaceModel(card, skinId);
+  const cornerSuit =
+    model.kind === "figure" ? (
+      <DeckArtSprite className={styles.cardCornerSuit} cell={model.suit.illustration.assetCell} skinId={model.theme.id} />
+    ) : null;
   const corner = (
     <>
       <strong>{model.rank}</strong>
-      <DeckArtSprite className={styles.cardCornerSuit} cell={model.suit.illustration.assetCell} skinId={model.theme.id} />
+      {cornerSuit}
     </>
   );
 
