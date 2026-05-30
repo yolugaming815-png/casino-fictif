@@ -807,14 +807,16 @@
 
 .specialChestReward small {
   max-width: 100%;
-  overflow: hidden;
+  min-height: 2.3em;
+  overflow: visible;
   color: #d5ddd9;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.12;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .specialChestReward .plinkoImagePreview,
