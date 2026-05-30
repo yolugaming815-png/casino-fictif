@@ -3,6 +3,7 @@ dist/
 .npm-cache/
 .tools/
 .codex-publish-temp/
+.superpowers/
 *.log
 npm-debug.log
 .env
