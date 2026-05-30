@@ -8468,7 +8468,7 @@ function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournament
         <p className={styles.heroSafety}>Credits virtuels uniquement</p>
         <h2>
           Joue. Defie.
-          <span>Deviens legende.</span>
+          <span>Deviens une legende.</span>
         </h2>
         <p>Affronte tes amis, grimpe au classement et debloque des skins sans argent reel.</p>
         <div className={styles.heroActions}>
