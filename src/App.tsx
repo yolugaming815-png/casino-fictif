@@ -13,13 +13,23 @@ import plinkoMintImage from "./assets/plinko/plinko-mint.png";
 import plinkoNeonImage from "./assets/plinko/plinko-neon.png";
 import plinkoOceanImage from "./assets/plinko/plinko-ocean.png";
 import plinkoRubyImage from "./assets/plinko/plinko-ruby.png";
+import plinkoAuroraImage from "./assets/plinko/plinko-aurora.png";
+import plinkoCosmicIceImage from "./assets/plinko/plinko-cosmic-ice.png";
+import plinkoGalaxyCoreImage from "./assets/plinko/plinko-galaxy-core.png";
 import plinkoStormImage from "./assets/plinko/plinko-storm.png";
+import plinkoStarfallImage from "./assets/plinko/plinko-starfall.png";
+import plinkoSupernovaImage from "./assets/plinko/plinko-supernova.png";
 import rouletteAzureImage from "./assets/roulette/roulette-azure.png";
+import rouletteCometImage from "./assets/roulette/roulette-comet.png";
 import rouletteCopperImage from "./assets/roulette/roulette-copper.png";
+import rouletteCrystalImage from "./assets/roulette/roulette-crystal.png";
 import rouletteEclipseImage from "./assets/roulette/roulette-eclipse.png";
 import rouletteIvoryImage from "./assets/roulette/roulette-ivory.png";
 import rouletteJadeImage from "./assets/roulette/roulette-jade.png";
+import rouletteLaserImage from "./assets/roulette/roulette-laser.png";
+import rouletteOpalImage from "./assets/roulette/roulette-opal.png";
 import roulettePearlImage from "./assets/roulette/roulette-pearl.png";
+import roulettePrismImage from "./assets/roulette/roulette-prism.png";
 import rouletteRoseImage from "./assets/roulette/roulette-rose.png";
 import rouletteSapphireImage from "./assets/roulette/roulette-sapphire.png";
 import rouletteSunImage from "./assets/roulette/roulette-sun.png";
@@ -590,8 +600,13 @@ const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-ocean": plinkoOceanImage,
   "plinko-ruby": plinkoRubyImage,
   "plinko-storm": plinkoStormImage,
+  "plinko-starfall": plinkoStarfallImage,
+  "plinko-aurora": plinkoAuroraImage,
+  "plinko-supernova": plinkoSupernovaImage,
+  "plinko-cosmic-ice": plinkoCosmicIceImage,
+  "plinko-galaxy-core": plinkoGalaxyCoreImage,
 };
-const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-20";
+const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-30";
 const ROULETTE_BALL_IMAGES: Partial<Record<string, string>> = {
   "roulette-azure": rouletteAzureImage,
   "roulette-copper": rouletteCopperImage,
@@ -603,6 +618,11 @@ const ROULETTE_BALL_IMAGES: Partial<Record<string, string>> = {
   "roulette-sapphire": rouletteSapphireImage,
   "roulette-sun": rouletteSunImage,
   "roulette-violet": rouletteVioletImage,
+  "roulette-opal": rouletteOpalImage,
+  "roulette-laser": rouletteLaserImage,
+  "roulette-comet": rouletteCometImage,
+  "roulette-crystal": rouletteCrystalImage,
+  "roulette-prism": roulettePrismImage,
 };
 const ROULETTE_BALL_IMAGE_VERSION = "roulette-skins-2026-05-30";
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
@@ -3636,7 +3656,11 @@ function App() {
         )}
         {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
 
-        <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
+        <nav
+          className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`}
+          aria-label="Section principale"
+          style={mobileMenuOpen ? { transform: "translateX(0px)", transition: "none" } : undefined}
+        >
           <button className={styles.menuProfile} type="button" onClick={handleOpenOwnProfile}>
             <span className={styles.menuAvatarFrame}>
               {currentUserIsLeaderboardLeader ? (
@@ -4857,6 +4881,7 @@ function LeaderboardPanel({
           <li className={entry.uid === currentUserId ? styles.currentLeaderboardPlayer : ""} key={entry.uid}>
             <button className={styles.leaderboardPlayerButton} type="button" onClick={() => onOpenProfile(entry)}>
               <span>{index + 1}</span>
+              <ProfileAvatar avatarSeed={entry.uid} className={styles.leaderboardAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
               <strong>{entry.displayName}</strong>
               <em>{entry.balance.toLocaleString("fr-FR")} credits</em>
             </button>
@@ -8208,6 +8233,7 @@ function CaseOpeningGame({
             return (
               <article className={styles.shopItem} key={chest.id}>
                 <SpecialChestPreview chest={chest} />
+                <SpecialChestRewards chest={chest} />
                 <div>
                   <h3>{chest.title}</h3>
                   <p>{chest.subtitle}</p>
@@ -8400,6 +8426,21 @@ function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
     <div className={styles.specialChestPreview} style={{ "--special-chest-color": chest.theme } as CSSProperties}>
       <SpecialChestArtwork chestId={chest.id} />
       <strong>{chest.title}</strong>
+    </div>
+  );
+}
+
+function SpecialChestRewards({ chest }: { chest: SpecialChestDefinition }) {
+  const rewardItems = chest.itemIds.map((itemId) => getShopItem(itemId));
+
+  return (
+    <div className={styles.specialChestRewards} aria-label={`Recompenses ${chest.title}`}>
+      {rewardItems.map((item) => (
+        <span className={styles.specialChestReward} key={item.id} title={item.name}>
+          <SkinPreview item={item} showCardFace={item.category === "cardBack"} />
+          <small>{item.name}</small>
+        </span>
+      ))}
     </div>
   );
 }
@@ -9167,6 +9208,7 @@ function ShopGame({
           {SPECIAL_CHESTS.map((chest) => (
             <article className={styles.shopItem} key={chest.id}>
               <SpecialChestPreview chest={chest} />
+              <SpecialChestRewards chest={chest} />
               <div>
                 <h3>{chest.title}</h3>
                 <p>{chest.subtitle}</p>
@@ -9632,6 +9674,26 @@ const BLACKJACK_SKIN_IMAGES: Record<string, BlackjackSkinImages> = {
   "cards-sunset": {
     back: new URL("./assets/blackjack/cards-sunset-back.png", import.meta.url).href,
     art: new URL("./assets/blackjack/art/cards-sunset-art.png", import.meta.url).href,
+  },
+  "cards-joker-neon": {
+    back: new URL("./assets/blackjack/cards-joker-neon-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-joker-neon-art.png", import.meta.url).href,
+  },
+  "cards-crown-night": {
+    back: new URL("./assets/blackjack/cards-crown-night-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-crown-night-art.png", import.meta.url).href,
+  },
+  "cards-gilded-mask": {
+    back: new URL("./assets/blackjack/cards-gilded-mask-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-gilded-mask-art.png", import.meta.url).href,
+  },
+  "cards-ace-vault": {
+    back: new URL("./assets/blackjack/cards-ace-vault-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-ace-vault-art.png", import.meta.url).href,
+  },
+  "cards-joker-gold": {
+    back: new URL("./assets/blackjack/cards-joker-gold-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-joker-gold-art.png", import.meta.url).href,
   },
 };
 

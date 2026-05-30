@@ -164,7 +164,7 @@
 
 .leaderboardPlayerButton {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 32px 38px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -193,6 +193,24 @@
   background: rgba(255, 209, 102, 0.16);
   color: #ffd166;
   font-weight: 900;
+}
+
+.leaderboardAvatar {
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.26);
+  background: rgba(255, 209, 102, 0.14);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+}
+
+.leaderboardAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .leaderboardPlayerButton strong {
@@ -788,6 +806,59 @@
   width: min(192px, 86%);
   aspect-ratio: 13 / 9;
   filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.36)) drop-shadow(0 0 24px color-mix(in srgb, var(--special-chest-color) 58%, transparent));
+}
+
+.specialChestRewards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.specialChestReward {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 82px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.specialChestReward small {
+  max-width: 100%;
+  overflow: hidden;
+  color: #d5ddd9;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.specialChestReward .plinkoImagePreview,
+.specialChestReward .caseImagePreview {
+  width: 42px;
+  height: 42px;
+}
+
+.specialChestReward .rocketShipSprite {
+  width: 62px;
+}
+
+.specialChestReward .blackjackSkinPairPreview {
+  gap: 4px;
+  width: 74px;
+  min-height: 52px;
+}
+
+.specialChestReward .blackjackSkinPairPreview img,
+.specialChestReward .blackjackSkinPairPreview .themedPreviewCard {
+  flex-basis: 31px;
+  width: 31px;
+  max-width: 31px;
 }
 
 .specialResourcePreview {
@@ -2658,16 +2729,20 @@
 .lobbyTournaments {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .lobbyTournaments button {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: minmax(112px, 0.4fr) minmax(0, 1fr);
+  grid-template-areas:
+    "art copy"
+    "art prize";
+  column-gap: 18px;
+  row-gap: 8px;
   align-items: center;
-  min-height: 86px;
-  padding: 12px;
+  min-height: 132px;
+  padding: 14px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background:
@@ -2686,12 +2761,19 @@
 }
 
 .tournamentArt {
-  width: 68px;
+  grid-area: art;
+  width: 100%;
+  max-width: 154px;
   aspect-ratio: 16 / 9;
   border-radius: 8px;
   border: 1px solid rgba(255, 209, 102, 0.2);
   background: #080a18;
   box-shadow: 0 0 24px rgba(143, 57, 255, 0.32);
+}
+
+.lobbyTournaments button > span {
+  grid-area: copy;
+  min-width: 0;
 }
 
 .lobbyTournaments strong,
@@ -2700,9 +2782,12 @@
 }
 
 .lobbyTournaments strong {
-  overflow-wrap: anywhere;
-  font-size: 0.94rem;
+  font-size: clamp(1rem, 1.1vw, 1.22rem);
+  line-height: 1.08;
   text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .lobbyTournaments small {
@@ -2711,9 +2796,12 @@
 }
 
 .lobbyTournaments em {
+  grid-area: prize;
   color: #ffd166;
   font-style: normal;
+  font-size: clamp(1.25rem, 1.5vw, 1.62rem);
   font-weight: 950;
+  line-height: 1;
 }
 
 .rewardStrip {
@@ -6432,8 +6520,8 @@
     font-size: 0.95rem;
   }
 
-  .modeTabsOpen {
-    transform: translateX(0);
+  .modeTabs.modeTabsOpen {
+    transform: none !important;
   }
 
   .gameTabs {
@@ -6579,6 +6667,14 @@
     transform: scale(0.78);
   }
 
+  .specialChestRewards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shopItem > .specialChestRewards .specialChestReward small {
+    display: block;
+  }
+
   .caseItemGrid {
     grid-template-columns: 1fr;
   }
@@ -6610,11 +6706,11 @@
   }
 
   .leaderboardPlayerButton {
-    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-columns: 32px 38px minmax(0, 1fr);
   }
 
   .leaderboardPlayerButton em {
-    grid-column: 2;
+    grid-column: 3;
   }
 
   .profileInventoryGrid {

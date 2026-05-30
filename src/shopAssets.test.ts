@@ -9,18 +9,16 @@ import { getRocketShipArtCell, getSpecialChestArtCell } from "./shopVisualAssets
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 describe("shop asset coverage", () => {
-  it("has png previews for every public ball and blackjack card skin", () => {
-    const publicItems = SHOP_ITEMS.filter((item) => item.source !== "special");
-
-    for (const item of publicItems.filter((item) => item.category === "plinkoBall")) {
+  it("has png previews for every ball and blackjack card skin", () => {
+    for (const item of SHOP_ITEMS.filter((item) => item.category === "plinkoBall")) {
       assert.equal(existsSync(`${root}/src/assets/plinko/${item.id}.png`), true, item.id);
     }
 
-    for (const item of publicItems.filter((item) => item.category === "rouletteBall")) {
+    for (const item of SHOP_ITEMS.filter((item) => item.category === "rouletteBall")) {
       assert.equal(existsSync(`${root}/src/assets/roulette/${item.id}.png`), true, item.id);
     }
 
-    for (const item of publicItems.filter((item) => item.category === "cardBack")) {
+    for (const item of SHOP_ITEMS.filter((item) => item.category === "cardBack")) {
       assert.equal(existsSync(`${root}/src/assets/blackjack/${item.id}-back.png`), true, `${item.id} back`);
       assert.equal(existsSync(`${root}/src/assets/blackjack/art/${item.id}-art.png`), true, `${item.id} art atlas`);
     }

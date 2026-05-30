@@ -7,8 +7,8 @@ import { SHOP_ITEMS } from "./shopLogic.ts";
 const faceRanks = ["A", "J", "Q", "K"] as const;
 
 describe("blackjack deck themes", () => {
-  it("covers every public blackjack skin with illustrated suits and face cards", () => {
-    const cardSkinIds = SHOP_ITEMS.filter((item) => item.category === "cardBack" && item.source !== "special").map((item) => item.id);
+  it("covers every blackjack skin with illustrated suits and face cards", () => {
+    const cardSkinIds = SHOP_ITEMS.filter((item) => item.category === "cardBack").map((item) => item.id);
 
     for (const skinId of cardSkinIds) {
       const theme = getBlackjackDeckTheme(skinId);
