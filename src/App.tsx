@@ -8401,19 +8401,20 @@ function HomeDashboard({
 
   return (
     <section className={styles.lobby} aria-label="Lobby casino fictif">
-      <div className={styles.lobbyMain}>
+      <div className={styles.lobbyTop}>
         <LobbyHero onPlay={() => onSelectGame("slots")} onTournaments={() => onGoTo("missions")} />
-        <PopularGames onSelectGame={onSelectGame} onSelectOnlineGame={onSelectOnlineGame} onGoTo={onGoTo} />
-        <LobbyTournaments onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
-        <RewardStrip remainingAds={remainingAds} onGoTo={onGoTo} />
-        <LobbyPromoGrid onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
-        <LobbyStats activityCount={activityCount} balance={balance} leaderboardCount={leaderboard.length} remainingAds={remainingAds} />
+
+        <aside className={styles.lobbySideColumn} aria-label="Classement et activite">
+          <LobbyLeaderboard currentUserId={currentUserId} entries={topPlayers} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
+          <LobbySocialFeed activityCount={activityCount} entries={topPlayers} onGoTo={onGoTo} />
+        </aside>
       </div>
 
-      <aside className={styles.lobbySideColumn} aria-label="Classement et activite">
-        <LobbyLeaderboard currentUserId={currentUserId} entries={topPlayers} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
-        <LobbySocialFeed activityCount={activityCount} entries={topPlayers} onGoTo={onGoTo} />
-      </aside>
+      <PopularGames onSelectGame={onSelectGame} onSelectOnlineGame={onSelectOnlineGame} onGoTo={onGoTo} />
+      <LobbyTournaments onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
+      <RewardStrip remainingAds={remainingAds} onGoTo={onGoTo} />
+      <LobbyPromoGrid onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
+      <LobbyStats activityCount={activityCount} balance={balance} leaderboardCount={leaderboard.length} remainingAds={remainingAds} />
     </section>
   );
 }

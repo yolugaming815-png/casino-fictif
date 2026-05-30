@@ -2348,16 +2348,27 @@
 
 .lobby {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
 
-.lobbyMain,
+.lobbyTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: 18px;
+  align-items: stretch;
+  min-width: 0;
+}
+
 .lobbySideColumn {
   display: grid;
   gap: 16px;
   min-width: 0;
+}
+
+.lobbyTop .lobbyHero {
+  height: 100%;
 }
 
 .lobbyHero {
@@ -7025,7 +7036,7 @@
 }
 
 @media (max-width: 1180px) {
-  .lobby {
+  .lobbyTop {
     grid-template-columns: 1fr;
   }
 
@@ -7045,6 +7056,7 @@
 
 @media (max-width: 780px) {
   .lobby,
+  .lobbyTop,
   .lobbySideColumn,
   .popularGames,
   .lobbyTournaments,
