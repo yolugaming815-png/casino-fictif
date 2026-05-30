@@ -91,13 +91,5 @@ export function publicCasinoAvatarUrl(photoURL: string | null | undefined, seed:
     };
   }
 
-  if (value && !value.includes("googleusercontent.com") && !value.includes("api.dicebear.com")) {
-    return {
-      id: "custom",
-      source: "custom",
-      url: value,
-    };
-  }
-
   return deterministicCasinoAvatar(seed);
 }

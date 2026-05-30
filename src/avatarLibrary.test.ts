@@ -34,11 +34,12 @@ describe("casino avatar library", () => {
     assert.notEqual(first.id, other.id);
   });
 
-  it("keeps custom non-google photos but replaces google and old preset photos", () => {
-    const custom = "data:image/png;base64,abc123";
+  it("replaces legacy external photos and keeps chosen casino portraits", () => {
+    const legacyCustom = "data:image/png;base64,abc123";
     const pickedAvatar = publicCasinoAvatarUrl(casinoAvatarToken("dragon-chip"), "seed");
 
-    assert.equal(publicCasinoAvatarUrl(custom, "seed").url, custom);
+    assert.equal(publicCasinoAvatarUrl(legacyCustom, "seed").source, "generated");
+    assert.notEqual(publicCasinoAvatarUrl(legacyCustom, "seed").url, legacyCustom);
     assert.equal(pickedAvatar.id, "dragon-chip");
     assert.match(pickedAvatar.url, /dragon-chip\.png$/);
     assert.notEqual(publicCasinoAvatarUrl("https://lh3.googleusercontent.com/a/photo", "seed").url, "");

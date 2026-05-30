@@ -674,48 +674,6 @@ function parseBetInput(value: string, max?: number): Bet {
   return max === undefined ? minimumBet : Math.min(max, minimumBet);
 }
 
-function readFileAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("Lecture de l'image impossible."));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function createProfilePhotoDataURL(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Choisis une image.");
-  }
-
-  const source = await readFileAsDataURL(file);
-  const image = new Image();
-  image.decoding = "async";
-  image.src = source;
-
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error("Image invalide."));
-  });
-
-  const size = 320;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Image impossible a preparer.");
-  }
-
-  const side = Math.min(image.naturalWidth, image.naturalHeight);
-  const sx = Math.max(0, (image.naturalWidth - side) / 2);
-  const sy = Math.max(0, (image.naturalHeight - side) / 2);
-  context.drawImage(image, sx, sy, side, side, 0, 0, size, size);
-
-  return canvas.toDataURL("image/jpeg", 0.82);
-}
-
 function getDuelGameKind(game: string): "plinko" | "roulette" | "quick" {
   const normalized = game.toLowerCase();
 
@@ -6545,12 +6503,10 @@ function PlayerProfileModal({
   onSendFriendRequest: () => void;
 }) {
   const [draftDisplayName, setDraftDisplayName] = useState(player.displayName);
-  const [draftPhotoURL, setDraftPhotoURL] = useState(player.photoURL ?? "");
-  const [photoFileMessage, setPhotoFileMessage] = useState("");
+  const [draftPhotoURL, setDraftPhotoURL] = useState(player.photoURL?.startsWith("casino-avatar:") ? player.photoURL : "");
   useEffect(() => {
     setDraftDisplayName(player.displayName);
-    setDraftPhotoURL(player.photoURL ?? "");
-    setPhotoFileMessage("");
+    setDraftPhotoURL(player.photoURL?.startsWith("casino-avatar:") ? player.photoURL : "");
   }, [player.displayName, player.photoURL]);
 
   const inventory = player.inventory
@@ -6600,21 +6556,6 @@ function PlayerProfileModal({
     })),
   ];
 
-  async function handlePhotoFileChange(file: File | undefined) {
-    if (!file) {
-      return;
-    }
-
-    try {
-      setPhotoFileMessage("Photo en preparation...");
-      const photoDataURL = await createProfilePhotoDataURL(file);
-      setDraftPhotoURL(photoDataURL);
-      setPhotoFileMessage("Photo prete. Clique sur Enregistrer le profil.");
-    } catch (error) {
-      setPhotoFileMessage(error instanceof Error ? error.message : "Photo impossible a charger.");
-    }
-  }
-
   return (
     <div className={styles.profileModalBackdrop} role="dialog" aria-modal="true" aria-label={`Profil de ${player.displayName}`}>
       <section className={styles.profileModal}>
@@ -6661,23 +6602,7 @@ function PlayerProfileModal({
                 value={draftDisplayName}
                 onChange={(event) => setDraftDisplayName(event.target.value)}
               />
-              <label htmlFor="profilePhotoURL">Photo de profil</label>
-              <input
-                id="profilePhotoURL"
-                placeholder="Lien d'image ou avatar casino"
-                value={draftPhotoURL}
-                onChange={(event) => setDraftPhotoURL(event.target.value)}
-              />
-              <label className={styles.profileFilePicker} htmlFor="profilePhotoFile">
-                Choisir une photo
-                <input
-                  id="profilePhotoFile"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => handlePhotoFileChange(event.target.files?.[0])}
-                />
-              </label>
-              <small>{photoFileMessage || "Sur telephone, ce bouton ouvre ta galerie photo."}</small>
+              <label>Avatar de profil</label>
               <div className={styles.profileAvatarChoices} aria-label="Choix rapides de photo">
                 {avatarChoices.map((choice) => (
                   <button
