@@ -3539,42 +3539,42 @@ function App() {
 
   return (
     <main className={styles.app}>
-      <section className={styles.shell} aria-label="Casino fictif">
+      <section className={styles.shell} aria-label="Casino demo">
         <header className={styles.header}>
-          <div>
-            <p className={styles.disclaimer}>Jeu fictif — crédits virtuels uniquement</p>
-            <h1>Casino fictif</h1>
+          <div className={styles.brandBlock}>
+            <p className={styles.disclaimer}>Démo 18+ · aucun argent réel</p>
+            <h1>Casino</h1>
           </div>
-          <div className={styles.ageBadge} aria-label="Reserve aux adultes">
-            18+
-          </div>
-        </header>
 
-        <section className={styles.statusBar} aria-label="Statut de la partie">
-          <div>
-            <span>Solde</span>
-            <strong>{balance.toLocaleString("fr-FR")} credits</strong>
+          <div className={styles.headerStats} aria-label="Statut de la partie">
+            <div>
+              <span>Solde</span>
+              <strong>{balance.toLocaleString("fr-FR")}</strong>
+            </div>
+            <div>
+              <span>Bilan</span>
+              <strong className={totalNet >= 0 ? styles.positive : styles.negative}>
+                {totalNet >= 0 ? "+" : ""}
+                {totalNet.toLocaleString("fr-FR")}
+              </strong>
+            </div>
           </div>
-          <div>
-            <span>Bilan total</span>
-            <strong className={totalNet >= 0 ? styles.positive : styles.negative}>
-              {totalNet >= 0 ? "+" : ""}
-              {totalNet.toLocaleString("fr-FR")}
-            </strong>
-          </div>
+
           <button
             className={styles.pauseButton}
             type="button"
             onClick={() => setPaused((value) => !value)}
             aria-pressed={paused}
+            aria-label={paused ? "Reprendre la partie" : "Faire une pause"}
           >
-            {paused ? "Reprendre" : "Faire une pause"}
+            {paused ? "Reprendre" : "Pause"}
           </button>
+
           <div className={styles.accountTools}>
-            <span>{accountUser ? accountUser.displayName || accountUser.email || "Compte Google" : accountMessage}</span>
+            <span>{accountUser ? accountUser.displayName || accountUser.email || "Compte Google" : isFirebaseConfigured() ? "Sauvegarde" : "Comptes indisponibles"}</span>
             {accountUser ? (
               <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
-                Se deconnecter
+                Déconnexion
               </button>
             ) : (
               <button
@@ -3583,12 +3583,16 @@ function App() {
                 onClick={handleGoogleSignIn}
                 disabled={accountLoading || !isFirebaseConfigured()}
               >
-                Connexion Google
+                Google
               </button>
             )}
             {accountUser && <small>{accountMessage}</small>}
           </div>
-        </section>
+
+          <div className={styles.ageBadge} aria-label="Reserve aux adultes">
+            18+
+          </div>
+        </header>
 
         {selectedProfile && (
           <PlayerProfileModal
@@ -8466,7 +8470,7 @@ function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournament
     <section className={styles.lobbyHero}>
       <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium" />
       <div className={styles.heroContent}>
-        <p className={styles.heroSafety}>Credits virtuels uniquement</p>
+        <p className={styles.heroSafety}>Sans argent réel</p>
         <h2>
           Joue. Defie.
           <span>Deviens une legende.</span>

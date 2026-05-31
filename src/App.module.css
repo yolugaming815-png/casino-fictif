@@ -50,18 +50,24 @@
 }
 
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) auto auto minmax(138px, auto) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 72px;
-  padding: 14px 20px;
+  gap: 12px;
+  min-height: 82px;
+  padding: 12px 18px;
   border-radius: 8px;
 }
 
+.brandBlock {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .header h1 {
-  margin: 2px 0 0;
-  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  margin: 0;
+  font-size: clamp(1.65rem, 2.4vw, 2.25rem);
   line-height: 1;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -70,6 +76,7 @@
 .disclaimer {
   margin: 0;
   color: #ffd166;
+  font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0;
@@ -78,13 +85,49 @@
 .ageBadge {
   display: grid;
   place-items: center;
-  min-width: 76px;
+  min-width: 54px;
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 3px solid #ffd166;
+  border: 2px solid #ffd166;
   color: #ffd166;
-  font-size: 1.55rem;
+  font-size: 1.05rem;
   font-weight: 900;
+}
+
+.headerStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.headerStats div {
+  display: grid;
+  gap: 2px;
+  min-width: 108px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.headerStats span {
+  color: #b8c2bd;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.headerStats strong {
+  color: #f9f7ef;
+  font-size: 1.04rem;
+  line-height: 1;
+}
+
+.header .pauseButton {
+  min-height: 38px;
+  padding: 0 16px;
+  white-space: nowrap;
 }
 
 .statusBar {
@@ -112,14 +155,24 @@
 
 .accountTools {
   display: grid;
-  gap: 8px;
+  gap: 5px;
+  align-content: center;
   justify-items: end;
+  min-width: 0;
+}
+
+.accountTools span {
+  max-width: 172px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .accountTools .secondaryButton {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 12px;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
 }
 
 .accountTools small {
@@ -6807,7 +6860,7 @@
   }
 
   .header h1 {
-    font-size: 2.45rem;
+    font-size: 2rem;
     line-height: 1;
   }
 
@@ -7046,6 +7099,35 @@
 }
 
 @media (max-width: 1180px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .brandBlock {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .ageBadge {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .headerStats {
+    grid-column: 1 / -1;
+  }
+
+  .header .pauseButton {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .accountTools {
+    grid-column: 2;
+    justify-self: end;
+  }
+
   .lobbyTop {
     grid-template-columns: 1fr;
   }
@@ -7065,6 +7147,25 @@
 }
 
 @media (max-width: 780px) {
+  .headerStats {
+    width: 100%;
+  }
+
+  .headerStats div {
+    flex: 1 1 118px;
+  }
+
+  .accountTools {
+    grid-column: 1 / -1;
+    justify-items: stretch;
+    width: 100%;
+  }
+
+  .accountTools span {
+    max-width: none;
+    text-align: left;
+  }
+
   .lobby,
   .lobbyTop,
   .lobbySideColumn,
