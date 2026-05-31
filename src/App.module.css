@@ -6016,7 +6016,8 @@
 
 .caseBox > .caseArtworkImage {
   width: min(540px, 114%);
-  height: min(540px, 114%);
+  height: auto;
+  aspect-ratio: 1;
   transform-origin: 50% 64%;
 }
 
