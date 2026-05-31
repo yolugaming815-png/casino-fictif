@@ -206,7 +206,7 @@
   min-width: 0;
 }
 
-.accountTools span {
+.accountTools > span {
   max-width: 172px;
   overflow: hidden;
   text-align: right;
@@ -267,42 +267,91 @@
 }
 
 .soundWave {
-  gap: 3px;
-  width: 96px;
-  height: 34px;
-  padding: 0 8px;
+  position: relative;
+  display: block;
+  width: 112px;
+  height: 42px;
+  overflow: hidden;
   border-radius: 8px;
-  background: rgba(255, 209, 102, 0.1);
-  box-shadow: inset 0 0 18px rgba(255, 209, 102, 0.08);
+  background:
+    radial-gradient(circle at 18% 50%, rgba(255, 209, 102, 0.3), transparent 22%),
+    radial-gradient(circle at 86% 34%, rgba(168, 89, 255, 0.28), transparent 34%),
+    linear-gradient(135deg, rgba(255, 209, 102, 0.13), rgba(168, 89, 255, 0.16));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 24px rgba(213, 169, 255, 0.12),
+    0 0 24px rgba(168, 89, 255, 0.16);
 }
 
-.soundWave span {
-  width: 4px;
-  height: var(--wave-height);
-  min-height: 7px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #fff3b7, #ffd166 44%, #a85aff);
-  box-shadow: 0 0 10px rgba(255, 209, 102, 0.32);
+.soundWave::before {
+  content: "";
+  position: absolute;
+  inset: 8px auto 8px 10px;
+  width: 26px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(7, 8, 20, 0.92) 0 28%, transparent 29%),
+    conic-gradient(from 130deg, #fff3b7, #ffd166, #d5a9ff, #7c3cff, #fff3b7);
+  box-shadow:
+    0 0 16px rgba(255, 209, 102, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.soundWave svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.soundWaveAura,
+.soundWaveLine {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.soundWaveAura {
+  stroke: rgba(213, 169, 255, 0.32);
+  stroke-linecap: round;
+  stroke-width: 10;
+}
+
+.soundWaveLine {
+  stroke-linecap: round;
+  stroke-width: 3.4;
+  filter: drop-shadow(0 0 5px rgba(255, 209, 102, 0.58));
+}
+
+.soundWavePoint {
+  fill: #fff3b7;
+  filter: drop-shadow(0 0 5px rgba(255, 209, 102, 0.8));
+  transform-box: fill-box;
   transform-origin: center;
-  animation: soundWavePulse 920ms ease-in-out infinite alternate;
-  animation-delay: var(--wave-delay);
+  animation: soundWavePointPulse 1.2s ease-in-out infinite alternate;
 }
 
-.soundControl[data-muted="true"] .soundWave span {
+.soundControl[data-muted="true"] .soundWaveLine,
+.soundControl[data-muted="true"] .soundWavePoint {
   animation-play-state: paused;
-  opacity: 0.45;
+  opacity: 0.42;
 }
 
 .soundTrackText {
   display: grid;
-  gap: 2px;
+  justify-items: start;
+  gap: 3px;
   min-width: 0;
+  text-align: left;
 }
 
 .soundTrackText span {
+  max-width: none;
   color: #d5a9ff;
   font-size: 0.68rem;
   font-weight: 900;
+  text-align: left;
   text-transform: uppercase;
 }
 
@@ -451,13 +500,15 @@
   background: linear-gradient(180deg, #ffd166, #a85aff);
 }
 
-@keyframes soundWavePulse {
+@keyframes soundWavePointPulse {
   0% {
-    transform: scaleY(0.68);
+    opacity: 0.58;
+    transform: scale(0.78);
   }
 
   100% {
-    transform: scaleY(1.08);
+    opacity: 1;
+    transform: scale(1.2);
   }
 }
 
@@ -8524,7 +8575,7 @@
     width: 100%;
   }
 
-  .accountTools span {
+  .accountTools > span {
     max-width: none;
     text-align: left;
   }

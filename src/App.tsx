@@ -1360,6 +1360,31 @@ function readHomeMusicMuted() {
   }
 }
 
+type MusicWavePoint = {
+  x: number;
+  y: number;
+};
+
+function getCasinoMusicWavePoints(wave: number[]): MusicWavePoint[] {
+  const xStep = 108 / Math.max(1, wave.length - 1);
+  return wave.map((height, index) => ({
+    x: 16 + index * xStep,
+    y: 24 - ((height - 50) / 50) * 13,
+  }));
+}
+
+function getCasinoMusicWavePath(points: MusicWavePoint[]): string {
+  if (points.length === 0) {
+    return "";
+  }
+
+  return points.slice(1).reduce((path, point, index) => {
+    const previousPoint = points[index];
+    const controlX = previousPoint.x + (point.x - previousPoint.x) / 2;
+    return `${path} C ${controlX.toFixed(1)} ${previousPoint.y.toFixed(1)} ${controlX.toFixed(1)} ${point.y.toFixed(1)} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+  }, `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`);
+}
+
 function HomeMusicControl({
   muted,
   onNextTrack,
@@ -1383,21 +1408,35 @@ function HomeMusicControl({
   track: CasinoMusicTrack;
   tracks: CasinoMusicTrack[];
 }) {
+  const wavePoints = getCasinoMusicWavePoints(track.wave);
+  const wavePath = getCasinoMusicWavePath(wavePoints);
+
   return (
     <div className={styles.soundControl} data-muted={muted ? "true" : "false"} data-playlist-open={playlistOpen ? "true" : "false"}>
       <div className={styles.soundNowPlaying}>
         <div className={styles.soundWave} aria-hidden="true">
-          {track.wave.map((height, index) => (
-            <span
-              key={`${track.id}-${index}`}
-              style={
-                {
-                  "--wave-delay": `${index * 70}ms`,
-                  "--wave-height": `${height}%`,
-                } as CSSProperties
-              }
-            />
-          ))}
+          <svg viewBox="0 0 140 48" focusable="false">
+            <defs>
+              <linearGradient id={`music-wave-${track.id}`} x1="0%" x2="100%" y1="0%" y2="0%">
+                <stop offset="0%" stopColor="#fff3b7" />
+                <stop offset="46%" stopColor="#ffd166" />
+                <stop offset="74%" stopColor="#d5a9ff" />
+                <stop offset="100%" stopColor="#7c3cff" />
+              </linearGradient>
+            </defs>
+            <path className={styles.soundWaveAura} d={wavePath} />
+            <path className={styles.soundWaveLine} d={wavePath} stroke={`url(#music-wave-${track.id})`} />
+            {wavePoints.map((point, index) => (
+              <circle
+                className={styles.soundWavePoint}
+                cx={point.x}
+                cy={point.y}
+                key={`${track.id}-${index}`}
+                r="2.8"
+                style={{ animationDelay: `${index * 70}ms` }}
+              />
+            ))}
+          </svg>
         </div>
         <div className={styles.soundTrackText}>
           <span>En lecture</span>
