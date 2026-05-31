@@ -4280,7 +4280,9 @@
 
 .blackjackMachine {
   isolation: isolate;
-  min-height: clamp(520px, 58vw, 720px);
+  align-content: start;
+  min-height: clamp(390px, 38vw, 500px);
+  gap: 12px;
   border-color: rgba(255, 209, 102, 0.22);
   background: #040512;
   box-shadow:
@@ -4467,15 +4469,15 @@
   grid-template-columns: 1fr 1fr;
   align-items: start;
   gap: clamp(16px, 2vw, 28px);
-  min-height: clamp(310px, 36vw, 430px);
+  min-height: auto;
 }
 
 .hand {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  min-height: clamp(245px, 24vw, 310px);
+  min-height: clamp(205px, 17vw, 235px);
   padding: clamp(14px, 2vw, 20px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
@@ -4567,7 +4569,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  min-height: 152px;
+  min-height: 132px;
   align-items: center;
   perspective: 900px;
 }
