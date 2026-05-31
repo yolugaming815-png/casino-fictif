@@ -1678,9 +1678,7 @@ function App() {
   const [selectedCase, setSelectedCase] = useState<SkinCategory>("plinkoBall");
   const [caseMessage, setCaseMessage] = useState("Choisis une caisse et ouvre-la avec des credits virtuels.");
   const [caseOpening, setCaseOpening] = useState(false);
-  const [caseModalVisible, setCaseModalVisible] = useState(false);
-  const [caseModalPhase, setCaseModalPhase] = useState<"box" | "reel">("box");
-  const [caseModalTitle, setCaseModalTitle] = useState(getCaseDefinition("plinkoBall").title);
+  const [caseOpeningPhase, setCaseOpeningPhase] = useState<"box" | "reel">("box");
   const [caseReelItems, setCaseReelItems] = useState<ShopItem[]>([]);
   const [lastCaseDrop, setLastCaseDrop] = useState<CaseHistoryItem | null>(savedGame?.caseHistory[0] ?? null);
   const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>(savedGame?.caseHistory ?? []);
@@ -3383,7 +3381,6 @@ function App() {
     setRocketAnimating(false);
     setRocketFlight(null);
     setCaseOpening(false);
-    setCaseModalVisible(false);
     spinId.current = getNextHistoryId(importedSave.slotHistory);
     handId.current = getNextHistoryId(importedSave.blackjackHistory);
     plinkoId.current = getNextHistoryId(importedSave.plinkoHistory);
@@ -3798,14 +3795,12 @@ function App() {
 
     setLastCaseDrop(null);
     setCaseReelItems(buildCaseReel(selectedCase, outcome.item));
-    setCaseModalTitle(definition.title);
-    setCaseModalPhase("box");
-    setCaseModalVisible(true);
+    setCaseOpeningPhase("box");
     setCaseOpening(true);
     setCaseMessage(`${definition.title} en ouverture...`);
 
     window.setTimeout(() => {
-      setCaseModalPhase("reel");
+      setCaseOpeningPhase("reel");
     }, CASE_BOX_OPEN_DURATION_MS);
 
     window.setTimeout(() => {
@@ -3880,9 +3875,7 @@ function App() {
     setLastCaseDrop(null);
     setSelectedCase(outcome.item.category);
     setCaseReelItems(buildCaseReel(outcome.item.category, outcome.item, chest.itemIds));
-    setCaseModalTitle(chest.title);
-    setCaseModalPhase("box");
-    setCaseModalVisible(true);
+    setCaseOpeningPhase("box");
     setCaseOpening(true);
     setCaseMessage(`${chest.title} en ouverture...`);
 
@@ -3899,7 +3892,7 @@ function App() {
     }));
 
     window.setTimeout(() => {
-      setCaseModalPhase("reel");
+      setCaseOpeningPhase("reel");
     }, CASE_BOX_OPEN_DURATION_MS);
 
     window.setTimeout(() => {
@@ -4602,16 +4595,13 @@ function App() {
             history={caseHistory}
             lastDrop={lastCaseDrop}
             message={caseMessage}
-            modalPhase={caseModalPhase}
-            modalTitle={caseModalTitle}
-            modalVisible={caseModalVisible}
+            openingPhase={caseOpeningPhase}
             opening={caseOpening}
             ownedSkinIds={ownedSkinIds}
             paused={paused}
             reelItems={caseReelItems}
             selectedCase={selectedCase}
             specialInventory={specialInventory}
-            onCloseModal={() => setCaseModalVisible(false)}
             onMergeFragments={mergeKeyFragments}
             onOpen={handleOpenCase}
             onOpenSpecialChest={openOwnedSpecialChest}
@@ -8844,16 +8834,13 @@ function CaseOpeningGame({
   history,
   lastDrop,
   message,
-  modalPhase,
-  modalTitle,
-  modalVisible,
+  openingPhase,
   opening,
   ownedSkinIds,
   paused,
   reelItems,
   selectedCase,
   specialInventory,
-  onCloseModal,
   onMergeFragments,
   onOpen,
   onOpenSpecialChest,
@@ -8864,16 +8851,13 @@ function CaseOpeningGame({
   history: CaseHistoryItem[];
   lastDrop: CaseHistoryItem | null;
   message: string;
-  modalPhase: "box" | "reel";
-  modalTitle: string;
-  modalVisible: boolean;
+  openingPhase: "box" | "reel";
   opening: boolean;
   ownedSkinIds: string[];
   paused: boolean;
   reelItems: ShopItem[];
   selectedCase: SkinCategory;
   specialInventory: SpecialInventory;
-  onCloseModal: () => void;
   onMergeFragments: (chestId: SpecialChestId) => void;
   onOpen: () => void;
   onOpenSpecialChest: (chestId: SpecialChestId) => void;
@@ -8892,7 +8876,6 @@ function CaseOpeningGame({
             <h2>Cases Opening</h2>
             <p>{message}</p>
           </div>
-          <strong>{balance.toLocaleString("fr-FR")} credits disponibles</strong>
         </div>
 
         <div className={styles.caseLayout}>
@@ -8937,15 +8920,32 @@ function CaseOpeningGame({
           </div>
 
           <div className={styles.caseShowcase}>
-            <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
-              <div className={styles.caseStage}>
-                <span className={styles.caseStageAura} aria-hidden="true" />
-                <CaseOpeningMedia category={selectedCase} opening={opening} />
-              </div>
-            </div>
-
             <div className={`${styles.casePanelInfo} ${styles.caseRewardSection} ${caseThemeClass(selectedCase)}`}>
-              {lastDrop ? (
+              {opening && openingPhase === "box" ? (
+                <div className={styles.caseInlineStatus}>
+                  <small>{selectedDefinition.title}</small>
+                  <strong>Ouverture en cours</strong>
+                  <span>Le coffre s'ouvre, le tirage arrive juste apres.</span>
+                </div>
+              ) : opening ? (
+                <div className={styles.caseInlineReel}>
+                  <div className={styles.caseReelWindow}>
+                    <div className={styles.caseReelMarker} />
+                    <div
+                      className={`${styles.caseReelTrack} ${styles.caseReelTrackRolling}`}
+                      style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
+                    >
+                      {reelItems.map((item, index) => (
+                        <article className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]}`} key={`${item.id}-${index}`}>
+                          <SkinPreview item={item} />
+                          <strong>{item.name}</strong>
+                          <small>{rarityLabel(item.rarity)}</small>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : lastDrop ? (
                 <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
                   <SkinPreview item={lastDrop.item} large />
                   <div>
@@ -8965,6 +8965,13 @@ function CaseOpeningGame({
               <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
                 {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
               </button>
+            </div>
+
+            <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
+              <div className={styles.caseStage}>
+                <span className={styles.caseStageAura} aria-hidden="true" />
+                <CaseOpeningMedia category={selectedCase} opening={opening} />
+              </div>
             </div>
           </div>
         </div>
@@ -9064,110 +9071,15 @@ function CaseOpeningGame({
         </ul>
         {history.length === 0 && <p className={styles.empty}>Aucune caisse ouverte pour le moment.</p>}
       </section>
-
-      {modalVisible && (
-        <CaseOpeningModal
-          category={selectedCase}
-          drop={lastDrop}
-          phase={modalPhase}
-          opening={opening}
-          reelItems={reelItems}
-          title={modalTitle}
-          onClose={onCloseModal}
-        />
-      )}
     </>
-  );
-}
-
-function CaseOpeningModal({
-  category,
-  drop,
-  phase,
-  opening,
-  reelItems,
-  title,
-  onClose,
-}: {
-  category: SkinCategory;
-  drop: CaseHistoryItem | null;
-  phase: "box" | "reel";
-  opening: boolean;
-  reelItems: ShopItem[];
-  title: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className={styles.caseModalBackdrop} role="dialog" aria-modal="true" aria-label="Ouverture de caisse">
-      <div className={styles.caseModal}>
-        <header className={styles.caseModalHeader}>
-          <div>
-            <span>{title}</span>
-            <h2>{phase === "box" ? "La caisse s'ouvre" : opening ? "Les skins defilent" : "Skin gagne"}</h2>
-          </div>
-          <button className={styles.secondaryButton} type="button" onClick={onClose} disabled={opening}>
-            Fermer
-          </button>
-        </header>
-
-        {phase === "box" ? (
-          <div className={styles.caseModalBoxStage}>
-            <CaseOpeningMedia category={category} opening compact />
-            <p>La caisse s'ouvre avant le tirage des skins.</p>
-          </div>
-        ) : (
-          <div className={styles.caseReelWindow}>
-            <div className={styles.caseReelMarker} />
-            <div
-              className={opening ? `${styles.caseReelTrack} ${styles.caseReelTrackRolling}` : styles.caseReelTrack}
-              style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
-            >
-              {reelItems.map((item, index) => (
-                <article
-                  className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]} ${
-                    !opening && index === CASE_REEL_WINNER_INDEX ? styles.caseReelWinner : ""
-                  }`}
-                  key={`${item.id}-${index}`}
-                >
-                  <SkinPreview item={item} />
-                  <strong>{item.name}</strong>
-                  <small>{rarityLabel(item.rarity)}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {drop ? (
-          <article className={`${styles.caseRewardPanel} ${styles[`rarity-${drop.item.rarity}`]}`}>
-            <SkinPreview item={drop.item} large />
-            <div>
-              <small>{rarityLabel(drop.item.rarity)}</small>
-              <h3>{drop.item.name}</h3>
-              <p>
-                {drop.duplicate
-                  ? "Tu avais deja ce skin : il est ajoute en double dans ton inventaire."
-                  : `Nouveau skin debloque et equipe depuis ${drop.caseTitle}.`}
-              </p>
-            </div>
-          </article>
-        ) : (
-          <p className={styles.caseModalHint}>
-            {phase === "box" ? "Preparation du tirage..." : "La bande defile et s'arrete sur le skin gagne."}
-          </p>
-        )}
-      </div>
-    </div>
   );
 }
 
 function CaseOpeningMedia({
   category,
-  compact = false,
   opening,
 }: {
   category: SkinCategory;
-  compact?: boolean;
   opening: boolean;
 }) {
   const media = CASE_OPENING_MEDIA[category];
@@ -9198,11 +9110,7 @@ function CaseOpeningMedia({
   }, [category, opening, posterOnly]);
 
   return (
-    <div
-      className={`${styles.caseOpeningMedia} ${compact ? styles.caseOpeningMediaCompact : ""} ${
-        opening ? styles.caseOpeningMediaActive : ""
-      }`}
-    >
+    <div className={`${styles.caseOpeningMedia} ${opening ? styles.caseOpeningMediaActive : ""}`}>
       <img className={styles.caseOpeningPoster} src={media.poster} alt="" aria-hidden="true" />
       {!posterOnly && (
         <video
