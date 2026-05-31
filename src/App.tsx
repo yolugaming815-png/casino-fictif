@@ -339,6 +339,7 @@ type MainSection = "home" | "games" | "online" | "missions" | "cases" | "shop" |
 type CasinoMusicTrack = {
   id: string;
   source: string;
+  duration: string;
   title: string;
   wave: number[];
 };
@@ -347,42 +348,49 @@ const CASINO_MUSIC_TRACKS: CasinoMusicTrack[] = [
   {
     id: "full-house-royale",
     source: fullHouseRoyaleSource,
+    duration: "1:17",
     title: "Full House Royale",
     wave: [44, 66, 38, 78, 52, 88, 60, 72, 46, 82, 56, 70],
   },
   {
     id: "aces-in-vegas",
     source: acesInVegasSource,
+    duration: "2:39",
     title: "As de Vegas",
     wave: [58, 36, 74, 42, 88, 50, 68, 92, 48, 76, 40, 64],
   },
   {
     id: "aces-in-vegas-afterparty",
     source: acesInVegasAfterpartySource,
+    duration: "2:35",
     title: "As de Vegas Afterparty",
     wave: [70, 46, 82, 54, 64, 92, 44, 78, 60, 86, 50, 72],
   },
   {
     id: "vegas-casino-nights",
     source: vegasCasinoNightsSource,
+    duration: "2:50",
     title: "Nuits Casino Vegas",
     wave: [34, 58, 76, 42, 70, 50, 88, 62, 48, 80, 56, 68],
   },
   {
     id: "vegas-neon-jackpot",
     source: vegasNeonJackpotSource,
+    duration: "2:30",
     title: "Jackpot Neon Vegas",
     wave: [84, 52, 94, 68, 46, 78, 56, 90, 62, 74, 48, 86],
   },
   {
     id: "big-shoes-jackpot",
     source: bigShoesJackpotSource,
+    duration: "6:28",
     title: "Big Shoes Jackpot",
     wave: [48, 72, 40, 64, 88, 54, 76, 44, 82, 58, 92, 66],
   },
   {
     id: "big-shoes-royal-suite",
     source: bigShoesRoyalSuiteSource,
+    duration: "3:36",
     title: "Big Shoes Suite Royale",
     wave: [62, 86, 52, 74, 44, 92, 66, 80, 48, 70, 58, 84],
   },
@@ -682,6 +690,23 @@ const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-galaxy-core": plinkoGalaxyCoreImage,
 };
 const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-30";
+const CLAW_PRIZE_BALL_IDS = [
+  "plinko-galaxy-core",
+  "plinko-supernova",
+  "plinko-starfall",
+  "plinko-aurora",
+  "plinko-cosmic-ice",
+  "plinko-lilac",
+  "plinko-storm",
+  "plinko-emerald",
+  "plinko-ocean",
+  "plinko-ruby",
+  "plinko-mint",
+  "plinko-amber",
+  "plinko-cloud",
+  "plinko-neon",
+  "plinko-gold",
+] as const;
 const ROULETTE_BALL_IMAGES: Partial<Record<string, string>> = {
   "roulette-azure": rouletteAzureImage,
   "roulette-copper": rouletteCopperImage,
@@ -1125,6 +1150,48 @@ function buildSpecialTradeOptions(specialInventory: SpecialInventory) {
   ]).filter((item) => item.count > 0);
 }
 
+type SpecialResourceDisplayItem = {
+  id: string;
+  title: string;
+  detail: string;
+  count: number;
+  theme: string;
+  chestId: SpecialChestId;
+  kind: SpecialTradeKind;
+};
+
+function buildSpecialResourceItems(specialInventory: SpecialInventory): SpecialResourceDisplayItem[] {
+  return SPECIAL_CHESTS.flatMap((chest) => [
+    {
+      id: specialTradeItemId("chest", chest.id),
+      title: chest.title,
+      detail: "Coffre special",
+      count: specialInventory.chests[chest.id] ?? 0,
+      theme: chest.theme,
+      chestId: chest.id,
+      kind: "chest" as const,
+    },
+    {
+      id: specialTradeItemId("key", chest.id),
+      title: chest.keyName,
+      detail: "Cle de coffre",
+      count: specialInventory.keys[chest.id] ?? 0,
+      theme: chest.theme,
+      chestId: chest.id,
+      kind: "key" as const,
+    },
+    {
+      id: specialTradeItemId("fragment", chest.id),
+      title: chest.fragmentName,
+      detail: "Fragment de cle",
+      count: specialInventory.fragments[chest.id] ?? 0,
+      theme: chest.theme,
+      chestId: chest.id,
+      kind: "fragment" as const,
+    },
+  ]).filter((item) => item.count > 0);
+}
+
 function removeOneSkinCopy(ownedSkinIds: readonly string[], skinId: string) {
   let removed = false;
   return ownedSkinIds.filter((id) => {
@@ -1438,10 +1505,10 @@ function HomeMusicControl({
           <svg viewBox="0 0 140 48" focusable="false">
             <defs>
               <linearGradient id={`music-wave-${track.id}`} x1="0%" x2="100%" y1="0%" y2="0%">
-                <stop offset="0%" stopColor="#fff3b7" />
-                <stop offset="46%" stopColor="#ffd166" />
-                <stop offset="74%" stopColor="#d5a9ff" />
-                <stop offset="100%" stopColor="#7c3cff" />
+                <stop className={styles.soundWaveStopWarm} offset="0%" stopColor="#fff3b7" />
+                <stop className={styles.soundWaveStopGold} offset="46%" stopColor="#ffd166" />
+                <stop className={styles.soundWaveStopLilac} offset="74%" stopColor="#d5a9ff" />
+                <stop className={styles.soundWaveStopPurple} offset="100%" stopColor="#7c3cff" />
               </linearGradient>
             </defs>
             <path className={styles.soundWaveAura} d={wavePath} />
@@ -1500,30 +1567,38 @@ function HomeMusicControl({
 
       {playlistOpen ? (
         <div className={styles.playlistPanel} role="listbox" aria-label="Playlist casino">
-          {tracks.map((playlistTrack) => (
-            <button
-              aria-selected={playlistTrack.id === track.id}
-              className={playlistTrack.id === track.id ? styles.activePlaylistTrack : ""}
-              key={playlistTrack.id}
-              onClick={() => onTrackSelect(playlistTrack.id)}
-              role="option"
-              type="button"
-            >
-              <span className={styles.playlistMiniWave} aria-hidden="true">
-                {playlistTrack.wave.slice(0, 6).map((height, index) => (
-                  <span
-                    key={`${playlistTrack.id}-mini-${index}`}
-                    style={
-                      {
-                        "--wave-height": `${height}%`,
-                      } as CSSProperties
-                    }
-                  />
-                ))}
-              </span>
-              <strong>{playlistTrack.title}</strong>
-            </button>
-          ))}
+          {tracks.map((playlistTrack) => {
+            const isCurrentTrack = playlistTrack.id === track.id;
+
+            return (
+              <button
+                aria-selected={isCurrentTrack}
+                className={isCurrentTrack ? styles.activePlaylistTrack : ""}
+                key={playlistTrack.id}
+                onClick={() => onTrackSelect(playlistTrack.id)}
+                role="option"
+                type="button"
+              >
+                <span className={`${styles.playlistMiniWave} ${isCurrentTrack ? styles.playlistMiniWaveActive : ""}`} aria-hidden="true">
+                  {playlistTrack.wave.slice(0, 6).map((height, index) => (
+                    <span
+                      key={`${playlistTrack.id}-mini-${index}`}
+                      style={
+                        {
+                          "--wave-delay": `${index * 95}ms`,
+                          "--wave-height": `${height}%`,
+                        } as CSSProperties
+                      }
+                    />
+                  ))}
+                </span>
+                <span className={styles.playlistTrackText}>
+                  <strong className={isCurrentTrack ? styles.playlistTrackTitleActive : ""}>{playlistTrack.title}</strong>
+                  <small>{playlistTrack.duration}</small>
+                </span>
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </div>
@@ -4407,7 +4482,11 @@ function App() {
           >
             <MenuIcon name="messages" />
             <span className={styles.tabLabel}>Messages</span>
-            {unreadMessagesCount > 0 ? <span className={styles.tabBadge}>{unreadMessagesCount}</span> : null}
+            {unreadMessagesCount > 0 ? (
+              <span className={`${styles.tabBadge} ${styles.messageUnreadBadge}`} aria-label={`${unreadMessagesCount} message${unreadMessagesCount > 1 ? "s" : ""} non lu${unreadMessagesCount > 1 ? "s" : ""}`}>
+                {unreadMessagesCount}
+              </span>
+            ) : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
@@ -5779,7 +5858,6 @@ function TradesGame({
       chest,
       name: parsed.kind === "chest" ? chest.title : parsed.kind === "key" ? chest.keyName : chest.fragmentName,
       detail: parsed.kind === "chest" ? "Coffre special" : parsed.kind === "key" ? "Cle de coffre" : "Fragment de cle",
-      icon: parsed.kind === "chest" ? "▣" : parsed.kind === "key" ? "◇" : "◆",
     };
   }
 
@@ -5807,7 +5885,13 @@ function TradesGame({
       <div className={styles.tradeSkinPreview}>
         <span>{label}</span>
         <div className={styles.inventoryPreview}>
-          {item ? <SkinPreview item={item} /> : specialItem ? <SpecialResourcePreview icon={specialItem.icon} theme={specialItem.chest.theme} /> : <strong>?</strong>}
+          {item ? (
+            <SkinPreview item={item} />
+          ) : specialItem ? (
+            <SpecialResourcePreview chestId={specialItem.chestId} kind={specialItem.kind} theme={specialItem.chest.theme} />
+          ) : (
+            <strong>?</strong>
+          )}
         </div>
         <strong>{item?.name ?? specialItem?.name ?? id}</strong>
         <small>{item?.rarity ?? specialItem?.detail ?? "Objet"}</small>
@@ -7135,32 +7219,7 @@ function PlayerProfileModal({
     items: inventory.filter(({ item }) => item.category === category),
   }));
   const profileSpecialInventory = sanitizeSpecialInventory(player.specialInventory);
-  const profileSpecialItems = SPECIAL_CHESTS.flatMap((chest) => [
-    {
-      id: specialTradeItemId("chest", chest.id),
-      title: chest.title,
-      detail: "Coffre special",
-      count: profileSpecialInventory.chests[chest.id],
-      theme: chest.theme,
-      icon: "▣",
-    },
-    {
-      id: specialTradeItemId("key", chest.id),
-      title: chest.keyName,
-      detail: "Cle de coffre",
-      count: profileSpecialInventory.keys[chest.id],
-      theme: chest.theme,
-      icon: "◇",
-    },
-    {
-      id: specialTradeItemId("fragment", chest.id),
-      title: chest.fragmentName,
-      detail: "Fragment de cle",
-      count: profileSpecialInventory.fragments[chest.id],
-      theme: chest.theme,
-      icon: "◆",
-    },
-  ]).filter((item) => item.count > 0);
+  const profileSpecialItems = buildSpecialResourceItems(profileSpecialInventory);
   const isCurrentUser = player.uid === currentUserId;
   const avatarChoices = [
     { id: "auto", label: "Auto", photoURL: "" },
@@ -7306,7 +7365,7 @@ function PlayerProfileModal({
                         {profileSpecialItems.map((item) => (
                           <article className={`${styles.profileInventoryItem} ${styles["rarity-rare"]}`} key={item.id}>
                             <div className={styles.inventoryPreview}>
-                              <SpecialResourcePreview icon={item.icon} theme={item.theme} />
+                              <SpecialResourcePreview chestId={item.chestId} kind={item.kind} theme={item.theme} />
                               <span className={styles.inventoryCount}>x{item.count}</span>
                             </div>
                             <div>
@@ -9940,10 +9999,23 @@ function RewardedAdsPanel({
   );
 }
 
-function SpecialResourcePreview({ icon, theme }: { icon: string; theme: string }) {
+function SpecialResourcePreview({ chestId, kind, theme }: { chestId: SpecialChestId; kind: SpecialTradeKind; theme: string }) {
   return (
-    <div className={styles.specialResourcePreview} style={{ "--special-chest-color": theme } as CSSProperties}>
-      <span>{icon}</span>
+    <div
+      className={`${styles.specialResourcePreview} ${kind === "chest" ? styles.specialResourceChestPreview : ""}`}
+      style={{ "--special-chest-color": theme } as CSSProperties}
+    >
+      {kind === "chest" ? (
+        <SpecialChestArtwork chestId={chestId} />
+      ) : kind === "key" ? (
+        <i className={styles.clawKeyIcon} aria-hidden="true" />
+      ) : (
+        <span className={styles.specialFragmentCluster} aria-hidden="true">
+          <i className={styles.clawFragmentIcon} />
+          <i className={styles.clawFragmentIcon} />
+          <i className={styles.clawFragmentIcon} />
+        </span>
+      )}
     </div>
   );
 }
@@ -9962,32 +10034,7 @@ function InventoryGame({
   const ownedCounts = countOwnedSkins(ownedSkinIds);
   const ownedItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => ownedCounts[item.id] > 0));
   const totalCopies = ownedSkinIds.length;
-  const specialItems = SPECIAL_CHESTS.flatMap((chest) => [
-    {
-      id: specialTradeItemId("chest", chest.id),
-      title: chest.title,
-      detail: "Coffre special",
-      count: specialInventory.chests[chest.id],
-      theme: chest.theme,
-      icon: "▣",
-    },
-    {
-      id: specialTradeItemId("key", chest.id),
-      title: chest.keyName,
-      detail: "Cle de coffre",
-      count: specialInventory.keys[chest.id],
-      theme: chest.theme,
-      icon: "◇",
-    },
-    {
-      id: specialTradeItemId("fragment", chest.id),
-      title: chest.fragmentName,
-      detail: "Fragment de cle",
-      count: specialInventory.fragments[chest.id],
-      theme: chest.theme,
-      icon: "◆",
-    },
-  ]).filter((item) => item.count > 0);
+  const specialItems = buildSpecialResourceItems(specialInventory);
   const inventorySections: Array<{ title: string; category: SkinCategory }> = [
     { title: "Plinko", category: "plinkoBall" },
     { title: "Blackjack", category: "cardBack" },
@@ -10081,7 +10128,7 @@ function InventoryGame({
               specialItems.map((item) => (
                 <article className={`${styles.inventoryItem} ${styles["rarity-rare"]}`} key={item.id}>
                   <div className={styles.inventoryPreview}>
-                    <SpecialResourcePreview icon={item.icon} theme={item.theme} />
+                    <SpecialResourcePreview chestId={item.chestId} kind={item.kind} theme={item.theme} />
                     <span className={styles.inventoryCount}>x{item.count}</span>
                   </div>
                   <div>
@@ -10250,7 +10297,7 @@ function ClawGame({
   const [clawPosition, setClawPosition] = useState(50);
   const [dropping, setDropping] = useState(false);
   const [grabbedBall, setGrabbedBall] = useState<number | null>(null);
-  const [reveal, setReveal] = useState<{ outcome: ClawOutcome; x: number; theme: string } | null>(null);
+  const [reveal, setReveal] = useState<{ outcome: ClawOutcome; x: number; theme: string; ballId: string } | null>(null);
   const clawBalls = useMemo(
     () =>
       Array.from({ length: 34 }, (_, index) => {
@@ -10258,12 +10305,15 @@ function ClawGame({
         const row = Math.floor(index / 11);
         const column = index % 11;
         const rowOffset = row % 2 === 0 ? 0 : 4;
+        const ballId = CLAW_PRIZE_BALL_IDS[(index * 5 + row * 2) % CLAW_PRIZE_BALL_IDS.length];
 
         return {
           chest,
+          ballId,
           left: 8 + column * 8.5 + rowOffset,
           size: 34 + ((index + row) % 3) * 4,
           bottom: 18 + row * 30 + (column % 2) * 4,
+          rotation: ((index % 7) - 3) * 8,
         };
       }),
     [],
@@ -10305,7 +10355,7 @@ function ClawGame({
       const outcome = onPlay(ball.chest.id);
 
       if (outcome) {
-        setReveal({ outcome, x: ball.left, theme: ball.chest.theme });
+        setReveal({ outcome, x: ball.left, theme: ball.chest.theme, ballId: ball.ballId });
       }
     }, 880);
     window.setTimeout(() => {
@@ -10364,25 +10414,29 @@ function ClawGame({
               <span
                 className={`${styles.clawPrize} ${grabbedBall === index ? styles.clawPrizeGrabbed : ""}`}
                 key={`${ball.chest.id}-${index}`}
+                data-ball-id={ball.ballId}
                 style={
                   {
                     "--special-chest-color": ball.chest.theme,
                     "--ball-left": `${ball.left}%`,
                     "--ball-size": `${ball.size}px`,
                     "--ball-bottom": `${ball.bottom}px`,
+                    "--ball-rotation": `${ball.rotation}deg`,
                     "--claw-x": `${clawPosition}%`,
                   } as CSSProperties
                 }
-              />
+              >
+                <img src={getPlinkoBallImageSource(ball.ballId)} alt="" aria-hidden="true" />
+              </span>
             ))}
             {reveal && (
               <div
                 className={styles.clawReveal}
                 style={{ "--reveal-x": `${reveal.x}%`, "--special-chest-color": reveal.theme } as CSSProperties}
               >
-                <span className={styles.clawRevealBall} />
-                <span className={styles.clawRevealHalfLeft} />
-                <span className={styles.clawRevealHalfRight} />
+                <span className={styles.clawRevealBall}>
+                  <img src={getPlinkoBallImageSource(reveal.ballId)} alt="" aria-hidden="true" />
+                </span>
                 <strong>
                   {reveal.outcome.rewardType === "credits" && `+${reveal.outcome.amount}`}
                   {reveal.outcome.rewardType === "fragments" && (
@@ -10418,7 +10472,10 @@ function ClawGame({
           <div className={styles.rulesTable}>
             {SPECIAL_CHESTS.map((chest) => (
               <div className={styles.ruleRow} key={chest.id}>
-                <span>{chest.title}</span>
+                <span className={styles.specialResourceRowLabel}>
+                  <SpecialResourcePreview chestId={chest.id} kind="chest" theme={chest.theme} />
+                  <span>{chest.title}</span>
+                </span>
                 <strong>{specialInventory.keys[chest.id]} cle(s)</strong>
                 <small>
                   {specialInventory.fragments[chest.id]}/{KEY_FRAGMENTS_REQUIRED} fragments | {specialInventory.chests[chest.id]} coffre(s)
