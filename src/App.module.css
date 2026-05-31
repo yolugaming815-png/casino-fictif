@@ -7188,27 +7188,23 @@
 
 .caseShowcase {
   display: grid;
-  grid-template-columns: minmax(260px, 0.72fr) minmax(340px, 1fr);
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  justify-items: center;
   min-width: 0;
 }
 
 .caseOpeningPanel {
   position: relative;
   display: grid;
-  min-height: clamp(260px, 24vw, 330px);
-  padding: 14px;
-  overflow: hidden;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--case-accent) 25%, rgba(255, 255, 255, 0.12));
-  background:
-    radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--case-accent) 20%, transparent), transparent 38%),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.06), rgba(16, 18, 24, 0.72) 58%),
-    rgba(255, 255, 255, 0.04);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 24px 70px rgba(0, 0, 0, 0.22);
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .caseOpeningPanel::before,
@@ -7224,6 +7220,7 @@
     linear-gradient(115deg, transparent 0 43%, rgba(255, 255, 255, 0.08) 44% 47%, transparent 48% 100%),
     radial-gradient(circle at 24% 82%, color-mix(in srgb, var(--case-accent) 13%, transparent), transparent 28%);
   opacity: 0.72;
+  display: none;
 }
 
 .caseOpeningPanel::after {
@@ -7235,6 +7232,7 @@
   box-shadow:
     0 22px 0 rgba(255, 255, 255, 0.04),
     0 44px 0 rgba(255, 255, 255, 0.025);
+  display: none;
 }
 
 .caseStage {
@@ -7242,7 +7240,7 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  min-height: clamp(232px, 22vw, 302px);
+  min-height: 0;
   isolation: isolate;
 }
 
@@ -7275,8 +7273,8 @@
 .caseOpeningMedia {
   position: relative;
   z-index: 2;
-  width: min(560px, 96%);
-  aspect-ratio: 1.25;
+  width: min(480px, 100%);
+  aspect-ratio: 45 / 56;
   overflow: hidden;
   border-radius: 14px;
   border: 2px solid color-mix(in srgb, var(--case-accent) 58%, #ffd166 42%);
@@ -7321,10 +7319,10 @@
   left: 0;
   display: block;
   width: 100%;
-  height: 100%;
+  height: 142.857%;
   object-fit: cover;
-  object-position: center 54%;
-  transform: scale(1.16);
+  object-position: center 50%;
+  transform: translateY(-15%);
 }
 
 .caseOpeningPoster {
@@ -7558,6 +7556,7 @@
 
 .caseRewardSection {
   align-self: start;
+  width: min(480px, 100%);
   padding: 16px;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--case-accent) 32%, rgba(255, 255, 255, 0.12));
@@ -7576,7 +7575,7 @@
 .caseInlineStatus {
   display: grid;
   gap: 8px;
-  min-height: 194px;
+  min-height: 136px;
   align-content: center;
   padding: 18px;
   border-radius: 8px;
@@ -7607,7 +7606,7 @@
 }
 
 .caseInlineReel .caseReelWindow {
-  min-height: 194px;
+  min-height: 170px;
 }
 
 .caseInlineReel .caseReelTrack {
@@ -9417,16 +9416,16 @@
   }
 
   .caseOpeningPanel {
-    min-height: clamp(248px, 28vw, 324px);
-    padding: 14px;
+    min-height: 0;
+    padding: 0;
   }
 
   .caseStage {
-    min-height: clamp(226px, 26vw, 296px);
+    min-height: 0;
   }
 
   .caseOpeningMedia {
-    width: min(480px, 96%);
+    width: min(480px, 100%);
   }
 
   .lobbyTournaments,

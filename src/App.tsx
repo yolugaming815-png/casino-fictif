@@ -8920,6 +8920,13 @@ function CaseOpeningGame({
           </div>
 
           <div className={styles.caseShowcase}>
+            <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
+              <div className={styles.caseStage}>
+                <span className={styles.caseStageAura} aria-hidden="true" />
+                <CaseOpeningMedia category={selectedCase} opening={opening} />
+              </div>
+            </div>
+
             <div className={`${styles.casePanelInfo} ${styles.caseRewardSection} ${caseThemeClass(selectedCase)}`}>
               {opening && openingPhase === "box" ? (
                 <div className={styles.caseInlineStatus}>
@@ -8965,13 +8972,6 @@ function CaseOpeningGame({
               <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
                 {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
               </button>
-            </div>
-
-            <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
-              <div className={styles.caseStage}>
-                <span className={styles.caseStageAura} aria-hidden="true" />
-                <CaseOpeningMedia category={selectedCase} opening={opening} />
-              </div>
             </div>
           </div>
         </div>
