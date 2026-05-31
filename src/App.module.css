@@ -2516,18 +2516,6 @@
   text-align: left;
 }
 
-.heroSafety {
-  margin: 0;
-  padding: 7px 12px;
-  border: 1px solid rgba(255, 209, 102, 0.44);
-  border-radius: 999px;
-  background: rgba(255, 209, 102, 0.1);
-  color: #ffd166;
-  font-size: 0.76rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
 .heroContent h2 {
   margin: 0;
   color: #fff;
@@ -2544,7 +2532,7 @@
   color: #ffd166;
 }
 
-.heroContent p:not(.heroSafety) {
+.heroContent > p {
   max-width: 520px;
   margin: 0;
   color: #ddd7ef;

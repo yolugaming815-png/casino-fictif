@@ -8463,12 +8463,11 @@ function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournament
     <section className={styles.lobbyHero}>
       <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium" />
       <div className={styles.heroContent}>
-        <p className={styles.heroSafety}>Sans argent réel</p>
         <h2>
           Joue. Defie.
           <span>Deviens une legende.</span>
         </h2>
-        <p>Affronte tes amis, grimpe au classement et debloque des skins sans argent reel.</p>
+        <p>Affronte tes amis, grimpe au classement et debloque des skins.</p>
         <div className={styles.heroActions}>
           <button className={styles.primaryButton} type="button" onClick={onPlay}>
             Jouer
