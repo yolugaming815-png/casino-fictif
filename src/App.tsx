@@ -4,6 +4,7 @@ import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
 import styles from "./App.module.css";
 import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
 import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
+import { SLOT_RESULT_ASSETS, SLOT_SYMBOL_ASSETS, type SlotResultAssetId } from "./slotAssets";
 import plinkoAmberImage from "./assets/plinko/plinko-amber.png";
 import plinkoCloudImage from "./assets/plinko/plinko-cloud.png";
 import plinkoEmeraldImage from "./assets/plinko/plinko-emerald.png";
@@ -42,6 +43,7 @@ import {
   createReels,
   spin,
   type Bet,
+  type SlotSymbol,
   type SpinOutcome,
 } from "./gameLogic";
 import {
@@ -848,12 +850,12 @@ function normalizeMissionState(value: unknown): HourlyMissionState | null {
   };
 }
 
-const slotRules = [
-  { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
-  { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %" },
-  { label: "3 symboles identiques", reward: "x10", probability: "6 / 512 = 1,17 %" },
-  { label: "2 symboles identiques", reward: "x2", probability: "168 / 512 = 32,81 %" },
-  { label: "Aucune paire", reward: "perte", probability: "336 / 512 = 65,63 %" },
+const slotRules: Array<{ label: string; reward: string; probability: string; assetId: SlotResultAssetId }> = [
+  { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %", assetId: "jackpotSeven" },
+  { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %", assetId: "tripleStar" },
+  { label: "3 symboles identiques", reward: "x10", probability: "6 / 512 = 1,17 %", assetId: "threeMatch" },
+  { label: "2 symboles identiques", reward: "x2", probability: "168 / 512 = 32,81 %", assetId: "pair" },
+  { label: "Aucune paire", reward: "perte", probability: "336 / 512 = 65,63 %", assetId: "noPair" },
 ];
 
 const blackjackRules = [
@@ -4704,6 +4706,25 @@ function MessagesGame({
   );
 }
 
+function SlotSymbolArt({ symbol, className = "" }: { symbol: SlotSymbol; className?: string }) {
+  const asset = SLOT_SYMBOL_ASSETS[symbol];
+
+  return (
+    <img
+      alt={asset.label}
+      className={className ? `${styles.slotSymbolArt} ${className}` : styles.slotSymbolArt}
+      draggable={false}
+      src={asset.image}
+    />
+  );
+}
+
+function SlotResultArt({ assetId }: { assetId: SlotResultAssetId }) {
+  const asset = SLOT_RESULT_ASSETS[assetId];
+
+  return <img alt={asset.label} className={styles.slotResultArt} draggable={false} loading="lazy" src={asset.image} />;
+}
+
 function SlotGame({
   bet,
   currentReels,
@@ -4716,7 +4737,7 @@ function SlotGame({
   onSpin,
 }: {
   bet: Bet;
-  currentReels: readonly string[];
+  currentReels: readonly SlotSymbol[];
   history: SlotHistoryItem[];
   message: string;
   paused: boolean;
@@ -4730,8 +4751,13 @@ function SlotGame({
       <section className={styles.machine}>
         <div className={styles.reels} aria-live="polite">
           {currentReels.map((symbol, index) => (
-            <div className={`${styles.reel} ${spinning ? styles.reelSpinning : ""}`} key={`${symbol}-${index}`}>
-              {symbol}
+            <div
+              aria-label={SLOT_SYMBOL_ASSETS[symbol].label}
+              className={`${styles.reel} ${spinning ? styles.reelSpinning : ""}`}
+              key={`${symbol}-${index}`}
+              title={SLOT_SYMBOL_ASSETS[symbol].label}
+            >
+              <SlotSymbolArt symbol={symbol} />
             </div>
           ))}
         </div>
@@ -4762,8 +4788,11 @@ function SlotGame({
           </p>
           <div className={styles.rulesTable}>
             {slotRules.map((rule) => (
-              <div className={styles.ruleRow} key={rule.label}>
-                <span>{rule.label}</span>
+              <div className={`${styles.ruleRow} ${styles.slotRuleRow}`} key={rule.label}>
+                <span className={styles.slotRuleLabel}>
+                  <SlotResultArt assetId={rule.assetId} />
+                  <span>{rule.label}</span>
+                </span>
                 <strong>{rule.reward}</strong>
                 <small>{rule.probability}</small>
               </div>
@@ -4774,7 +4803,14 @@ function SlotGame({
         <HistoryPanel title="Historique" empty="Aucun tour pour le moment.">
           {history.map((item) => (
             <li key={item.id}>
-              <span>{item.reels.join(" ")}</span>
+              <span
+                aria-label={item.reels.map((symbol) => SLOT_SYMBOL_ASSETS[symbol].label).join(", ")}
+                className={styles.slotHistoryReels}
+              >
+                {item.reels.map((symbol, index) => (
+                  <SlotSymbolArt className={styles.slotHistorySymbol} key={`${item.id}-${symbol}-${index}`} symbol={symbol} />
+                ))}
+              </span>
               <small>
                 mise {item.bet} | {item.net >= 0 ? "+" : ""}
                 {item.net} | solde {item.balanceAfter}
@@ -8430,20 +8466,109 @@ function AnimatedMedia({
   style?: CSSProperties;
 }) {
   const asset = getAnimationAsset(assetId);
+  const mediaRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isVideoActive, setIsVideoActive] = useState(asset?.trigger === "slow-loop");
+
+  useEffect(() => {
+    if (asset?.trigger !== "hover") {
+      return undefined;
+    }
+
+    const media = mediaRef.current;
+    const video = videoRef.current;
+    const target = media?.closest("button") ?? media?.parentElement;
+
+    if (!target || !video) {
+      return undefined;
+    }
+
+    const play = () => {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Metadata can still be loading on the first hover.
+      }
+      setIsVideoActive(true);
+      void video.play().catch(() => {
+        setIsVideoActive(false);
+      });
+    };
+
+    const pause = () => {
+      video.pause();
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Keep the PNG fallback visible if the video cannot seek yet.
+      }
+      setIsVideoActive(false);
+    };
+
+    target.addEventListener("focusin", play);
+    target.addEventListener("focusout", pause);
+    target.addEventListener("pointerenter", play);
+    target.addEventListener("pointerleave", pause);
+
+    return () => {
+      target.removeEventListener("focusin", play);
+      target.removeEventListener("focusout", pause);
+      target.removeEventListener("pointerenter", play);
+      target.removeEventListener("pointerleave", pause);
+    };
+  }, [assetId, asset?.trigger]);
 
   if (!asset) {
     return null;
   }
 
+  const playVideo = () => {
+    if (asset.trigger !== "hover") {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.currentTime = 0;
+    setIsVideoActive(true);
+    void video.play().catch(() => {
+      setIsVideoActive(false);
+    });
+  };
+
+  const pauseVideo = () => {
+    if (asset.trigger !== "hover") {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.pause();
+    video.currentTime = 0;
+    setIsVideoActive(false);
+  };
+
   return (
     <div
+      ref={mediaRef}
       className={`${styles.animatedMedia} ${className}`}
       data-animatable-id={asset.id}
       data-aspect={asset.aspect}
       data-animation-trigger={asset.trigger}
+      data-video-active={isVideoActive ? "true" : "false"}
       data-animation-prompt={asset.prompt}
       role="img"
       aria-label={label ?? asset.title}
+      onBlur={pauseVideo}
+      onFocus={playVideo}
+      onPointerEnter={playVideo}
+      onPointerLeave={pauseVideo}
       style={style}
     >
       <img
@@ -8452,6 +8577,18 @@ function AnimatedMedia({
         className={styles.animatedMediaImage}
         loading={asset.id === "hero-duel-16x9" ? "eager" : "lazy"}
         src={asset.image}
+      />
+      <video
+        ref={videoRef}
+        aria-hidden="true"
+        autoPlay={asset.trigger === "slow-loop"}
+        className={styles.animatedMediaVideo}
+        loop
+        muted
+        playsInline
+        poster={asset.image}
+        preload={asset.trigger === "slow-loop" ? "auto" : "metadata"}
+        src={asset.video}
       />
       {children}
     </div>
