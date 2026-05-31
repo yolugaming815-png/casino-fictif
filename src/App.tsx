@@ -399,7 +399,7 @@ const CASINO_MUSIC_TRACKS: CasinoMusicTrack[] = [
 const CASINO_MUSIC_TRACK_IDS = CASINO_MUSIC_TRACKS.map((track) => track.id);
 
 const CASE_REEL_WINNER_INDEX = 34;
-const CASE_BOX_OPEN_DURATION_MS = 1200;
+const CASE_BOX_OPEN_DURATION_MS = 3000;
 const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
 const HOME_MUSIC_MUTED_KEY = "casino-fictif-home-music-muted-v1";
@@ -972,6 +972,25 @@ type BlackjackDealerProfile = {
 };
 
 const blackjackTableBackgroundImage = new URL("./assets/blackjack/table/jackpot-city-blackjack-table.jpg", import.meta.url).href;
+
+const CASE_OPENING_MEDIA: Record<SkinCategory, { poster: string; video: string }> = {
+  plinkoBall: {
+    poster: new URL("./assets/cases/case-plinko-9x16.png", import.meta.url).href,
+    video: new URL("./assets/cases/case-plinko-9x16.mp4", import.meta.url).href,
+  },
+  cardBack: {
+    poster: new URL("./assets/cases/case-blackjack-9x16.png", import.meta.url).href,
+    video: new URL("./assets/cases/case-blackjack-9x16.mp4", import.meta.url).href,
+  },
+  rouletteBall: {
+    poster: new URL("./assets/cases/case-roulette-9x16.png", import.meta.url).href,
+    video: new URL("./assets/cases/case-roulette-9x16.mp4", import.meta.url).href,
+  },
+  rocketShip: {
+    poster: new URL("./assets/cases/case-rocket-games-9x16.png", import.meta.url).href,
+    video: new URL("./assets/cases/case-rocket-games-9x16.mp4", import.meta.url).href,
+  },
+};
 
 const BLACKJACK_DEALER_PROFILES = [
   { id: "marius", name: "Marius", image: new URL("./assets/blackjack/dealers/dealer-marius.jpg", import.meta.url).href },
@@ -8917,13 +8936,15 @@ function CaseOpeningGame({
             })}
           </div>
 
-          <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
-            <div className={styles.caseStage}>
-              <span className={styles.caseStageAura} aria-hidden="true" />
-              <CaseBoxArtwork category={selectedCase} opening={opening} />
+          <div className={styles.caseShowcase}>
+            <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
+              <div className={styles.caseStage}>
+                <span className={styles.caseStageAura} aria-hidden="true" />
+                <CaseOpeningMedia category={selectedCase} opening={opening} />
+              </div>
             </div>
 
-            <div className={styles.casePanelInfo}>
+            <div className={`${styles.casePanelInfo} ${styles.caseRewardSection} ${caseThemeClass(selectedCase)}`}>
               {lastDrop ? (
                 <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
                   <SkinPreview item={lastDrop.item} large />
@@ -9091,7 +9112,7 @@ function CaseOpeningModal({
 
         {phase === "box" ? (
           <div className={styles.caseModalBoxStage}>
-            <CaseBoxArtwork category={category} opening />
+            <CaseOpeningMedia category={category} opening compact />
             <p>La caisse s'ouvre avant le tirage des skins.</p>
           </div>
         ) : (
@@ -9136,6 +9157,66 @@ function CaseOpeningModal({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function CaseOpeningMedia({
+  category,
+  compact = false,
+  opening,
+}: {
+  category: SkinCategory;
+  compact?: boolean;
+  opening: boolean;
+}) {
+  const media = CASE_OPENING_MEDIA[category];
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const posterOnly = useMediaQuery("(max-width: 780px)");
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.muted = true;
+
+    try {
+      video.currentTime = 0;
+    } catch {
+      // Some browsers reject currentTime before metadata is ready.
+    }
+
+    if (!opening || posterOnly) {
+      video.pause();
+      return;
+    }
+
+    void video.play().catch(() => undefined);
+  }, [category, opening, posterOnly]);
+
+  return (
+    <div
+      className={`${styles.caseOpeningMedia} ${compact ? styles.caseOpeningMediaCompact : ""} ${
+        opening ? styles.caseOpeningMediaActive : ""
+      }`}
+    >
+      <img className={styles.caseOpeningPoster} src={media.poster} alt="" aria-hidden="true" />
+      {!posterOnly && (
+        <video
+          ref={videoRef}
+          className={styles.caseOpeningVideo}
+          key={category}
+          src={media.video}
+          poster={media.poster}
+          muted
+          playsInline
+          preload={opening ? "auto" : "metadata"}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }
