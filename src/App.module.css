@@ -2803,7 +2803,7 @@
 .rewardStrip {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr) minmax(140px, 220px);
   gap: 16px;
   align-items: center;
   min-height: 118px;
@@ -2828,6 +2828,16 @@
 .rewardStrip > button {
   position: relative;
   z-index: 2;
+}
+
+.rewardStrip > div:not(.rewardArt) {
+  grid-column: 1;
+}
+
+.rewardStrip > button {
+  grid-column: 3;
+  justify-self: end;
+  width: min(100%, 220px);
 }
 
 .rewardStrip p {
@@ -7091,6 +7101,16 @@
   .rewardStrip button,
   .lobbyGhostButton {
     width: 100%;
+  }
+
+  .rewardStrip > div:not(.rewardArt),
+  .rewardStrip > button {
+    grid-column: 1;
+  }
+
+  .rewardStrip > button {
+    justify-self: stretch;
+    max-width: none;
   }
 
   .popularGames {
