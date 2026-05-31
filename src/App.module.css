@@ -229,11 +229,13 @@
 .soundControl {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
+  justify-self: end;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
   gap: 12px;
   min-height: 58px;
   width: min(760px, 100%);
+  max-width: 100%;
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
@@ -257,6 +259,7 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .soundWave,
@@ -343,6 +346,7 @@
   justify-items: start;
   gap: 3px;
   min-width: 0;
+  overflow: hidden;
   text-align: left;
 }
 
@@ -356,6 +360,8 @@
 }
 
 .soundTrackText strong {
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   color: #f9f7ef;
   font-size: 1rem;
@@ -369,7 +375,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  min-width: 0;
+  min-width: max-content;
 }
 
 .soundButton {
@@ -8693,6 +8699,11 @@
     grid-row: 2;
     align-self: center;
     justify-self: stretch;
+  }
+
+  .soundControl {
+    justify-self: stretch;
+    width: 100%;
   }
 
   .accountTools .secondaryButton {
