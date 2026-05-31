@@ -8448,6 +8448,45 @@ function RouletteGame({
   onSpin: () => void;
 }) {
   const wheelRotation = useRouletteWheelRotation(spinning, runId);
+  const isSelectedCell = (number: number) => {
+    if (betKind === "straight") {
+      return number === chosenNumber;
+    }
+
+    if (betKind === "red" || betKind === "black") {
+      return getRouletteColor(number) === betKind;
+    }
+
+    if (number === 0) {
+      return false;
+    }
+
+    if (betKind === "even") {
+      return number % 2 === 0;
+    }
+
+    if (betKind === "odd") {
+      return number % 2 === 1;
+    }
+
+    if (betKind === "low") {
+      return number <= 18;
+    }
+
+    if (betKind === "high") {
+      return number >= 19;
+    }
+
+    if (betKind === "dozen1") {
+      return number <= 12;
+    }
+
+    if (betKind === "dozen2") {
+      return number >= 13 && number <= 24;
+    }
+
+    return number >= 25;
+  };
 
   return (
     <>
@@ -8455,23 +8494,53 @@ function RouletteGame({
         <div className={styles.rouletteLayout}>
           <div
             className={styles.rouletteWheel}
+            data-spinning={spinning ? "true" : "false"}
             style={{ "--wheel-rotation": `${wheelRotation}deg` } as CSSProperties}
           >
             <RouletteWheelSegments />
             <RouletteBall ballSkin={ballSkin} result={pendingResult ?? result} runId={runId} spinning={spinning} />
-            <div className={styles.rouletteCenter}>{result ?? "?"}</div>
+            <div className={styles.rouletteCenter} data-result-color={result === null ? "idle" : getRouletteColor(result)}>
+              <span>{result ?? "?"}</span>
+            </div>
           </div>
-          <div className={styles.rouletteGrid} aria-label="Table de roulette">
-            {ROULETTE_NUMBERS.map((number) => (
-              <div
-                className={`${styles.rouletteCell} ${styles[getRouletteColor(number)]} ${
-                  result === number ? styles.activeRouletteCell : ""
-                }`}
-                key={number}
-              >
-                {number}
-              </div>
-            ))}
+          <div className={styles.rouletteTable}>
+            <div className={styles.rouletteGrid} aria-label="Table de roulette">
+              {ROULETTE_NUMBERS.map((number) => {
+                const color = getRouletteColor(number);
+                const selected = isSelectedCell(number);
+                const active = result === number;
+
+                return (
+                  <button
+                    className={`${styles.rouletteCell} ${styles[color]} ${
+                      selected ? styles.selectedRouletteCell : ""
+                    } ${active ? styles.activeRouletteCell : ""}`}
+                    data-active={active ? "true" : "false"}
+                    data-color={color}
+                    data-selected={selected ? "true" : "false"}
+                    key={number}
+                    type="button"
+                    onClick={() => {
+                      onBetKindChange("straight");
+                      onNumberChange(number);
+                    }}
+                    disabled={spinning}
+                    aria-pressed={selected}
+                  >
+                    <span className={styles.rouletteCellNumber}>{number}</span>
+                    <span className={styles.rouletteCellMark} aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+            <div className={styles.rouletteOutsideBets} aria-hidden="true">
+              <span>1-18</span>
+              <span>PAIR</span>
+              <span>ROUGE</span>
+              <span>NOIR</span>
+              <span>IMPAIR</span>
+              <span>19-36</span>
+            </div>
           </div>
         </div>
 
@@ -8562,29 +8631,44 @@ function RouletteGame({
 }
 
 function RouletteWheelSegments() {
-  const outerRadius = 48;
-  const innerRadius = 20;
+  const outerRadius = 43;
+  const innerRadius = 18;
   const center = 50;
   const segmentAngle = 360 / ROULETTE_WHEEL_ORDER.length;
 
   return (
     <svg className={styles.rouletteSvg} viewBox="0 0 100 100" aria-hidden="true">
+      <circle className={styles.rouletteOuterDish} cx={center} cy={center} r="49" />
+      <circle className={styles.rouletteOuterRail} cx={center} cy={center} r="45.5" />
       {ROULETTE_WHEEL_ORDER.map((number, index) => {
         const start = -90 + index * segmentAngle;
         const end = start + segmentAngle;
         const color = getRouletteColor(number);
-        const fill = color === "green" ? "#2ea05f" : color === "red" ? "#cf3d3d" : "#181b22";
+        const labelAngle = start + segmentAngle / 2;
+        const labelPosition = polarToCartesian(center, center, 34.7, labelAngle);
 
         return (
-          <path
-            d={describeArcSegment(center, center, innerRadius, outerRadius, start, end)}
-            fill={fill}
-            key={number}
-            stroke="rgba(215, 194, 138, 0.38)"
-            strokeWidth="0.25"
-          />
+          <g key={number}>
+            <path
+              className={styles.roulettePocket}
+              d={describeArcSegment(center, center, innerRadius, outerRadius, start, end)}
+              data-pocket-color={color}
+            />
+            <text
+              className={styles.roulettePocketNumber}
+              x={labelPosition.x}
+              y={labelPosition.y}
+              transform={`rotate(${labelAngle + 90} ${labelPosition.x} ${labelPosition.y})`}
+            >
+              {number}
+            </text>
+          </g>
         );
       })}
+      <circle className={styles.roulettePocketRing} cx={center} cy={center} r="43.4" />
+      <circle className={styles.rouletteInnerRail} cx={center} cy={center} r="18" />
+      <circle className={styles.rouletteInnerDish} cx={center} cy={center} r="14.6" />
+      <circle className={styles.rouletteRotorCap} cx={center} cy={center} r="6.8" />
     </svg>
   );
 }
@@ -8675,6 +8759,7 @@ function RouletteBall({
   return (
     <div
       className={`${styles.rouletteBall} ${ballSkinClass(ballSkin.id)}`}
+      data-spinning={spinning ? "true" : "false"}
       style={
         {
           ...style,
