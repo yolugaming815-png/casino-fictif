@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
+import Matter from "matter-js";
 import styles from "./App.module.css";
-import activityShortcutImage from "./assets/home/activite.png";
-import bonusShortcutImage from "./assets/home/bonus.png";
-import boutiqueShortcutImage from "./assets/home/boutique.png";
+import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
+import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
+import { SLOT_RESULT_ASSETS, SLOT_SYMBOL_ASSETS, type SlotResultAssetId } from "./slotAssets";
 import plinkoAmberImage from "./assets/plinko/plinko-amber.png";
 import plinkoCloudImage from "./assets/plinko/plinko-cloud.png";
 import plinkoEmeraldImage from "./assets/plinko/plinko-emerald.png";
@@ -14,7 +14,27 @@ import plinkoMintImage from "./assets/plinko/plinko-mint.png";
 import plinkoNeonImage from "./assets/plinko/plinko-neon.png";
 import plinkoOceanImage from "./assets/plinko/plinko-ocean.png";
 import plinkoRubyImage from "./assets/plinko/plinko-ruby.png";
+import plinkoAuroraImage from "./assets/plinko/plinko-aurora.png";
+import plinkoCosmicIceImage from "./assets/plinko/plinko-cosmic-ice.png";
+import plinkoGalaxyCoreImage from "./assets/plinko/plinko-galaxy-core.png";
 import plinkoStormImage from "./assets/plinko/plinko-storm.png";
+import plinkoStarfallImage from "./assets/plinko/plinko-starfall.png";
+import plinkoSupernovaImage from "./assets/plinko/plinko-supernova.png";
+import rouletteAzureImage from "./assets/roulette/roulette-azure.png";
+import rouletteCometImage from "./assets/roulette/roulette-comet.png";
+import rouletteCopperImage from "./assets/roulette/roulette-copper.png";
+import rouletteCrystalImage from "./assets/roulette/roulette-crystal.png";
+import rouletteEclipseImage from "./assets/roulette/roulette-eclipse.png";
+import rouletteIvoryImage from "./assets/roulette/roulette-ivory.png";
+import rouletteJadeImage from "./assets/roulette/roulette-jade.png";
+import rouletteLaserImage from "./assets/roulette/roulette-laser.png";
+import rouletteOpalImage from "./assets/roulette/roulette-opal.png";
+import roulettePearlImage from "./assets/roulette/roulette-pearl.png";
+import roulettePrismImage from "./assets/roulette/roulette-prism.png";
+import rouletteRoseImage from "./assets/roulette/roulette-rose.png";
+import rouletteSapphireImage from "./assets/roulette/roulette-sapphire.png";
+import rouletteSunImage from "./assets/roulette/roulette-sun.png";
+import rouletteVioletImage from "./assets/roulette/roulette-violet.png";
 import {
   INITIAL_BALANCE,
   MIN_BET,
@@ -23,6 +43,7 @@ import {
   createReels,
   spin,
   type Bet,
+  type SlotSymbol,
   type SpinOutcome,
 } from "./gameLogic";
 import {
@@ -37,6 +58,7 @@ import {
   type BlackjackPayout,
   type Card,
 } from "./blackjackLogic";
+import { getBlackjackCardFaceModel, type BlackjackCardFaceModel, type DeckArtCell } from "./blackjackDeckThemes";
 import {
   calculatePlinkoPayout,
   generatePlinkoPath,
@@ -68,6 +90,15 @@ import {
   type SkinCategory,
   type SkinRarity,
 } from "./shopLogic";
+import {
+  ROCKET_SHIP_ATLAS_COLUMNS,
+  ROCKET_SHIP_ATLAS_ROWS,
+  SPECIAL_CHEST_ATLAS_COLUMNS,
+  SPECIAL_CHEST_ATLAS_ROWS,
+  getRocketShipArtCell,
+  getSpecialChestArtCell,
+  type AtlasCell,
+} from "./shopVisualAssets";
 import {
   CASES,
   RARITY_WEIGHTS,
@@ -150,6 +181,8 @@ import {
   type PrivateMessageEntry,
   type SkinTradeEntry,
 } from "./firebaseClient";
+
+const { Bodies, Body, Composite, Engine, Runner } = Matter;
 
 const APPLIED_TRADE_KEYS_STORAGE_KEY = "casino-fictif-applied-trades";
 const REFUNDED_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-refunded-inactive-poker";
@@ -288,6 +321,8 @@ type ActivityItem = {
   kind: "friend" | "trade" | "message" | "duel" | "poker";
   timestamp?: unknown;
 };
+
+type CasinoGame = "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw";
 
 type MainSection = "home" | "games" | "online" | "missions" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
@@ -569,15 +604,31 @@ const PLINKO_BALL_IMAGES: Partial<Record<string, string>> = {
   "plinko-ocean": plinkoOceanImage,
   "plinko-ruby": plinkoRubyImage,
   "plinko-storm": plinkoStormImage,
+  "plinko-starfall": plinkoStarfallImage,
+  "plinko-aurora": plinkoAuroraImage,
+  "plinko-supernova": plinkoSupernovaImage,
+  "plinko-cosmic-ice": plinkoCosmicIceImage,
+  "plinko-galaxy-core": plinkoGalaxyCoreImage,
 };
-const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-20";
-const PROFILE_PHOTO_PRESETS = [
-  "",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=spade",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=gold",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=casino",
-  "https://api.dicebear.com/9.x/identicon/svg?seed=royal",
-];
+const PLINKO_BALL_IMAGE_VERSION = "plinko-skins-2026-05-30";
+const ROULETTE_BALL_IMAGES: Partial<Record<string, string>> = {
+  "roulette-azure": rouletteAzureImage,
+  "roulette-copper": rouletteCopperImage,
+  "roulette-eclipse": rouletteEclipseImage,
+  "roulette-ivory": rouletteIvoryImage,
+  "roulette-jade": rouletteJadeImage,
+  "roulette-pearl": roulettePearlImage,
+  "roulette-rose": rouletteRoseImage,
+  "roulette-sapphire": rouletteSapphireImage,
+  "roulette-sun": rouletteSunImage,
+  "roulette-violet": rouletteVioletImage,
+  "roulette-opal": rouletteOpalImage,
+  "roulette-laser": rouletteLaserImage,
+  "roulette-comet": rouletteCometImage,
+  "roulette-crystal": rouletteCrystalImage,
+  "roulette-prism": roulettePrismImage,
+};
+const ROULETTE_BALL_IMAGE_VERSION = "roulette-skins-2026-05-30";
 const RARITY_SORT_ORDER: Record<SkinRarity, number> = {
   common: 0,
   rare: 1,
@@ -590,6 +641,11 @@ const plinkoBallImageCache = new Map<string, { image: HTMLImageElement; loaded: 
 function getPlinkoBallImageSource(id: string) {
   const source = PLINKO_BALL_IMAGES[id] ?? "";
   return source ? `${source}?v=${PLINKO_BALL_IMAGE_VERSION}` : "";
+}
+
+function getRouletteBallImageSource(id: string) {
+  const source = ROULETTE_BALL_IMAGES[id] ?? "";
+  return source ? `${source}?v=${ROULETTE_BALL_IMAGE_VERSION}` : "";
 }
 
 function getLoadedPlinkoBallImage(id: string) {
@@ -620,48 +676,6 @@ function parseBetInput(value: string, max?: number): Bet {
   const parsed = Math.floor(Number(value));
   const minimumBet = Number.isFinite(parsed) ? Math.max(MIN_BET, parsed) : MIN_BET;
   return max === undefined ? minimumBet : Math.min(max, minimumBet);
-}
-
-function readFileAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("Lecture de l'image impossible."));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function createProfilePhotoDataURL(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Choisis une image.");
-  }
-
-  const source = await readFileAsDataURL(file);
-  const image = new Image();
-  image.decoding = "async";
-  image.src = source;
-
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error("Image invalide."));
-  });
-
-  const size = 320;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Image impossible a preparer.");
-  }
-
-  const side = Math.min(image.naturalWidth, image.naturalHeight);
-  const sx = Math.max(0, (image.naturalWidth - side) / 2);
-  const sy = Math.max(0, (image.naturalHeight - side) / 2);
-  context.drawImage(image, sx, sy, side, side, 0, 0, size, size);
-
-  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
 function getDuelGameKind(game: string): "plinko" | "roulette" | "quick" {
@@ -838,12 +852,12 @@ function normalizeMissionState(value: unknown): HourlyMissionState | null {
   };
 }
 
-const slotRules = [
-  { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %" },
-  { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %" },
-  { label: "3 symboles identiques", reward: "x10", probability: "6 / 512 = 1,17 %" },
-  { label: "2 symboles identiques", reward: "x2", probability: "168 / 512 = 32,81 %" },
-  { label: "Aucune paire", reward: "perte", probability: "336 / 512 = 65,63 %" },
+const slotRules: Array<{ label: string; reward: string; probability: string; assetId: SlotResultAssetId }> = [
+  { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %", assetId: "jackpotSeven" },
+  { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %", assetId: "tripleStar" },
+  { label: "3 symboles identiques", reward: "x10", probability: "6 / 512 = 1,17 %", assetId: "threeMatch" },
+  { label: "2 symboles identiques", reward: "x2", probability: "168 / 512 = 32,81 %", assetId: "pair" },
+  { label: "Aucune paire", reward: "perte", probability: "336 / 512 = 65,63 %", assetId: "noPair" },
 ];
 
 const blackjackRules = [
@@ -1209,10 +1223,10 @@ function App() {
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
   const [balance, setBalance] = useState(savedGame?.balance ?? INITIAL_BALANCE);
   const [activeSection, setActiveSection] = useState<MainSection>("home");
-  const [activeGame, setActiveGame] = useState<"slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw">("slots");
+  const [activeGame, setActiveGame] = useState<CasinoGame>("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<OnlineRoomType>("duel");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const paused = false;
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
   const [slotHistory, setSlotHistory] = useState<SlotHistoryItem[]>(savedGame?.slotHistory ?? []);
@@ -3513,7 +3527,7 @@ function App() {
     }
   }
 
-  function selectGame(game: "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw") {
+  function selectGame(game: CasinoGame) {
     setActiveGame(game);
     setActiveSection("games");
     setMobileMenuOpen(false);
@@ -3529,56 +3543,54 @@ function App() {
 
   return (
     <main className={styles.app}>
-      <section className={styles.shell} aria-label="Casino fictif">
+      <section className={styles.shell} aria-label="Jackpot City">
         <header className={styles.header}>
-          <div>
-            <p className={styles.disclaimer}>Jeu fictif — crédits virtuels uniquement</p>
-            <h1>Casino fictif</h1>
+          <div className={styles.brandBlock}>
+            <h1>Jackpot City</h1>
+            <p className={styles.disclaimer}>Casino virtuel</p>
           </div>
+
+          <div className={styles.headerStats} aria-label="Statut de la partie">
+            <div>
+              <span>Solde</span>
+              <strong>{balance.toLocaleString("fr-FR")}</strong>
+            </div>
+            <div>
+              <span>Bilan</span>
+              <strong className={totalNet >= 0 ? styles.positive : styles.negative}>
+                {totalNet >= 0 ? "+" : ""}
+                {totalNet.toLocaleString("fr-FR")}
+              </strong>
+            </div>
+          </div>
+
+          <div className={styles.accountTools}>
+            {accountUser ? (
+              <>
+                <span>{accountUser.displayName || accountUser.email || "Compte Google"}</span>
+                <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
+                  Déconnexion
+                </button>
+                <small>{accountMessage}</small>
+              </>
+            ) : (
+              <button
+                className={`${styles.secondaryButton} ${styles.googleAccountButton}`}
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={accountLoading || !isFirebaseConfigured()}
+                title="Connecte-toi pour sauvegarder tes scores"
+                data-tooltip="Connecte-toi pour sauvegarder tes scores"
+              >
+                Connexion avec Google
+              </button>
+            )}
+          </div>
+
           <div className={styles.ageBadge} aria-label="Reserve aux adultes">
             18+
           </div>
         </header>
-
-        <section className={styles.statusBar} aria-label="Statut de la partie">
-          <div>
-            <span>Solde</span>
-            <strong>{balance.toLocaleString("fr-FR")} credits</strong>
-          </div>
-          <div>
-            <span>Bilan total</span>
-            <strong className={totalNet >= 0 ? styles.positive : styles.negative}>
-              {totalNet >= 0 ? "+" : ""}
-              {totalNet.toLocaleString("fr-FR")}
-            </strong>
-          </div>
-          <button
-            className={styles.pauseButton}
-            type="button"
-            onClick={() => setPaused((value) => !value)}
-            aria-pressed={paused}
-          >
-            {paused ? "Reprendre" : "Faire une pause"}
-          </button>
-          <div className={styles.accountTools}>
-            <span>{accountUser ? accountUser.displayName || accountUser.email || "Compte Google" : accountMessage}</span>
-            {accountUser ? (
-              <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
-                Se deconnecter
-              </button>
-            ) : (
-              <button
-                className={styles.secondaryButton}
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={accountLoading || !isFirebaseConfigured()}
-              >
-                Connexion Google
-              </button>
-            )}
-            {accountUser && <small>{accountMessage}</small>}
-          </div>
-        </section>
 
         {selectedProfile && (
           <PlayerProfileModal
@@ -3598,13 +3610,16 @@ function App() {
 
         {!mobileMenuOpen && (
           <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
-            <span aria-hidden="true">☰</span>
             Menu
           </button>
         )}
         {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
 
-        <nav className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`} aria-label="Section principale">
+        <nav
+          className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`}
+          aria-label="Section principale"
+          style={mobileMenuOpen ? { transform: "translateX(0px)", transition: "none" } : undefined}
+        >
           <button className={styles.menuProfile} type="button" onClick={handleOpenOwnProfile}>
             <span className={styles.menuAvatarFrame}>
               {currentUserIsLeaderboardLeader ? (
@@ -3615,7 +3630,12 @@ function App() {
                   </svg>
                 </span>
               ) : null}
-              <ProfileAvatar className={styles.menuAvatar} displayName={accountUser?.displayName || "Joueur"} photoURL={publicProfilePhotoURL(accountUser?.photoURL)} />
+              <ProfileAvatar
+                avatarSeed={accountUser?.uid || accountUser?.email || accountUser?.displayName || "joueur"}
+                className={styles.menuAvatar}
+                displayName={accountUser?.displayName || "Joueur"}
+                photoURL={accountUser?.photoURL}
+              />
               {isAdmin ? (
                 <span className={styles.menuAdminBadge} aria-label="Admin">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3852,12 +3872,15 @@ function App() {
         {activeSection === "home" ? (
           <HomeDashboard
             activityCount={activityBadgeCount}
+            balance={balance}
             currentUserId={accountUser?.uid ?? null}
             leaderboard={leaderboard}
             leaderboardMessage={leaderboardMessage}
-            rewardedAds={normalizeRewardedAds(rewardedAds)}
+            remainingAds={Math.max(0, DAILY_REWARDED_AD_LIMIT - normalizeRewardedAds(rewardedAds).watched)}
             onGoTo={(section) => setActiveSection(section)}
             onOpenProfile={handleOpenPlayerProfile}
+            onSelectGame={selectGame}
+            onSelectOnlineGame={selectOnlineGame}
           />
         ) : activeSection === "online" ? (
           <OnlineGames
@@ -4685,6 +4708,25 @@ function MessagesGame({
   );
 }
 
+function SlotSymbolArt({ symbol, className = "" }: { symbol: SlotSymbol; className?: string }) {
+  const asset = SLOT_SYMBOL_ASSETS[symbol];
+
+  return (
+    <img
+      alt={asset.label}
+      className={className ? `${styles.slotSymbolArt} ${className}` : styles.slotSymbolArt}
+      draggable={false}
+      src={asset.image}
+    />
+  );
+}
+
+function SlotResultArt({ assetId }: { assetId: SlotResultAssetId }) {
+  const asset = SLOT_RESULT_ASSETS[assetId];
+
+  return <img alt={asset.label} className={styles.slotResultArt} draggable={false} loading="lazy" src={asset.image} />;
+}
+
 function SlotGame({
   bet,
   currentReels,
@@ -4697,7 +4739,7 @@ function SlotGame({
   onSpin,
 }: {
   bet: Bet;
-  currentReels: readonly string[];
+  currentReels: readonly SlotSymbol[];
   history: SlotHistoryItem[];
   message: string;
   paused: boolean;
@@ -4711,8 +4753,13 @@ function SlotGame({
       <section className={styles.machine}>
         <div className={styles.reels} aria-live="polite">
           {currentReels.map((symbol, index) => (
-            <div className={`${styles.reel} ${spinning ? styles.reelSpinning : ""}`} key={`${symbol}-${index}`}>
-              {symbol}
+            <div
+              aria-label={SLOT_SYMBOL_ASSETS[symbol].label}
+              className={`${styles.reel} ${spinning ? styles.reelSpinning : ""}`}
+              key={`${symbol}-${index}`}
+              title={SLOT_SYMBOL_ASSETS[symbol].label}
+            >
+              <SlotSymbolArt symbol={symbol} />
             </div>
           ))}
         </div>
@@ -4743,8 +4790,11 @@ function SlotGame({
           </p>
           <div className={styles.rulesTable}>
             {slotRules.map((rule) => (
-              <div className={styles.ruleRow} key={rule.label}>
-                <span>{rule.label}</span>
+              <div className={`${styles.ruleRow} ${styles.slotRuleRow}`} key={rule.label}>
+                <span className={styles.slotRuleLabel}>
+                  <SlotResultArt assetId={rule.assetId} />
+                  <span>{rule.label}</span>
+                </span>
                 <strong>{rule.reward}</strong>
                 <small>{rule.probability}</small>
               </div>
@@ -4755,7 +4805,14 @@ function SlotGame({
         <HistoryPanel title="Historique" empty="Aucun tour pour le moment.">
           {history.map((item) => (
             <li key={item.id}>
-              <span>{item.reels.join(" ")}</span>
+              <span
+                aria-label={item.reels.map((symbol) => SLOT_SYMBOL_ASSETS[symbol].label).join(", ")}
+                className={styles.slotHistoryReels}
+              >
+                {item.reels.map((symbol, index) => (
+                  <SlotSymbolArt className={styles.slotHistorySymbol} key={`${item.id}-${symbol}-${index}`} symbol={symbol} />
+                ))}
+              </span>
               <small>
                 mise {item.bet} | {item.net >= 0 ? "+" : ""}
                 {item.net} | solde {item.balanceAfter}
@@ -4817,6 +4874,7 @@ function LeaderboardPanel({
           <li className={entry.uid === currentUserId ? styles.currentLeaderboardPlayer : ""} key={entry.uid}>
             <button className={styles.leaderboardPlayerButton} type="button" onClick={() => onOpenProfile(entry)}>
               <span>{index + 1}</span>
+              <ProfileAvatar avatarSeed={entry.uid} className={styles.leaderboardAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
               <strong>{entry.displayName}</strong>
               <em>{entry.balance.toLocaleString("fr-FR")} credits</em>
             </button>
@@ -6480,12 +6538,10 @@ function PlayerProfileModal({
   onSendFriendRequest: () => void;
 }) {
   const [draftDisplayName, setDraftDisplayName] = useState(player.displayName);
-  const [draftPhotoURL, setDraftPhotoURL] = useState(player.photoURL ?? "");
-  const [photoFileMessage, setPhotoFileMessage] = useState("");
+  const [draftPhotoURL, setDraftPhotoURL] = useState(player.photoURL?.startsWith("casino-avatar:") ? player.photoURL : "");
   useEffect(() => {
     setDraftDisplayName(player.displayName);
-    setDraftPhotoURL(player.photoURL ?? "");
-    setPhotoFileMessage("");
+    setDraftPhotoURL(player.photoURL?.startsWith("casino-avatar:") ? player.photoURL : "");
   }, [player.displayName, player.photoURL]);
 
   const inventory = player.inventory
@@ -6526,21 +6582,14 @@ function PlayerProfileModal({
     },
   ]).filter((item) => item.count > 0);
   const isCurrentUser = player.uid === currentUserId;
-
-  async function handlePhotoFileChange(file: File | undefined) {
-    if (!file) {
-      return;
-    }
-
-    try {
-      setPhotoFileMessage("Photo en preparation...");
-      const photoDataURL = await createProfilePhotoDataURL(file);
-      setDraftPhotoURL(photoDataURL);
-      setPhotoFileMessage("Photo prete. Clique sur Enregistrer le profil.");
-    } catch (error) {
-      setPhotoFileMessage(error instanceof Error ? error.message : "Photo impossible a charger.");
-    }
-  }
+  const avatarChoices = [
+    { id: "auto", label: "Auto", photoURL: "" },
+    ...CASINO_AVATAR_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.shortLabel,
+      photoURL: casinoAvatarToken(preset.id),
+    })),
+  ];
 
   return (
     <div className={styles.profileModalBackdrop} role="dialog" aria-modal="true" aria-label={`Profil de ${player.displayName}`}>
@@ -6555,7 +6604,7 @@ function PlayerProfileModal({
                 </svg>
               </span>
             ) : null}
-            <ProfileAvatar className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
+            <ProfileAvatar avatarSeed={player.uid} className={styles.profileAvatar} displayName={player.displayName} photoURL={player.photoURL ?? ""} />
             {isPlayerAdmin ? (
               <span className={styles.profileAdminBadge} aria-label="Admin">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -6588,33 +6637,22 @@ function PlayerProfileModal({
                 value={draftDisplayName}
                 onChange={(event) => setDraftDisplayName(event.target.value)}
               />
-              <label htmlFor="profilePhotoURL">Photo de profil</label>
-              <input
-                id="profilePhotoURL"
-                placeholder="Lien d'image ou photo Google"
-                value={draftPhotoURL}
-                onChange={(event) => setDraftPhotoURL(event.target.value)}
-              />
-              <label className={styles.profileFilePicker} htmlFor="profilePhotoFile">
-                Choisir une photo
-                <input
-                  id="profilePhotoFile"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => handlePhotoFileChange(event.target.files?.[0])}
-                />
-              </label>
-              <small>{photoFileMessage || "Sur telephone, ce bouton ouvre ta galerie photo."}</small>
+              <label>Avatar de profil</label>
               <div className={styles.profileAvatarChoices} aria-label="Choix rapides de photo">
-                {PROFILE_PHOTO_PRESETS.map((preset, index) => (
+                {avatarChoices.map((choice) => (
                   <button
-                    className={draftPhotoURL === preset ? styles.activeAvatarChoice : ""}
-                    key={preset || "default"}
+                    className={draftPhotoURL === choice.photoURL ? styles.activeAvatarChoice : ""}
+                    key={choice.id}
                     type="button"
-                    onClick={() => setDraftPhotoURL(preset)}
+                    onClick={() => setDraftPhotoURL(choice.photoURL)}
                   >
-                    <ProfileAvatar className={styles.profileAvatarChoice} displayName={player.displayName} photoURL={preset} />
-                    <span>{index === 0 ? "Defaut" : `Style ${index}`}</span>
+                    <ProfileAvatar
+                      avatarSeed={choice.id === "auto" ? player.uid : choice.id}
+                      className={styles.profileAvatarChoice}
+                      displayName={player.displayName}
+                      photoURL={choice.photoURL}
+                    />
+                    <span>{choice.label}</span>
                   </button>
                 ))}
               </div>
@@ -6891,17 +6929,21 @@ function MenuIcon({ name }: { name: MenuIconName }) {
 }
 
 function ProfileAvatar({
+  avatarSeed,
   className,
   displayName,
   photoURL,
 }: {
+  avatarSeed?: string;
   className: string;
   displayName: string;
-  photoURL?: string;
+  photoURL?: string | null;
 }) {
+  const avatar = publicCasinoAvatarUrl(photoURL, avatarSeed || displayName || "joueur");
+
   return (
-    <span className={className}>
-      {photoURL ? <img alt="" src={photoURL} /> : <span aria-hidden="true">♠</span>}
+    <span className={className} data-avatar-source={avatar.source}>
+      <img alt="" src={avatar.url} />
     </span>
   );
 }
@@ -7068,22 +7110,124 @@ function CardHand({
                 ?
               </div>
             ) : (
-              <div
-                className={`${styles.card} ${styles.cardFaceImage} ${styles.cardAnimated} ${cardFaceClass(cardBackSkin.id)}`}
-                style={{ "--card-index": index, ...blackjackFaceImageStyle(cardBackSkin.id) } as CSSProperties}
+              <ThemedBlackjackCard
+                card={card}
+                skinId={cardBackSkin.id}
+                className={styles.cardAnimated}
+                style={{ "--card-index": index } as CSSProperties}
                 key={`${card.rank}-${card.suit}-${index}`}
-              >
-                <strong>{card.rank}</strong>
-                <i className={styles.cardOrnament} aria-hidden="true" />
-                <b className={styles.cardMedallion} aria-hidden="true" />
-                <span>{card.suit}</span>
-              </div>
+              />
             ),
           )
         )}
       </div>
     </div>
   );
+}
+
+function ThemedBlackjackCard({
+  card,
+  skinId,
+  className = "",
+  style,
+  preview = false,
+}: {
+  card: Card;
+  skinId: string;
+  className?: string;
+  style?: CSSProperties;
+  preview?: boolean;
+}) {
+  const model = getBlackjackCardFaceModel(card, skinId);
+  const cornerSuit =
+    model.kind === "figure" ? (
+      <DeckArtSprite className={styles.cardCornerSuit} cell={model.suit.illustration.assetCell} skinId={model.theme.id} />
+    ) : null;
+  const corner = (
+    <>
+      <strong>{model.rank}</strong>
+      {cornerSuit}
+    </>
+  );
+
+  return (
+    <div
+      className={`${styles.card} ${styles.themedCardFace} ${preview ? styles.themedPreviewCard : ""} ${className}`}
+      data-theme={model.theme.pattern}
+      data-kind={model.kind}
+      data-rank={model.rank}
+      data-suit={model.suit.baseSuit}
+      aria-label={`${model.rank} ${model.suit.baseSuit}`}
+      style={{ ...blackjackCardFaceStyle(model), ...style }}
+    >
+      <span className={styles.cardCorner}>{corner}</span>
+      {model.kind === "figure" ? <ThemedFigureArtwork model={model} /> : <ThemedPipArtwork model={model} />}
+      <span className={`${styles.cardCorner} ${styles.cardCornerBottom}`}>{corner}</span>
+    </div>
+  );
+}
+
+function ThemedPipArtwork({ model }: { model: Extract<BlackjackCardFaceModel, { kind: "pip" }> }) {
+  return (
+    <span className={styles.themedPipGrid} aria-hidden="true">
+      {model.pips.map((pip, index) => (
+        <span
+          className={pip.rotate ? styles.themedPipRotated : ""}
+          style={{ gridColumn: pip.column, gridRow: pip.row } as CSSProperties}
+          key={`${pip.column}-${pip.row}-${index}`}
+        >
+          <DeckArtSprite className={styles.themedPip} cell={pip.assetCell} skinId={model.theme.id} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function ThemedFigureArtwork({ model }: { model: Extract<BlackjackCardFaceModel, { kind: "figure" }> }) {
+  return (
+    <span className={styles.themedFigureArt} data-role={model.figure.role} data-frame={model.figure.frame} aria-hidden="true">
+      <span className={styles.themedFigureHalo} />
+      <DeckArtSprite className={styles.themedFigureImage} cell={model.figure.assetCell} skinId={model.theme.id} />
+    </span>
+  );
+}
+
+function DeckArtSprite({
+  cell,
+  className = "",
+  skinId,
+}: {
+  cell: DeckArtCell;
+  className?: string;
+  skinId: string;
+}) {
+  const atlas = blackjackSkinImages(skinId)?.art;
+
+  return (
+    <span className={`${styles.cardArtSprite} ${className}`} data-art-cell={cell.id} style={blackjackArtCellStyle(cell)} aria-hidden="true">
+      {atlas ? <img className={styles.cardArtAtlasImage} src={atlas} alt="" draggable={false} /> : null}
+    </span>
+  );
+}
+
+function blackjackCardFaceStyle(model: BlackjackCardFaceModel): CSSProperties {
+  return {
+    "--card-face-surface": model.theme.surface,
+    "--card-face-surface-alt": model.theme.surfaceAlt,
+    "--card-face-ink": model.theme.ink,
+    "--card-face-border": model.theme.border,
+    "--card-face-accent": model.theme.accent,
+    "--card-face-foil": model.theme.foil,
+    "--card-suit-color": model.suit.color,
+    "--card-suit-shadow": model.suit.shadow,
+  } as CSSProperties;
+}
+
+function blackjackArtCellStyle(cell: DeckArtCell): CSSProperties {
+  return {
+    "--card-art-translate-x": `${cell.column * -25}%`,
+    "--card-art-translate-y": `${cell.row * -50}%`,
+  } as CSSProperties;
 }
 
 function PlinkoGame({
@@ -7822,6 +7966,7 @@ function RouletteBall({
   spinning: boolean;
 }) {
   const [style, setStyle] = useState({ "--ball-x": "50%", "--ball-y": "8%" } as CSSProperties);
+  const ballImage = getRouletteBallImageSource(ballSkin.id);
 
   useEffect(() => {
     if (!spinning) {
@@ -7863,6 +8008,7 @@ function RouletteBall({
       style={
         {
           ...style,
+          ...(ballImage ? { background: `center / contain no-repeat url(${ballImage})` } : {}),
           "--roulette-ball-color": ballSkin.preview,
           "--roulette-ball-glow": ballGlow(ballSkin.id),
         } as CSSProperties
@@ -7983,6 +8129,7 @@ function CaseOpeningGame({
                 (item) => item.category === caseDefinition.id && ownedSkinIds.includes(item.id),
               ).length;
               const totalCount = SHOP_ITEMS.filter((item) => item.category === caseDefinition.id && item.source !== "special").length;
+              const ownedRatio = totalCount > 0 ? Math.round((ownedCount / totalCount) * 100) : 0;
 
               return (
                 <button
@@ -7991,44 +8138,58 @@ function CaseOpeningGame({
                   key={caseDefinition.id}
                   onClick={() => onSelectCase(caseDefinition.id)}
                   disabled={opening}
+                  aria-pressed={active}
                 >
                   <CaseThemePreview category={caseDefinition.id} />
-                  <span>{caseDefinition.title}</span>
-                  <small>{caseDefinition.subtitle}</small>
-                  <strong>{priceOverrides.cases[caseDefinition.id] ?? caseDefinition.cost} credits</strong>
-                  <em>{ownedCount}/{totalCount} modeles</em>
+                  <span className={styles.caseCardKicker}>{active ? "Selectionnee" : "Caisse"}</span>
+                  <span className={styles.caseCardTitle}>{caseDefinition.title}</span>
+                  <small className={styles.caseCardSubtitle}>{caseDefinition.subtitle}</small>
+                  <span className={styles.caseCardStats}>
+                    <strong>{priceOverrides.cases[caseDefinition.id] ?? caseDefinition.cost} credits</strong>
+                    <em>
+                      {ownedCount}/{totalCount} modeles
+                    </em>
+                  </span>
+                  <span
+                    className={styles.caseCardProgress}
+                    style={{ "--case-progress": `${ownedRatio}%` } as CSSProperties}
+                    aria-hidden="true"
+                  >
+                    <span />
+                  </span>
                 </button>
               );
             })}
           </div>
 
           <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
-            <div className={`${opening ? `${styles.caseBox} ${styles.caseBoxOpening}` : styles.caseBox} ${caseThemeClass(selectedCase)}`}>
-              <span className={styles.caseMark} />
-              <span className={styles.caseLid} />
-              <span className={styles.caseGlow} />
-              <span className={styles.caseBody} />
+            <div className={styles.caseStage}>
+              <span className={styles.caseStageAura} aria-hidden="true" />
+              <CaseBoxArtwork category={selectedCase} opening={opening} />
             </div>
 
-            {lastDrop ? (
-              <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
-                <SkinPreview item={lastDrop.item} large />
-                <div>
-                  <small>{rarityLabel(lastDrop.item.rarity)}</small>
-                  <h3>{lastDrop.item.name}</h3>
-          <p>{lastDrop.duplicate ? "Doublon ajoute a l'inventaire" : "Nouveau skin debloque"}</p>
+            <div className={styles.casePanelInfo}>
+              {lastDrop ? (
+                <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
+                  <SkinPreview item={lastDrop.item} large />
+                  <div>
+                    <small>{rarityLabel(lastDrop.item.rarity)}</small>
+                    <h3>{lastDrop.item.name}</h3>
+                    <p>{lastDrop.duplicate ? "Doublon ajoute a l'inventaire" : "Nouveau skin debloque"}</p>
+                  </div>
+                </article>
+              ) : (
+                <div className={styles.caseEmptyDrop}>
+                  <small>{selectedDefinition.subtitle}</small>
+                  <strong>{selectedDefinition.title}</strong>
+                  <span>Ouvre une caisse pour reveler un skin.</span>
                 </div>
-              </article>
-            ) : (
-              <div className={styles.caseEmptyDrop}>
-                <strong>{selectedDefinition.title}</strong>
-                <span>Ouvre une caisse pour reveler un skin.</span>
-              </div>
-            )}
+              )}
 
-            <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
-              {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
-            </button>
+              <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
+                {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -8051,6 +8212,7 @@ function CaseOpeningGame({
             return (
               <article className={styles.shopItem} key={chest.id}>
                 <SpecialChestPreview chest={chest} />
+                <SpecialChestRewards chest={chest} />
                 <div>
                   <h3>{chest.title}</h3>
                   <p>{chest.subtitle}</p>
@@ -8174,12 +8336,7 @@ function CaseOpeningModal({
 
         {phase === "box" ? (
           <div className={styles.caseModalBoxStage}>
-            <div className={`${styles.caseBox} ${styles.caseBoxOpening} ${caseThemeClass(category)}`}>
-              <span className={styles.caseMark} />
-              <span className={styles.caseLid} />
-              <span className={styles.caseGlow} />
-              <span className={styles.caseBody} />
-            </div>
+            <CaseBoxArtwork category={category} opening />
             <p>La caisse s'ouvre avant le tirage des skins.</p>
           </div>
         ) : (
@@ -8228,61 +8385,814 @@ function CaseOpeningModal({
   );
 }
 
+function CaseBoxArtwork({ category, opening = false }: { category: SkinCategory; opening?: boolean }) {
+  return (
+    <div className={`${styles.caseBox} ${opening ? styles.caseBoxOpening : ""} ${caseThemeClass(category)}`}>
+      <span className={styles.caseArtworkGlow} />
+      <span className={`${styles.caseArtworkImage} ${caseArtworkClass(category)}`} />
+    </div>
+  );
+}
+
 function CaseThemePreview({ category }: { category: SkinCategory }) {
   return (
     <span className={`${styles.caseMiniPreview} ${caseThemeClass(category)}`} aria-hidden="true">
-      <span className={styles.caseMiniLid} />
-      <span className={styles.caseMiniBody} />
-      <span className={styles.caseMiniMark} />
+      <span className={`${styles.caseArtworkImage} ${styles.caseArtworkMini} ${caseArtworkClass(category)}`} />
     </span>
   );
 }
 
-function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
-  const category = SHOP_ITEMS.find((item) => item.id === chest.itemIds[0])?.category ?? "plinkoBall";
+function caseArtworkClass(category: SkinCategory): string {
+  if (category === "cardBack") {
+    return styles.caseArtBlackjack;
+  }
 
+  if (category === "rouletteBall") {
+    return styles.caseArtRoulette;
+  }
+
+  if (category === "rocketShip") {
+    return styles.caseArtRocket;
+  }
+
+  return styles.caseArtPlinko;
+}
+
+function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
   return (
     <div className={styles.specialChestPreview} style={{ "--special-chest-color": chest.theme } as CSSProperties}>
-      <CaseThemePreview category={category} />
+      <SpecialChestArtwork chestId={chest.id} />
       <strong>{chest.title}</strong>
+    </div>
+  );
+}
+
+function SpecialChestRewards({ chest }: { chest: SpecialChestDefinition }) {
+  const rewardItems = chest.itemIds.map((itemId) => getShopItem(itemId));
+
+  return (
+    <div className={styles.specialChestRewards} aria-label={`Recompenses ${chest.title}`}>
+      {rewardItems.map((item) => (
+        <span className={styles.specialChestReward} key={item.id} title={item.name}>
+          <SkinPreview item={item} showCardFace={item.category === "cardBack"} />
+          <small>{item.name}</small>
+        </span>
+      ))}
     </div>
   );
 }
 
 function HomeDashboard({
   activityCount,
+  balance,
   currentUserId,
   leaderboard,
   leaderboardMessage,
-  rewardedAds,
+  remainingAds,
   onGoTo,
   onOpenProfile,
+  onSelectGame,
+  onSelectOnlineGame,
 }: {
   activityCount: number;
+  balance: number;
   currentUserId: string | null;
   leaderboard: LeaderboardEntry[];
   leaderboardMessage: string;
-  rewardedAds: RewardedAdState;
+  remainingAds: number;
   onGoTo: (section: MainSection) => void;
   onOpenProfile: (player: LeaderboardEntry) => void;
+  onSelectGame: (game: CasinoGame) => void;
+  onSelectOnlineGame: (game: OnlineRoomType) => void;
 }) {
-  const remainingAds = Math.max(0, DAILY_REWARDED_AD_LIMIT - rewardedAds.watched);
+  const topPlayers = leaderboard.slice(0, 5);
 
   return (
-    <>
-      <LeaderboardPanel currentUserId={currentUserId} entries={leaderboard} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
-      <section className={styles.homeCards} aria-label="Raccourcis">
-        <button type="button" onClick={() => onGoTo("shop")} aria-label="Ouvrir la boutique">
-          <img src={boutiqueShortcutImage} alt="" />
+    <section className={styles.lobby} aria-label="Lobby casino fictif">
+      <div className={styles.lobbyTop}>
+        <LobbyHero onPlay={() => onSelectGame("slots")} onTournaments={() => onGoTo("missions")} />
+
+        <aside className={styles.lobbySideColumn} aria-label="Classement et activite">
+          <LobbyLeaderboard currentUserId={currentUserId} entries={topPlayers} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
+          <LobbySocialFeed activityCount={activityCount} entries={topPlayers} onGoTo={onGoTo} />
+        </aside>
+      </div>
+
+      <PopularGames onSelectGame={onSelectGame} onSelectOnlineGame={onSelectOnlineGame} onGoTo={onGoTo} />
+      <LobbyTournaments onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
+      <RewardStrip remainingAds={remainingAds} onGoTo={onGoTo} />
+      <LobbyPromoGrid onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
+      <LobbyStats activityCount={activityCount} balance={balance} leaderboardCount={leaderboard.length} remainingAds={remainingAds} />
+    </section>
+  );
+}
+
+function AnimatedMedia({
+  assetId,
+  children,
+  className = "",
+  label,
+  style,
+}: {
+  assetId: AnimationAssetId;
+  children?: ReactNode;
+  className?: string;
+  label?: string;
+  style?: CSSProperties;
+}) {
+  const asset = getAnimationAsset(assetId);
+  const videoDisabled = useMediaQuery("(hover: none), (pointer: coarse), (max-width: 640px)");
+  const shouldUseVideo = Boolean(asset && !videoDisabled);
+  const mediaRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isVideoActive, setIsVideoActive] = useState(false);
+
+  useEffect(() => {
+    setIsVideoActive(shouldUseVideo && asset?.trigger === "slow-loop");
+  }, [asset?.trigger, shouldUseVideo]);
+
+  useEffect(() => {
+    if (!shouldUseVideo || asset?.trigger !== "hover") {
+      return undefined;
+    }
+
+    const media = mediaRef.current;
+    const video = videoRef.current;
+    const target = media?.closest("button") ?? media?.parentElement;
+
+    if (!target || !video) {
+      return undefined;
+    }
+
+    const play = () => {
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Metadata can still be loading on the first hover.
+      }
+      setIsVideoActive(true);
+      void video.play().catch(() => {
+        setIsVideoActive(false);
+      });
+    };
+
+    const pause = () => {
+      video.pause();
+      try {
+        video.currentTime = 0;
+      } catch {
+        // Keep the PNG fallback visible if the video cannot seek yet.
+      }
+      setIsVideoActive(false);
+    };
+
+    target.addEventListener("focusin", play);
+    target.addEventListener("focusout", pause);
+    target.addEventListener("pointerenter", play);
+    target.addEventListener("pointerleave", pause);
+
+    return () => {
+      target.removeEventListener("focusin", play);
+      target.removeEventListener("focusout", pause);
+      target.removeEventListener("pointerenter", play);
+      target.removeEventListener("pointerleave", pause);
+    };
+  }, [assetId, asset?.trigger, shouldUseVideo]);
+
+  if (!asset) {
+    return null;
+  }
+
+  const playVideo = () => {
+    if (!shouldUseVideo || asset.trigger !== "hover") {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.currentTime = 0;
+    setIsVideoActive(true);
+    void video.play().catch(() => {
+      setIsVideoActive(false);
+    });
+  };
+
+  const pauseVideo = () => {
+    if (!shouldUseVideo || asset.trigger !== "hover") {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.pause();
+    video.currentTime = 0;
+    setIsVideoActive(false);
+  };
+
+  return (
+    <div
+      ref={mediaRef}
+      className={`${styles.animatedMedia} ${className}`}
+      data-animatable-id={asset.id}
+      data-aspect={asset.aspect}
+      data-animation-trigger={asset.trigger}
+      data-video-active={isVideoActive ? "true" : "false"}
+      data-animation-prompt={asset.prompt}
+      role="img"
+      aria-label={label ?? asset.title}
+      onBlur={pauseVideo}
+      onFocus={playVideo}
+      onPointerEnter={playVideo}
+      onPointerLeave={pauseVideo}
+      style={style}
+    >
+      <img
+        alt=""
+        aria-hidden="true"
+        className={styles.animatedMediaImage}
+        loading={asset.id === "hero-duel-16x9" ? "eager" : "lazy"}
+        src={asset.image}
+      />
+      {shouldUseVideo ? (
+        <video
+          ref={videoRef}
+          aria-hidden="true"
+          autoPlay={asset.trigger === "slow-loop"}
+          className={styles.animatedMediaVideo}
+          loop
+          muted
+          playsInline
+          poster={asset.image}
+          preload={asset.trigger === "slow-loop" ? "auto" : "metadata"}
+          src={asset.video}
+        />
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+type FlameParticle = {
+  id: number;
+  left: number;
+  top: number;
+  size: number;
+  dx: number;
+  rise: number;
+  duration: number;
+  delay: number;
+};
+
+type FlameLayer = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  particles: FlameParticle[];
+};
+
+type FlameState = "idle" | "active" | "dying";
+
+const FLAME_CONFIG = {
+  heightMul: 1.08,
+  density: 0.72,
+  durMin: 2.35,
+  durRange: 2.2,
+  delaySpread: 6.5,
+  sampleStep: 4,
+  alphaThreshold: 120,
+};
+
+function getRenderedFlameText(text: string, textTransform: string) {
+  if (textTransform === "uppercase") {
+    return text.toUpperCase();
+  }
+
+  if (textTransform === "lowercase") {
+    return text.toLowerCase();
+  }
+
+  return text;
+}
+
+function buildFlameLayer(word: HTMLElement, text: HTMLElement): FlameLayer | null {
+  const computed = getComputedStyle(word);
+  const fontSize = parseFloat(computed.fontSize);
+  const wordWidth = text.offsetWidth;
+  const wordHeight = text.offsetHeight;
+  const renderedText = getRenderedFlameText(text.textContent ?? "", computed.textTransform);
+
+  if (!Number.isFinite(fontSize) || !wordWidth || !wordHeight) {
+    return null;
+  }
+
+  const headRoom = Math.round(wordHeight * 1.05);
+  const padX = Math.round(fontSize * 0.18);
+  const displayWidth = wordWidth + padX * 2;
+  const displayHeight = wordHeight + headRoom;
+  const sampleStep = FLAME_CONFIG.sampleStep;
+  const gridWidth = Math.ceil(displayWidth / sampleStep);
+  const gridHeight = Math.ceil(displayHeight / sampleStep);
+  const canvas = document.createElement("canvas");
+  canvas.width = gridWidth;
+  canvas.height = gridHeight;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    return null;
+  }
+
+  context.font = `${computed.fontStyle} ${computed.fontWeight} ${fontSize / sampleStep}px ${computed.fontFamily}`;
+  context.textBaseline = "top";
+  context.fillStyle = "#fff";
+  context.fillText(renderedText, padX / sampleStep, headRoom / sampleStep);
+
+  const pixels = context.getImageData(0, 0, gridWidth, gridHeight).data;
+  const ink: Array<[number, number]> = [];
+
+  for (let y = 0; y < gridHeight; y += 1) {
+    for (let x = 0; x < gridWidth; x += 1) {
+      if (pixels[(y * gridWidth + x) * 4 + 3] > FLAME_CONFIG.alphaThreshold) {
+        ink.push([x * sampleStep, y * sampleStep]);
+      }
+    }
+  }
+
+  if (ink.length === 0) {
+    for (let i = 0; i < 400; i += 1) {
+      ink.push([padX + Math.random() * wordWidth, headRoom + wordHeight * 0.85]);
+    }
+  }
+
+  const particleCount = Math.round(Math.min(260, Math.max(90, wordWidth * 0.6)) * FLAME_CONFIG.density);
+  const particles = Array.from({ length: particleCount }, (_, id) => {
+    const [particleX, particleY] = ink[(Math.random() * ink.length) | 0];
+    const size = 5 + Math.random() * 12;
+
+    return {
+      id,
+      left: particleX - size / 2,
+      top: particleY - size / 2,
+      size,
+      dx: Math.random() * 40 - 20,
+      rise: Math.round(headRoom * (0.55 + Math.random() * 0.6) * FLAME_CONFIG.heightMul),
+      duration: FLAME_CONFIG.durMin + Math.random() * FLAME_CONFIG.durRange,
+      delay: -Math.random() * FLAME_CONFIG.delaySpread,
+    };
+  });
+
+  return {
+    left: -padX,
+    top: -headRoom,
+    width: displayWidth,
+    height: displayHeight,
+    particles,
+  };
+}
+
+function FlameWord({ children }: { children: string }) {
+  const wordRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const builtRef = useRef(false);
+  const extinguishTimeoutRef = useRef<number | null>(null);
+  const [layer, setLayer] = useState<FlameLayer | null>(null);
+  const [flameState, setFlameState] = useState<FlameState>("idle");
+
+  const buildOnHover = () => {
+    if (builtRef.current) {
+      return;
+    }
+
+    builtRef.current = true;
+
+    const build = () => {
+      if (!wordRef.current || !textRef.current) {
+        builtRef.current = false;
+        return;
+      }
+
+      const nextLayer = buildFlameLayer(wordRef.current, textRef.current);
+      if (!nextLayer) {
+        builtRef.current = false;
+        return;
+      }
+
+      setLayer(nextLayer);
+    };
+
+    if ("fonts" in document) {
+      void document.fonts.ready.then(build);
+      return;
+    }
+
+    build();
+  };
+
+  const activateFlame = () => {
+    if (extinguishTimeoutRef.current !== null) {
+      window.clearTimeout(extinguishTimeoutRef.current);
+      extinguishTimeoutRef.current = null;
+    }
+
+    setFlameState("active");
+    buildOnHover();
+  };
+
+  const deactivateFlame = () => {
+    setFlameState((current) => (current === "idle" ? current : "dying"));
+
+    if (extinguishTimeoutRef.current !== null) {
+      window.clearTimeout(extinguishTimeoutRef.current);
+    }
+
+    extinguishTimeoutRef.current = window.setTimeout(() => {
+      setFlameState("idle");
+      extinguishTimeoutRef.current = null;
+    }, 1850);
+  };
+
+  useEffect(() => {
+    const buildTimeout = window.setTimeout(buildOnHover, 250);
+
+    return () => {
+      window.clearTimeout(buildTimeout);
+
+      if (extinguishTimeoutRef.current !== null) {
+        window.clearTimeout(extinguishTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (flameState !== "active") {
+      return undefined;
+    }
+
+    const deactivateWhenOutside = (event: PointerEvent | MouseEvent) => {
+      if (!wordRef.current) {
+        return;
+      }
+
+      const rect = wordRef.current.getBoundingClientRect();
+      const padding = 8;
+      const outside =
+        event.clientX < rect.left - padding ||
+        event.clientX > rect.right + padding ||
+        event.clientY < rect.top - padding ||
+        event.clientY > rect.bottom + padding;
+
+      if (outside) {
+        deactivateFlame();
+      }
+    };
+
+    document.addEventListener("pointermove", deactivateWhenOutside, { passive: true });
+    document.addEventListener("mousemove", deactivateWhenOutside, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointermove", deactivateWhenOutside);
+      document.removeEventListener("mousemove", deactivateWhenOutside);
+    };
+  }, [flameState]);
+
+  return (
+    <span
+      ref={wordRef}
+      className={styles.flameWord}
+      data-flame-active={flameState === "active" ? "true" : undefined}
+      data-flame-state={flameState}
+      onBlur={deactivateFlame}
+      onClick={activateFlame}
+      onFocus={activateFlame}
+      onMouseEnter={activateFlame}
+      onMouseLeave={deactivateFlame}
+      onMouseMove={activateFlame}
+      onMouseOver={activateFlame}
+      onPointerEnter={activateFlame}
+      onPointerLeave={deactivateFlame}
+      onPointerMove={activateFlame}
+      onPointerOver={activateFlame}
+    >
+      {layer ? (
+        <span
+          aria-hidden="true"
+          className={styles.flames}
+          style={{
+            left: `${layer.left}px`,
+            top: `${layer.top}px`,
+            width: `${layer.width}px`,
+            height: `${layer.height}px`,
+          }}
+        >
+          <span className={styles.flamesInner}>
+            {layer.particles.map((particle) => (
+              <span
+                className={styles.flameParticle}
+                key={particle.id}
+                style={
+                  {
+                    width: `${particle.size}px`,
+                    height: `${particle.size}px`,
+                    left: `${particle.left}px`,
+                    top: `${particle.top}px`,
+                    "--dx": `${particle.dx}px`,
+                    "--rise": `${particle.rise}px`,
+                    animationDuration: `${particle.duration}s`,
+                    animationDelay: `${particle.delay}s`,
+                  } as CSSProperties
+                }
+              />
+            ))}
+          </span>
+        </span>
+      ) : null}
+      <span ref={textRef} className={styles.flameText}>
+        {children}
+      </span>
+    </span>
+  );
+}
+
+function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournaments: () => void }) {
+  return (
+    <section className={styles.lobbyHero}>
+      <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium" />
+      <div className={styles.heroContent}>
+        <h2 className={styles.heroTitle}>
+          <span className={styles.heroTitleLine}>
+            <FlameWord>Joue.</FlameWord> <FlameWord>Defie.</FlameWord>
+          </span>{" "}
+          <span className={`${styles.heroTitleLine} ${styles.heroTitleAccent}`}>
+            <FlameWord>Deviens</FlameWord> <FlameWord>une</FlameWord> <FlameWord>legende.</FlameWord>
+          </span>
+        </h2>
+        <p>Affronte tes amis, grimpe au classement et debloque des skins.</p>
+        <div className={styles.heroActions}>
+          <button className={styles.primaryButton} type="button" onClick={onPlay}>
+            Jouer
+          </button>
+          <button className={styles.secondaryButton} type="button" onClick={onTournaments}>
+            Voir les tournois
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PopularGames({
+  onGoTo,
+  onSelectGame,
+  onSelectOnlineGame,
+}: {
+  onGoTo: (section: MainSection) => void;
+  onSelectGame: (game: CasinoGame) => void;
+  onSelectOnlineGame: (game: OnlineRoomType) => void;
+}) {
+  const gameCards: Array<{
+    title: string;
+    subtitle: string;
+    assetId?: AnimationAssetId;
+    tone: string;
+    onClick: () => void;
+  }> = [
+    {
+      title: "Dragon Spin",
+      subtitle: "Slots",
+      assetId: "dragon-spin-card-9x16",
+      tone: "#ffb629",
+      onClick: () => onSelectGame("slots"),
+    },
+    {
+      title: "Blackjack",
+      subtitle: "Live",
+      assetId: "blackjack-card-9x16",
+      tone: "#33df8d",
+      onClick: () => onSelectGame("blackjack"),
+    },
+    {
+      title: "Roulette",
+      subtitle: "European",
+      assetId: "roulette-card-9x16",
+      tone: "#ff4f4f",
+      onClick: () => onSelectGame("roulette"),
+    },
+    {
+      title: "Battle Poker",
+      subtitle: "VS",
+      assetId: "battle-poker-card-9x16",
+      tone: "#9a4cff",
+      onClick: () => onSelectOnlineGame("poker"),
+    },
+    {
+      title: "Gems Quest",
+      subtitle: "Cases",
+      assetId: "gems-quest-card-9x16",
+      tone: "#36b7ff",
+      onClick: () => onGoTo("cases"),
+    },
+  ];
+
+  return (
+    <section className={styles.lobbySection} aria-labelledby="popular-games-title">
+      <div className={styles.lobbySectionHeader}>
+        <h2 id="popular-games-title">Jeux populaires</h2>
+        <button type="button" onClick={() => onGoTo("games")}>
+          Voir tous les jeux
         </button>
-        <button type="button" onClick={() => onGoTo("activity")} aria-label="Ouvrir l'activite">
-          <img src={activityShortcutImage} alt="" />
+      </div>
+      <div className={styles.popularGames}>
+        {gameCards.map((card) => (
+          <button className={styles.lobbyGameCard} key={card.title} type="button" onClick={card.onClick} style={{ "--game-card-tone": card.tone } as CSSProperties}>
+            {card.assetId ? (
+              <AnimatedMedia assetId={card.assetId} className={styles.lobbyGameArt} />
+            ) : (
+              <span className={`${styles.lobbyGameArt} ${styles.lobbyGameArtStatic}`} aria-hidden="true">
+              </span>
+            )}
+            <strong>{card.title}</strong>
+            <span>{card.subtitle}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LobbyLeaderboard({
+  currentUserId,
+  entries,
+  message,
+  onOpenProfile,
+}: {
+  currentUserId: string | null;
+  entries: LeaderboardEntry[];
+  message: string;
+  onOpenProfile: (entry: LeaderboardEntry) => void;
+}) {
+  return (
+    <section className={styles.lobbyLeaderboard} aria-label="Classement global">
+      <div className={styles.lobbyPanelHeader}>
+        <h2>Classement</h2>
+        <span>Semaine</span>
+      </div>
+      <ol>
+        {entries.map((entry, index) => (
+          <li className={entry.uid === currentUserId ? styles.lobbyCurrentPlayer : ""} key={entry.uid}>
+            <button type="button" onClick={() => onOpenProfile(entry)}>
+              <span className={styles.lobbyRank}>{index + 1}</span>
+              <ProfileAvatar avatarSeed={entry.uid} className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
+              <strong>{entry.displayName}</strong>
+              <em>{entry.balance.toLocaleString("fr-FR")}</em>
+            </button>
+          </li>
+        ))}
+      </ol>
+      {entries.length === 0 ? <p className={styles.empty}>{message}</p> : null}
+    </section>
+  );
+}
+
+function LobbySocialFeed({
+  activityCount,
+  entries,
+  onGoTo,
+}: {
+  activityCount: number;
+  entries: LeaderboardEntry[];
+  onGoTo: (section: MainSection) => void;
+}) {
+  const visibleEntries = entries.slice(0, 4);
+
+  return (
+    <section className={styles.lobbySocialFeed} aria-label="Chat du salon">
+      <div className={styles.lobbyPanelHeader}>
+        <h2>Chat du salon</h2>
+        <span>{Math.max(12, entries.length * 17 + activityCount)} en ligne</span>
+      </div>
+      <div className={styles.lobbyChatList}>
+        {visibleEntries.length === 0 ? (
+          <p className={styles.empty}>Connecte-toi pour voir les joueurs actifs.</p>
+        ) : (
+          visibleEntries.map((entry, index) => (
+            <article key={entry.uid}>
+              <ProfileAvatar avatarSeed={entry.uid} className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
+              <p>
+                <strong>{entry.displayName}</strong>
+                {index === 0 ? " GG pour le top classement !" : index === 1 ? " Pret pour le prochain duel ?" : " Cette salle est active."}
+              </p>
+            </article>
+          ))
+        )}
+      </div>
+      <button className={styles.lobbyGhostButton} type="button" onClick={() => onGoTo("messages")}>
+        Ouvrir les messages
+      </button>
+    </section>
+  );
+}
+
+function LobbyTournaments({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: MainSection) => void; onSelectOnlineGame: (game: OnlineRoomType) => void }) {
+  const tournaments = [
+    { title: "Coupe des legendes", detail: "Duels en 3 manches", prize: "50,000", assetId: "tournament-cup-16x9" as const, action: () => onSelectOnlineGame("duel") },
+    { title: "Bataille royale", detail: "Table poker", prize: "25,000", assetId: "battle-poker-card-9x16" as const, action: () => onSelectOnlineGame("poker") },
+    { title: "Mission master", detail: "Objectifs horaires", prize: "10,000", assetId: "gems-quest-card-9x16" as const, action: () => onGoTo("missions") },
+  ];
+
+  return (
+    <section className={styles.lobbySection} aria-labelledby="lobby-tournaments-title">
+      <div className={styles.lobbySectionHeader}>
+        <h2 id="lobby-tournaments-title">Tournois</h2>
+        <button type="button" onClick={() => onGoTo("online")}>
+          Voir tous
         </button>
-        <button type="button" onClick={() => onGoTo("bonus")} aria-label="Ouvrir les bonus">
-          <img src={bonusShortcutImage} alt="" />
+      </div>
+      <div className={styles.lobbyTournaments}>
+        {tournaments.map((tournament) => (
+          <button key={tournament.title} type="button" onClick={tournament.action}>
+            <AnimatedMedia assetId={tournament.assetId} className={styles.tournamentArt} />
+            <span>
+              <strong>{tournament.title}</strong>
+              <small>{tournament.detail}</small>
+            </span>
+            <em>{tournament.prize}</em>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RewardStrip({ remainingAds, onGoTo }: { remainingAds: number; onGoTo: (section: MainSection) => void }) {
+  return (
+    <section className={styles.rewardStrip}>
+      <AnimatedMedia assetId="reward-chest-16x9" className={styles.rewardArt} />
+      <div>
+        <h2>Recompense du jour</h2>
+        <p>{remainingAds > 0 ? `${remainingAds} bonus virtuel${remainingAds > 1 ? "s" : ""} encore disponible${remainingAds > 1 ? "s" : ""}.` : "Reviens demain pour de nouveaux bonus virtuels."}</p>
+      </div>
+      <button className={styles.primaryButton} type="button" onClick={() => onGoTo("bonus")}>
+        Recuperer
+      </button>
+    </section>
+  );
+}
+
+function LobbyPromoGrid({ onGoTo, onSelectOnlineGame }: { onGoTo: (section: MainSection) => void; onSelectOnlineGame: (game: OnlineRoomType) => void }) {
+  const promos = [
+    { title: "Defie tes amis", detail: "Cree une table privee et lance un duel.", assetId: "promo-friends-16x9" as const, action: () => onSelectOnlineGame("duel") },
+    { title: "Personnalise ton profil", detail: "Equipe tes skins et marque ton style.", assetId: "promo-profile-16x9" as const, action: () => onGoTo("inventory") },
+    { title: "Gagne des recompenses", detail: "Bonus, coffres et fragments virtuels.", assetId: "promo-rewards-16x9" as const, action: () => onGoTo("shop") },
+  ];
+
+  return (
+    <section className={styles.lobbyPromoGrid} aria-label="Actions rapides">
+      {promos.map((promo) => (
+        <button key={promo.title} type="button" onClick={promo.action}>
+          <AnimatedMedia assetId={promo.assetId} className={styles.promoArt} />
+          <span>
+            <strong>{promo.title}</strong>
+            <small>{promo.detail}</small>
+          </span>
         </button>
-      </section>
-    </>
+      ))}
+    </section>
+  );
+}
+
+function LobbyStats({
+  activityCount,
+  balance,
+  leaderboardCount,
+  remainingAds,
+}: {
+  activityCount: number;
+  balance: number;
+  leaderboardCount: number;
+  remainingAds: number;
+}) {
+  const stats = [
+    { label: "Credits virtuels", value: balance.toLocaleString("fr-FR") },
+    { label: "Joueurs classes", value: Math.max(leaderboardCount, 0).toLocaleString("fr-FR") },
+    { label: "Alertes sociales", value: activityCount.toLocaleString("fr-FR") },
+    { label: "Bonus restants", value: remainingAds.toLocaleString("fr-FR") },
+  ];
+
+  return (
+    <section className={styles.lobbyStats} aria-label="Statistiques du lobby">
+      {stats.map((stat) => (
+        <div key={stat.label}>
+          <strong>{stat.value}</strong>
+          <span>{stat.label}</span>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -8689,6 +9599,7 @@ function ShopGame({
           {SPECIAL_CHESTS.map((chest) => (
             <article className={styles.shopItem} key={chest.id}>
               <SpecialChestPreview chest={chest} />
+              <SpecialChestRewards chest={chest} />
               <div>
                 <h3>{chest.title}</h3>
                 <p>{chest.subtitle}</p>
@@ -8997,18 +9908,11 @@ function RocketGame({
             </div>
             <div className={animating ? `${styles.rocketPathLine} ${styles.rocketPathLineFlying}` : styles.rocketPathLine} />
             <div className={animating ? `${styles.rocketTrail} ${styles.rocketTrailFlying}` : styles.rocketTrail} />
-            <svg
-              className={`${animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft} ${rocketShipClass(shipSkin.id)}`}
-              viewBox="0 0 120 86"
-              style={
-                {
-                  "--rocket-accent": shipSkin.preview,
-                  "--rocket-glow": rocketGlow(shipSkin.id),
-                } as CSSProperties
-              }
-            >
-              {vehiclePreviewSvg(shipSkin.id)}
-            </svg>
+            <RocketShipArtwork
+              id={shipSkin.id}
+              className={animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft}
+              style={{ "--rocket-accent": shipSkin.preview } as CSSProperties}
+            />
           </div>
           <div className={styles.rocketMetrics}>
             <span>Cible</span>
@@ -9115,49 +10019,72 @@ function formatRouletteColor(color: RouletteOutcome["color"]): string {
 
 type BlackjackSkinImages = {
   back: string;
-  face: string;
+  art: string;
 };
+
+const ROCKET_SHIP_ATLAS_IMAGE = new URL("./assets/rocket/rocket-ships-atlas.png", import.meta.url).href;
+const SPECIAL_CHEST_ATLAS_IMAGE = new URL("./assets/chests/special-chests-atlas.png", import.meta.url).href;
 
 const BLACKJACK_SKIN_IMAGES: Record<string, BlackjackSkinImages> = {
   "cards-aqua": {
     back: new URL("./assets/blackjack/cards-aqua-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-aqua-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-aqua-art.png", import.meta.url).href,
   },
   "cards-club": {
     back: new URL("./assets/blackjack/cards-club-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-club-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-club-art.png", import.meta.url).href,
   },
   "cards-emerald": {
     back: new URL("./assets/blackjack/cards-emerald-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-emerald-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-emerald-art.png", import.meta.url).href,
   },
   "cards-linen": {
     back: new URL("./assets/blackjack/cards-linen-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-linen-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-linen-art.png", import.meta.url).href,
   },
   "cards-midnight": {
     back: new URL("./assets/blackjack/cards-midnight-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-midnight-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-midnight-art.png", import.meta.url).href,
   },
   "cards-obsidian": {
     back: new URL("./assets/blackjack/cards-obsidian-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-obsidian-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-obsidian-art.png", import.meta.url).href,
   },
   "cards-royal": {
     back: new URL("./assets/blackjack/cards-royal-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-royal-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-royal-art.png", import.meta.url).href,
   },
   "cards-ruby": {
     back: new URL("./assets/blackjack/cards-ruby-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-ruby-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-ruby-art.png", import.meta.url).href,
   },
   "cards-silver": {
     back: new URL("./assets/blackjack/cards-silver-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-silver-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-silver-art.png", import.meta.url).href,
   },
   "cards-sunset": {
     back: new URL("./assets/blackjack/cards-sunset-back.png", import.meta.url).href,
-    face: new URL("./assets/blackjack/cards-sunset-face.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-sunset-art.png", import.meta.url).href,
+  },
+  "cards-joker-neon": {
+    back: new URL("./assets/blackjack/cards-joker-neon-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-joker-neon-art.png", import.meta.url).href,
+  },
+  "cards-crown-night": {
+    back: new URL("./assets/blackjack/cards-crown-night-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-crown-night-art.png", import.meta.url).href,
+  },
+  "cards-gilded-mask": {
+    back: new URL("./assets/blackjack/cards-gilded-mask-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-gilded-mask-art.png", import.meta.url).href,
+  },
+  "cards-ace-vault": {
+    back: new URL("./assets/blackjack/cards-ace-vault-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-ace-vault-art.png", import.meta.url).href,
+  },
+  "cards-joker-gold": {
+    back: new URL("./assets/blackjack/cards-joker-gold-back.png", import.meta.url).href,
+    art: new URL("./assets/blackjack/art/cards-joker-gold-art.png", import.meta.url).href,
   },
 };
 
@@ -9165,16 +10092,81 @@ function blackjackSkinImages(id: string): BlackjackSkinImages | undefined {
   return BLACKJACK_SKIN_IMAGES[id];
 }
 
+function ShopAtlasSprite({
+  image,
+  cell,
+  columns,
+  rows,
+  className = "",
+  style,
+}: {
+  image: string;
+  cell: AtlasCell;
+  columns: number;
+  rows: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const spriteStyle = {
+    ...style,
+    "--shop-atlas-image-width": `${columns * 100}%`,
+    "--shop-atlas-image-height": `${rows * 100}%`,
+    "--shop-atlas-translate-x": cell.translateX,
+    "--shop-atlas-translate-y": cell.translateY,
+  } as CSSProperties;
+
+  return (
+    <span className={`${styles.shopAtlasSprite} ${className}`} style={spriteStyle} aria-hidden="true">
+      <img className={styles.shopAtlasSpriteImage} src={image} alt="" draggable={false} />
+    </span>
+  );
+}
+
+function RocketShipArtwork({
+  id,
+  className = "",
+  large = false,
+  style,
+}: {
+  id: string;
+  className?: string;
+  large?: boolean;
+  style?: CSSProperties;
+}) {
+  const cell = getRocketShipArtCell(id);
+
+  if (!cell) {
+    return null;
+  }
+
+  return (
+    <ShopAtlasSprite
+      image={ROCKET_SHIP_ATLAS_IMAGE}
+      cell={cell}
+      columns={ROCKET_SHIP_ATLAS_COLUMNS}
+      rows={ROCKET_SHIP_ATLAS_ROWS}
+      className={`${styles.rocketShipSprite} ${large ? styles.rocketShipSpriteLarge : ""} ${className}`}
+      style={{ ...style, "--rocket-glow": rocketGlow(id) } as CSSProperties}
+    />
+  );
+}
+
+function SpecialChestArtwork({ chestId }: { chestId: SpecialChestId }) {
+  return (
+    <ShopAtlasSprite
+      image={SPECIAL_CHEST_ATLAS_IMAGE}
+      cell={getSpecialChestArtCell(chestId)}
+      columns={SPECIAL_CHEST_ATLAS_COLUMNS}
+      rows={SPECIAL_CHEST_ATLAS_ROWS}
+      className={styles.specialChestImage}
+    />
+  );
+}
+
 function blackjackSkinImageStyle(id: string): CSSProperties {
   const image = blackjackSkinImages(id)?.back;
 
   return image ? ({ "--blackjack-skin-image": `url(${image})` } as CSSProperties) : {};
-}
-
-function blackjackFaceImageStyle(id: string): CSSProperties {
-  const image = blackjackSkinImages(id)?.face;
-
-  return image ? ({ "--blackjack-face-image": `url(${image})` } as CSSProperties) : {};
 }
 
 function cardBackClass(id: string): string {
@@ -9333,33 +10325,29 @@ function ballGlow(id: string): string {
   return "rgba(249, 247, 239, 0.75)";
 }
 
-function rocketShipClass(id: string): string {
-  if (id === "rocket-comet") {
-    return styles.rocketComet;
-  }
-
-  if (id === "rocket-solar") {
-    return styles.rocketSolar;
-  }
-
-  if (id === "rocket-nebula") {
-    return styles.rocketNebula;
-  }
-
-  return styles.rocketClassic;
-}
-
 function rocketGlow(id: string): string {
-  if (id === "rocket-comet") {
+  if (id === "rocket-comet" || id === "rocket-ion-wing" || id === "rocket-blackbird") {
     return "rgba(124, 199, 255, 0.88)";
   }
 
-  if (id === "rocket-solar") {
-    return "rgba(174, 230, 255, 0.86)";
+  if (id === "rocket-solar" || id === "rocket-starlancer") {
+    return "rgba(255, 209, 102, 0.88)";
   }
 
-  if (id === "rocket-nebula") {
+  if (id === "rocket-nebula" || id === "rocket-eclipse") {
     return "rgba(249, 247, 239, 0.92)";
+  }
+
+  if (id === "rocket-capsule-v" || id === "rocket-orbital-x") {
+    return "rgba(121, 226, 159, 0.9)";
+  }
+
+  if (id === "rocket-redcap") {
+    return "rgba(255, 107, 107, 0.86)";
+  }
+
+  if (id === "rocket-cargo") {
+    return "rgba(255, 209, 102, 0.82)";
   }
 
   return "rgba(249, 247, 239, 0.72)";
@@ -9385,7 +10373,7 @@ function SkinPreview({ item, large = false, showCardFace = false }: { item: Shop
         >
           {showCardFace ? (
             <>
-              <img src={images.face} alt="" />
+              <ThemedBlackjackCard card={{ rank: "K", suit: "♠" }} skinId={item.id} preview />
               <img src={images.back} alt="" />
             </>
           ) : (
@@ -9419,20 +10407,12 @@ function SkinPreview({ item, large = false, showCardFace = false }: { item: Shop
   }
 
   if (item.category === "rocketShip") {
-    return (
-      <svg
-        className={large ? styles.vehicleSvgLarge : styles.vehicleSvgSmall}
-        viewBox="0 0 120 86"
-        style={{ "--rocket-glow": rocketGlow(item.id) } as CSSProperties}
-        aria-hidden="true"
-      >
-        {vehiclePreviewSvg(item.id)}
-      </svg>
-    );
+    return <RocketShipArtwork id={item.id} large={large} />;
   }
 
-  if (item.category === "plinkoBall") {
-    const imageSource = getPlinkoBallImageSource(item.id);
+  if (item.category === "plinkoBall" || item.category === "rouletteBall") {
+    const imageSource =
+      item.category === "plinkoBall" ? getPlinkoBallImageSource(item.id) : getRouletteBallImageSource(item.id);
 
     if (imageSource) {
       return (
@@ -9506,148 +10486,6 @@ function ballSkinClass(id: string): string {
   }
 
   return styles.ballGold;
-}
-
-function vehiclePreviewSvg(id: string): ReactNode {
-  if (id === "rocket-scout") {
-    return (
-      <g>
-        <path d="M60 12 C72 26 73 51 64 68 H56 C47 51 48 26 60 12Z" fill="#d8e2e8" />
-        <path d="M50 52 L24 66 L52 68Z" fill="#7c8b97" />
-        <path d="M70 52 L96 66 L68 68Z" fill="#7c8b97" />
-        <circle cx="60" cy="34" r="7" fill="#8fd3ff" />
-        <path d="M55 68 L60 82 L65 68Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-cargo") {
-    return (
-      <g>
-        <rect x="42" y="20" width="36" height="48" rx="10" fill="#bfa36f" />
-        <path d="M42 32 L20 58 L42 58Z" fill="#8e7750" />
-        <path d="M78 32 L100 58 L78 58Z" fill="#8e7750" />
-        <rect x="49" y="32" width="22" height="12" rx="4" fill="#243142" />
-        <path d="M48 68 L60 84 L72 68Z" fill="#ff9b42" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-redcap") {
-    return (
-      <g>
-        <path d="M60 6 L72 26 H48Z" fill="#ff6b6b" />
-        <path d="M49 25 H71 L66 72 H54Z" fill="#f7fbff" />
-        <path d="M48 55 L22 78 L52 70Z" fill="#cf3d3d" />
-        <path d="M72 55 L98 78 L68 70Z" fill="#cf3d3d" />
-        <circle cx="60" cy="40" r="8" fill="#aee6ff" />
-        <path d="M54 72 L60 86 L66 72Z" fill="#ffb347" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-delta") {
-    return (
-      <g>
-        <path d="M60 7 L103 70 L60 58 L17 70Z" fill="#5eb8f1" />
-        <path d="M60 7 L70 70 H50Z" fill="#d7f4ff" opacity="0.8" />
-        <path d="M53 40 H67 V51 H53Z" fill="#101218" />
-        <path d="M55 62 L60 84 L65 62Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-falcon") {
-    return (
-      <g>
-        <path d="M60 8 C78 20 88 52 106 64 C83 66 70 57 60 44 C50 57 37 66 14 64 C32 52 42 20 60 8Z" fill="#d5ddd9" />
-        <path d="M52 32 H68 L64 70 H56Z" fill="#4d596b" />
-        <ellipse cx="60" cy="30" rx="10" ry="6" fill="#8fd3ff" />
-        <path d="M55 70 L60 86 L65 70Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-eclipse") {
-    return (
-      <g>
-        <path d="M60 6 L94 62 L66 54 L60 78 L54 54 L26 62Z" fill="#252b35" />
-        <path d="M60 14 L70 54 H50Z" fill="#3b4a6b" />
-        <circle cx="60" cy="34" r="7" fill="#7cc7ff" />
-        <path d="M52 72 L60 86 L68 72Z" fill="#7cc7ff" />
-      </g>
-    );
-  }
-
-  if (id.includes("ion") || id.includes("starlancer") || id.includes("blackbird") || id.includes("capsule") || id.includes("orbital")) {
-    return (
-      <g>
-        <path d="M60 5 C82 24 86 57 72 78 H48 C34 57 38 24 60 5Z" fill={id.includes("blackbird") ? "#252b35" : id.includes("starlancer") ? "#ffd166" : "#dff7ff"} />
-        <path d="M38 50 L6 74 L45 68Z" fill={id.includes("capsule") ? "#79e29f" : "#5eb8f1"} />
-        <path d="M82 50 L114 74 L75 68Z" fill={id.includes("capsule") ? "#79e29f" : "#5eb8f1"} />
-        <ellipse cx="60" cy="34" rx="10" ry="8" fill="#101218" />
-        <ellipse cx="60" cy="34" rx="5" ry="4" fill="#aeefff" />
-        <path d="M53 76 L60 86 L67 76Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-comet") {
-    return (
-      <g>
-        <ellipse cx="60" cy="52" rx="40" ry="15" fill="#2f8bd0" />
-        <ellipse cx="60" cy="48" rx="30" ry="11" fill="#76c8f6" />
-        <path d="M24 52 C36 38 84 38 96 52 C82 64 38 64 24 52Z" fill="#1f6da9" />
-        <ellipse cx="61" cy="31" rx="17" ry="13" fill="#bcecff" />
-        <ellipse cx="61" cy="29" rx="11" ry="8" fill="#e5fbff" opacity="0.75" />
-        <path d="M25 56 L10 66 L36 65Z" fill="#70d6ff" opacity="0.6" />
-        <path d="M95 56 L110 66 L84 65Z" fill="#70d6ff" opacity="0.6" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-solar") {
-    return (
-      <g>
-        <path d="M60 7 L75 58 L64 80 H56 L45 58Z" fill="#dfe6ec" />
-        <path d="M60 7 L64 80 H56Z" fill="#8b98a6" opacity="0.55" />
-        <path d="M46 44 L10 66 L50 65Z" fill="#586574" />
-        <path d="M74 44 L110 66 L70 65Z" fill="#586574" />
-        <path d="M51 61 L32 79 L54 75Z" fill="#3f4a56" />
-        <path d="M69 61 L88 79 L66 75Z" fill="#3f4a56" />
-        <rect x="52" y="30" width="16" height="12" rx="6" fill="#101218" />
-        <path d="M55 78 L60 86 L65 78Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  if (id === "rocket-nebula") {
-    return (
-      <g>
-        <path d="M60 5 C76 20 76 58 67 76 H53 C44 58 44 20 60 5Z" fill="#f7fbff" />
-        <path d="M53 16 H58 V74 H53Z" fill="#101218" />
-        <path d="M62 16 H67 V74 H62Z" fill="#101218" />
-        <circle cx="60" cy="34" r="9" fill="#101218" />
-        <circle cx="60" cy="34" r="5" fill="#d8f5ff" />
-        <path d="M53 68 L35 82 L52 79Z" fill="#101218" />
-        <path d="M67 68 L85 82 L68 79Z" fill="#101218" />
-        <path d="M54 78 L60 86 L66 78Z" fill="#ffd166" />
-      </g>
-    );
-  }
-
-  return (
-    <g>
-      <path d="M60 7 C76 25 77 54 66 72 H54 C43 54 44 25 60 7Z" fill="#fff4df" />
-      <path d="M60 7 C66 20 67 55 62 72 H54 C43 54 44 25 60 7Z" fill="#e8edf0" opacity="0.75" />
-      <path d="M51 56 L24 76 L51 74Z" fill="#e84745" />
-      <path d="M69 56 L96 76 L69 74Z" fill="#e84745" />
-      <circle cx="60" cy="34" r="9" fill="#aee6ff" />
-      <circle cx="57" cy="31" r="3" fill="#ffffff" opacity="0.8" />
-      <path d="M53 72 L60 86 L67 72Z" fill="#ff9b42" />
-      <path d="M48 19 L60 7 L72 19Z" fill="#ffd166" />
-    </g>
-  );
 }
 
 function rarityLabel(rarity: SkinRarity): string {
