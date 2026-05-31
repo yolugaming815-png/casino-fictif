@@ -940,6 +940,26 @@ const blackjackRules = [
   "Les autres probabilites varient avec la main, la carte visible du croupier et les cartes deja tirees.",
 ];
 
+type BlackjackDealerProfile = {
+  id: string;
+  name: string;
+  image: string;
+};
+
+const blackjackTableBackgroundImage = new URL("./assets/blackjack/table/jackpot-city-blackjack-table.jpg", import.meta.url).href;
+
+const BLACKJACK_DEALER_PROFILES = [
+  { id: "marius", name: "Marius", image: new URL("./assets/blackjack/dealers/dealer-marius.jpg", import.meta.url).href },
+  { id: "isla", name: "Isla", image: new URL("./assets/blackjack/dealers/dealer-isla.jpg", import.meta.url).href },
+  { id: "malik", name: "Malik", image: new URL("./assets/blackjack/dealers/dealer-malik.jpg", import.meta.url).href },
+  { id: "mei", name: "Mei", image: new URL("./assets/blackjack/dealers/dealer-mei.jpg", import.meta.url).href },
+  { id: "arjun", name: "Arjun", image: new URL("./assets/blackjack/dealers/dealer-arjun.jpg", import.meta.url).href },
+] as const satisfies readonly BlackjackDealerProfile[];
+
+function getRandomBlackjackDealerProfile(): BlackjackDealerProfile {
+  return BLACKJACK_DEALER_PROFILES[Math.floor(Math.random() * BLACKJACK_DEALER_PROFILES.length)] ?? BLACKJACK_DEALER_PROFILES[0]!;
+}
+
 const rouletteBetOptions: Array<{ label: string; value: RouletteBetKind }> = [
   { label: "Numero plein", value: "straight" },
   { label: "Rouge", value: "red" },
@@ -1540,6 +1560,7 @@ function App() {
   const [blackjackMessage, setBlackjackMessage] = useState("Choisis une mise virtuelle pour commencer.");
   const [blackjackHistory, setBlackjackHistory] = useState<BlackjackHistoryItem[]>(savedGame?.blackjackHistory ?? []);
   const [hasPlayerAction, setHasPlayerAction] = useState(false);
+  const [blackjackDealerProfile] = useState(getRandomBlackjackDealerProfile);
 
   const [plinkoBet, setPlinkoBet] = useState<Bet>(25);
   const [plinkoRows, setPlinkoRows] = useState<PlinkoRows>(10);
@@ -4590,11 +4611,15 @@ function App() {
             canDeal={blackjackBetAvailable}
             canDouble={canDouble}
             dealerHand={dealerHand}
+            dealerProfile={blackjackDealerProfile}
             history={blackjackHistory}
             message={blackjackMessage}
             paused={paused}
             phase={blackjackPhase}
             playerHand={playerHand}
+            playerAvatarSeed={accountUser?.uid || accountUser?.email || accountUser?.displayName || "joueur"}
+            playerName={accountUser?.displayName || "Joueur"}
+            playerPhotoURL={accountUser?.photoURL}
             cardBackSkin={equippedItems.cardBack}
             onBetChange={setBlackjackBet}
             onDeal={startBlackjackHand}
@@ -7513,11 +7538,15 @@ function BlackjackGame({
   canDeal,
   canDouble,
   dealerHand,
+  dealerProfile,
   history,
   message,
   paused,
   phase,
   playerHand,
+  playerAvatarSeed,
+  playerName,
+  playerPhotoURL,
   cardBackSkin,
   onBetChange,
   onDeal,
@@ -7530,11 +7559,15 @@ function BlackjackGame({
   canDeal: boolean;
   canDouble: boolean;
   dealerHand: Card[];
+  dealerProfile: BlackjackDealerProfile;
   history: BlackjackHistoryItem[];
   message: string;
   paused: boolean;
   phase: BlackjackPhase;
   playerHand: Card[];
+  playerAvatarSeed: string;
+  playerName: string;
+  playerPhotoURL?: string | null;
   cardBackSkin: ShopItem;
   onBetChange: (bet: Bet) => void;
   onDeal: () => void;
@@ -7546,17 +7579,32 @@ function BlackjackGame({
 
   return (
     <>
-      <section className={styles.machine}>
+      <section className={`${styles.machine} ${styles.blackjackMachine}`} style={{ "--blackjack-table-bg": `url(${blackjackTableBackgroundImage})` } as CSSProperties}>
         <div className={styles.blackjackTable}>
           <CardHand
-            title="Croupier"
+            avatar={
+              <span className={`${styles.blackjackSeatAvatar} ${styles.blackjackDealerAvatar}`}>
+                <img alt="" src={dealerProfile.image} />
+              </span>
+            }
+            subtitle="Croupier"
+            title={dealerProfile.name}
             cards={dealerHand}
             cardBackSkin={cardBackSkin}
             hiddenSecondCard={!revealDealer && dealerHand.length > 0}
             value={revealDealer ? handValue(dealerHand) : undefined}
           />
           <CardHand
-            title="Joueur"
+            avatar={
+              <ProfileAvatar
+                avatarSeed={playerAvatarSeed}
+                className={`${styles.blackjackSeatAvatar} ${styles.blackjackPlayerAvatar}`}
+                displayName={playerName}
+                photoURL={playerPhotoURL}
+              />
+            }
+            subtitle="Joueur"
+            title={playerName}
             cards={playerHand}
             cardBackSkin={cardBackSkin}
             value={playerHand.length ? handValue(playerHand) : undefined}
@@ -7632,12 +7680,16 @@ function BlackjackGame({
 }
 
 function CardHand({
+  avatar,
+  subtitle,
   title,
   cards,
   cardBackSkin,
   hiddenSecondCard = false,
   value,
 }: {
+  avatar: ReactNode;
+  subtitle: string;
   title: string;
   cards: Card[];
   cardBackSkin: ShopItem;
@@ -7647,8 +7699,12 @@ function CardHand({
   return (
     <div className={styles.hand}>
       <div className={styles.handHeader}>
-        <h2>{title}</h2>
-        <span>{value ? `${value}` : "-"}</span>
+        {avatar}
+        <div className={styles.handIdentity}>
+          <span>{subtitle}</span>
+          <h2>{title}</h2>
+        </div>
+        <span className={styles.handValue}>{value !== undefined ? `${value}` : "-"}</span>
       </div>
       <div className={styles.cards}>
         {cards.length === 0 ? (
