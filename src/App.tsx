@@ -8501,12 +8501,18 @@ function AnimatedMedia({
   style?: CSSProperties;
 }) {
   const asset = getAnimationAsset(assetId);
+  const videoDisabled = useMediaQuery("(hover: none), (pointer: coarse), (max-width: 640px)");
+  const shouldUseVideo = Boolean(asset && !videoDisabled);
   const mediaRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isVideoActive, setIsVideoActive] = useState(asset?.trigger === "slow-loop");
+  const [isVideoActive, setIsVideoActive] = useState(false);
 
   useEffect(() => {
-    if (asset?.trigger !== "hover") {
+    setIsVideoActive(shouldUseVideo && asset?.trigger === "slow-loop");
+  }, [asset?.trigger, shouldUseVideo]);
+
+  useEffect(() => {
+    if (!shouldUseVideo || asset?.trigger !== "hover") {
       return undefined;
     }
 
@@ -8551,14 +8557,14 @@ function AnimatedMedia({
       target.removeEventListener("pointerenter", play);
       target.removeEventListener("pointerleave", pause);
     };
-  }, [assetId, asset?.trigger]);
+  }, [assetId, asset?.trigger, shouldUseVideo]);
 
   if (!asset) {
     return null;
   }
 
   const playVideo = () => {
-    if (asset.trigger !== "hover") {
+    if (!shouldUseVideo || asset.trigger !== "hover") {
       return;
     }
 
@@ -8575,7 +8581,7 @@ function AnimatedMedia({
   };
 
   const pauseVideo = () => {
-    if (asset.trigger !== "hover") {
+    if (!shouldUseVideo || asset.trigger !== "hover") {
       return;
     }
 
@@ -8613,18 +8619,20 @@ function AnimatedMedia({
         loading={asset.id === "hero-duel-16x9" ? "eager" : "lazy"}
         src={asset.image}
       />
-      <video
-        ref={videoRef}
-        aria-hidden="true"
-        autoPlay={asset.trigger === "slow-loop"}
-        className={styles.animatedMediaVideo}
-        loop
-        muted
-        playsInline
-        poster={asset.image}
-        preload={asset.trigger === "slow-loop" ? "auto" : "metadata"}
-        src={asset.video}
-      />
+      {shouldUseVideo ? (
+        <video
+          ref={videoRef}
+          aria-hidden="true"
+          autoPlay={asset.trigger === "slow-loop"}
+          className={styles.animatedMediaVideo}
+          loop
+          muted
+          playsInline
+          poster={asset.image}
+          preload={asset.trigger === "slow-loop" ? "auto" : "metadata"}
+          src={asset.video}
+        />
+      ) : null}
       {children}
     </div>
   );

@@ -30,6 +30,7 @@ describe("animation asset registry", () => {
       assert.ok(asset.placement.length > 0);
       assert.ok(asset.title.length > 0);
       assert.match(asset.image, /\.png$/);
+      assert.match(asset.video, /\.mp4$/);
       assert.ok(asset.trigger === "hover" || asset.trigger === "slow-loop");
     }
   });
