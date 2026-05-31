@@ -10,6 +10,7 @@ import fullHouseRoyaleSource from "./assets/audio/playlist/full-house-royale.wav
 import vegasCasinoNightsSource from "./assets/audio/playlist/vegas-casino-nights.wav";
 import vegasNeonJackpotSource from "./assets/audio/playlist/vegas-neon-jackpot.wav";
 import jackpotCityHeaderBackground from "./assets/visuals/jackpot-city-header-bg.png";
+import jackpotCityHeaderVideo from "./assets/videos/jackpot-city-header.mp4";
 import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
 import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
 import { SLOT_RESULT_ASSETS, SLOT_SYMBOL_ASSETS, type SlotResultAssetId } from "./slotAssets";
@@ -4053,6 +4054,16 @@ function App() {
             } as CSSProperties
           }
         >
+          <video
+            aria-hidden="true"
+            autoPlay
+            className={styles.headerVideo}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            src={jackpotCityHeaderVideo}
+          />
           <div className={styles.brandBlock}>
             <h1>Jackpot City</h1>
             <p className={styles.disclaimer}>Casino virtuel</p>
