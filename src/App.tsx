@@ -8867,9 +8867,13 @@ function CaseOpeningGame({
   const selectedCaseCost = priceOverrides.cases[selectedCase] ?? selectedDefinition.cost;
   const selectedItems = sortSkinsByRarity(SHOP_ITEMS.filter((item) => item.category === selectedCase && item.source !== "special"));
   const canOpen = balance >= selectedCaseCost && !opening && !paused;
+  const openingCategory = reelItems[CASE_REEL_WINNER_INDEX]?.category ?? selectedCase;
+  const openingTitle = lastDrop?.caseTitle ?? selectedDefinition.title;
 
   return (
     <>
+      {opening ? <CaseOpeningModal category={openingCategory} openingPhase={openingPhase} reelItems={reelItems} title={openingTitle} /> : null}
+
       <section className={styles.machine}>
         <div className={styles.shopHeader}>
           <div>
@@ -8928,31 +8932,7 @@ function CaseOpeningGame({
             </div>
 
             <div className={`${styles.casePanelInfo} ${styles.caseRewardSection} ${caseThemeClass(selectedCase)}`}>
-              {opening && openingPhase === "box" ? (
-                <div className={styles.caseInlineStatus}>
-                  <small>{selectedDefinition.title}</small>
-                  <strong>Ouverture en cours</strong>
-                  <span>Le coffre s'ouvre, le tirage arrive juste apres.</span>
-                </div>
-              ) : opening ? (
-                <div className={styles.caseInlineReel}>
-                  <div className={styles.caseReelWindow}>
-                    <div className={styles.caseReelMarker} />
-                    <div
-                      className={`${styles.caseReelTrack} ${styles.caseReelTrackRolling}`}
-                      style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
-                    >
-                      {reelItems.map((item, index) => (
-                        <article className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]}`} key={`${item.id}-${index}`}>
-                          <SkinPreview item={item} />
-                          <strong>{item.name}</strong>
-                          <small>{rarityLabel(item.rarity)}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : lastDrop ? (
+              {lastDrop ? (
                 <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
                   <SkinPreview item={lastDrop.item} large />
                   <div>
@@ -9072,6 +9052,58 @@ function CaseOpeningGame({
         {history.length === 0 && <p className={styles.empty}>Aucune caisse ouverte pour le moment.</p>}
       </section>
     </>
+  );
+}
+
+function CaseOpeningModal({
+  category,
+  openingPhase,
+  reelItems,
+  title,
+}: {
+  category: SkinCategory;
+  openingPhase: "box" | "reel";
+  reelItems: ShopItem[];
+  title: string;
+}) {
+  return (
+    <div className={styles.caseModalOverlay} role="dialog" aria-modal="true" aria-label="Ouverture de coffre">
+      <div className={`${styles.caseModalPanel} ${caseThemeClass(category)}`}>
+        <div className={styles.caseModalHeader}>
+          <small>{title}</small>
+          <strong>{openingPhase === "box" ? "Ouverture en cours" : "Tirage du skin"}</strong>
+        </div>
+
+        {openingPhase === "box" ? (
+          <div className={styles.caseModalStage}>
+            <span className={styles.caseStageAura} aria-hidden="true" />
+            <CaseOpeningMedia category={category} opening />
+          </div>
+        ) : (
+          <div className={styles.caseModalReel}>
+            <div className={styles.caseReelWindow}>
+              <div className={styles.caseReelMarker} />
+              <div
+                className={`${styles.caseReelTrack} ${styles.caseReelTrackRolling}`}
+                style={{ "--case-reel-end": `${-CASE_REEL_WINNER_INDEX * 124}px` } as CSSProperties}
+              >
+                {reelItems.map((item, index) => (
+                  <article className={`${styles.caseReelItem} ${styles[`rarity-${item.rarity}`]}`} key={`${item.id}-${index}`}>
+                    <SkinPreview item={item} />
+                    <strong>{item.name}</strong>
+                    <small>{rarityLabel(item.rarity)}</small>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button className={styles.primaryButton} type="button" disabled>
+          Ouverture...
+        </button>
+      </div>
+    </div>
   );
 }
 
