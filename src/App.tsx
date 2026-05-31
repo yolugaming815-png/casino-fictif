@@ -8458,14 +8458,41 @@ function AnimatedMedia({
   );
 }
 
+const HERO_TITLE_LINES = [
+  [
+    { id: "play", label: "Joue." },
+    { id: "challenge", label: "Defie." },
+  ],
+  [
+    { id: "become", label: "Deviens" },
+    { id: "one", label: "une" },
+    { id: "legend", label: "legende." },
+  ],
+];
+
 function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournaments: () => void }) {
+  const [flamingHeroWord, setFlamingHeroWord] = useState<string | null>(null);
+
   return (
     <section className={styles.lobbyHero}>
       <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium" />
       <div className={styles.heroContent}>
-        <h2>
-          Joue. Defie.
-          <span>Deviens une legende.</span>
+        <h2 className={styles.heroTitle} aria-label="Joue. Defie. Deviens une legende.">
+          {HERO_TITLE_LINES.map((line, lineIndex) => (
+            <span className={styles.heroTitleLine} aria-hidden="true" key={`hero-title-line-${lineIndex}`}>
+              {line.map((word) => (
+                <span
+                  className={`${styles.heroFlameWord} ${flamingHeroWord === word.id ? styles.heroFlameWordActive : ""}`}
+                  data-flame-word={word.id}
+                  key={word.id}
+                  onPointerEnter={() => setFlamingHeroWord(word.id)}
+                  onPointerLeave={() => setFlamingHeroWord(null)}
+                >
+                  {word.label}
+                </span>
+              ))}
+            </span>
+          ))}
         </h2>
         <p>Affronte tes amis, grimpe au classement et debloque des skins.</p>
         <div className={styles.heroActions}>

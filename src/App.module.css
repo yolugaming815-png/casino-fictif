@@ -2516,7 +2516,7 @@
   text-align: left;
 }
 
-.heroContent h2 {
+.heroTitle {
   margin: 0;
   color: #fff;
   font-size: clamp(2.4rem, 5.4vw, 5.2rem);
@@ -2527,9 +2527,93 @@
   text-shadow: 0 8px 28px rgba(0, 0, 0, 0.48);
 }
 
-.heroContent h2 span {
+.heroTitleLine {
   display: block;
+}
+
+.heroTitleLine .heroFlameWord + .heroFlameWord {
+  margin-left: 0.18em;
+}
+
+.heroTitleLine:nth-child(2) {
   color: #ffd166;
+}
+
+.heroFlameWord {
+  position: relative;
+  display: inline-block;
+  z-index: 0;
+  color: inherit;
+  transition:
+    color 180ms ease,
+    filter 180ms ease,
+    text-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.heroFlameWord::before,
+.heroFlameWord::after {
+  content: "";
+  position: absolute;
+  left: -0.08em;
+  right: -0.08em;
+  bottom: -0.04em;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(0.14em) scaleY(0.7);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.heroFlameWord::before {
+  top: -0.2em;
+  background:
+    radial-gradient(ellipse at 18% 96%, rgba(255, 240, 156, 0.9) 0 10%, transparent 28%),
+    radial-gradient(ellipse at 38% 92%, rgba(255, 119, 23, 0.92) 0 13%, transparent 34%),
+    radial-gradient(ellipse at 62% 96%, rgba(255, 205, 74, 0.95) 0 11%, transparent 31%),
+    radial-gradient(ellipse at 84% 91%, rgba(255, 67, 31, 0.9) 0 12%, transparent 32%);
+  filter: blur(0.025em);
+  mix-blend-mode: screen;
+}
+
+.heroFlameWord::after {
+  top: 0.42em;
+  background: linear-gradient(180deg, rgba(255, 236, 150, 0.68), rgba(255, 98, 18, 0.2) 46%, transparent 80%);
+  filter: blur(0.12em);
+}
+
+.heroFlameWord:hover,
+.heroFlameWordActive {
+  background: linear-gradient(180deg, #fff9bd 0%, #ffd166 36%, #ff8126 68%, #e32612 100%);
+  background-clip: text;
+  color: #fff4a8;
+  filter: saturate(1.3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow:
+    0 -0.05em 0.16em rgba(255, 246, 164, 0.8),
+    0 0.06em 0.18em rgba(255, 104, 18, 0.82),
+    0 0.22em 0.36em rgba(255, 34, 0, 0.72);
+  transform: translateY(-0.03em);
+  animation: heroFlameFlicker 620ms steps(2, end) infinite;
+}
+
+.heroFlameWord:hover::before,
+.heroFlameWord:hover::after,
+.heroFlameWordActive::before,
+.heroFlameWordActive::after {
+  opacity: 1;
+  transform: translateY(-0.08em) scaleY(1);
+  animation: heroFlameRise 520ms ease-in-out infinite alternate;
+}
+
+.heroFlameWord:hover::after,
+.heroFlameWordActive::after {
+  opacity: 0.82;
+  animation-duration: 760ms;
 }
 
 .heroContent > p {
@@ -2545,6 +2629,27 @@
   flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-start;
+}
+
+@keyframes heroFlameFlicker {
+  0%,
+  100% {
+    filter: saturate(1.28) brightness(1);
+  }
+
+  50% {
+    filter: saturate(1.5) brightness(1.08);
+  }
+}
+
+@keyframes heroFlameRise {
+  0% {
+    transform: translateY(-0.02em) scaleY(0.86);
+  }
+
+  100% {
+    transform: translateY(-0.14em) scaleY(1.08);
+  }
 }
 
 .lobby .primaryButton {
