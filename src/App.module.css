@@ -154,10 +154,12 @@
 }
 
 .accountTools {
-  display: grid;
-  gap: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-content: center;
-  justify-items: end;
+  align-items: center;
+  justify-content: flex-end;
   min-width: 0;
 }
 
@@ -2139,7 +2141,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 248px;
+  width: 224px;
 }
 
 .modeTabs button {
@@ -2161,6 +2163,22 @@
   padding: 0 12px;
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.modeTabs button:not(.menuProfile):hover,
+.modeTabs button:not(.menuProfile):focus-visible,
+.subTabs button:hover,
+.subTabs button:focus-visible {
+  border-color: rgba(168, 89, 255, 0.68);
+  background:
+    linear-gradient(90deg, rgba(143, 57, 255, 0.48), rgba(168, 89, 255, 0.18)),
+    rgba(17, 13, 36, 0.86);
+  color: #fff;
+  outline: 2px solid rgba(168, 89, 255, 0.24);
+  box-shadow:
+    0 0 0 1px rgba(168, 89, 255, 0.18),
+    0 12px 34px rgba(67, 28, 135, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .subTabs button {
@@ -2316,11 +2334,36 @@
 }
 
 .tabLabel {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    color 180ms ease,
+    text-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+.tabLabel::after {
+  content: "";
+  position: absolute;
+  left: -0.16em;
+  right: -0.16em;
+  bottom: -0.14em;
+  z-index: -1;
+  height: 0.72em;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 86%, rgba(255, 227, 156, 0.52), rgba(255, 129, 45, 0.38) 34%, transparent 68%),
+    linear-gradient(0deg, rgba(255, 100, 34, 0.48), rgba(190, 28, 16, 0.24), transparent);
+  filter: blur(5px) saturate(1.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.12em) scaleY(0.62);
 }
 
 .tabChevron {
@@ -2370,6 +2413,101 @@
 
 .modeTabs .activeTab .tabChevron {
   color: #101218;
+}
+
+.modeTabs button:not(.menuProfile):hover .tabIcon,
+.modeTabs button:not(.menuProfile):focus-visible .tabIcon,
+.subTabs button:hover .tabIcon,
+.subTabs button:focus-visible .tabIcon {
+  color: #f7f0ff;
+  border-color: rgba(213, 169, 255, 0.72);
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.34), transparent 36%),
+    rgba(132, 63, 226, 0.42);
+  animation: navIconWiggle 520ms ease-in-out both;
+}
+
+.modeTabs button:not(.menuProfile):hover .tabLabel,
+.modeTabs button:not(.menuProfile):focus-visible .tabLabel,
+.subTabs button:hover .tabLabel,
+.subTabs button:focus-visible .tabLabel {
+  color: #ff7a2f;
+  background: linear-gradient(180deg, #cf2719 0%, #ff722f 28%, #ffe2a3 50%, #ff9a37 72%, #ff6425 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow:
+    0 0 2px rgba(255, 218, 154, 0.62),
+    0 0 12px rgba(255, 113, 43, 0.5),
+    0 0 25px rgba(194, 30, 15, 0.28);
+  animation: navFlameText 900ms ease-in-out infinite alternate;
+}
+
+.modeTabs button:not(.menuProfile):hover .tabLabel::after,
+.modeTabs button:not(.menuProfile):focus-visible .tabLabel::after,
+.subTabs button:hover .tabLabel::after,
+.subTabs button:focus-visible .tabLabel::after {
+  opacity: 0.68;
+  transform: translateY(-0.02em) scaleY(1);
+  animation: navFlameAura 740ms ease-in-out infinite alternate;
+}
+
+.modeTabs button:not(.menuProfile):hover .tabChevron,
+.modeTabs button:not(.menuProfile):focus-visible .tabChevron,
+.subTabs button:hover .tabChevron,
+.subTabs button:focus-visible .tabChevron {
+  color: #d5a9ff;
+}
+
+.modeTabs button:not(.menuProfile):hover .tabBadge,
+.modeTabs button:not(.menuProfile):focus-visible .tabBadge,
+.subTabs button:hover .tabBadge,
+.subTabs button:focus-visible .tabBadge {
+  background: #d5a9ff;
+  color: #160b2e;
+}
+
+@keyframes navIconWiggle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+
+  22% {
+    transform: rotate(-8deg) scale(1.06);
+  }
+
+  46% {
+    transform: rotate(7deg) scale(1.05);
+  }
+
+  70% {
+    transform: rotate(-4deg) scale(1.03);
+  }
+}
+
+@keyframes navFlameText {
+  from {
+    background-position: 50% 0%;
+    filter: brightness(1.02) saturate(1.08);
+  }
+
+  to {
+    background-position: 50% 100%;
+    filter: brightness(0.96) saturate(1.28);
+  }
+}
+
+@keyframes navFlameAura {
+  from {
+    filter: blur(4px) saturate(1.08) brightness(1.06);
+    transform: translateY(0) scaleY(0.9) skewX(-1deg);
+  }
+
+  to {
+    filter: blur(6px) saturate(1.28) brightness(0.92);
+    transform: translateY(-0.08em) scaleY(1.08) skewX(1deg);
+  }
 }
 
 .mobileMenuButton,
@@ -2449,15 +2587,22 @@
   gap: 18px;
   align-items: stretch;
   min-width: 0;
+  position: relative;
 }
 
 .lobbySideColumn {
   display: grid;
   gap: 16px;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
   min-width: 0;
+  z-index: 3;
 }
 
 .lobbyTop .lobbyHero {
+  grid-column: 1 / -1;
+  grid-row: 1;
   height: 100%;
 }
 
@@ -2524,8 +2669,8 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(5, 6, 18, 0.94), rgba(5, 6, 18, 0.54) 44%, rgba(5, 6, 18, 0.18)),
-    linear-gradient(180deg, rgba(5, 6, 18, 0.08), rgba(5, 6, 18, 0.72));
+    linear-gradient(90deg, rgba(5, 6, 18, 0.92), rgba(5, 6, 18, 0.5) 34%, rgba(5, 6, 18, 0.16) 68%, rgba(5, 6, 18, 0.32)),
+    linear-gradient(180deg, rgba(5, 6, 18, 0.06), rgba(5, 6, 18, 0.68));
 }
 
 .heroContent {
@@ -2949,6 +3094,18 @@
   padding: 16px;
 }
 
+.lobbySideColumn .lobbyLeaderboard,
+.lobbySideColumn .lobbySocialFeed {
+  border-color: rgba(168, 89, 255, 0.36);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.048), rgba(255, 255, 255, 0.012)),
+    rgba(8, 10, 24, 0.5);
+  box-shadow:
+    0 20px 70px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+}
+
 .lobbyPanelHeader span {
   color: #79e29f;
   font-size: 0.78rem;
@@ -3041,6 +3198,20 @@
   grid-template-columns: 38px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
+  padding-left: 8px;
+  border-left: 2px solid rgba(213, 169, 255, 0.24);
+}
+
+.lobbyChatList article[data-feed-tone="gain"] {
+  border-left-color: rgba(121, 226, 159, 0.72);
+}
+
+.lobbyChatList article[data-feed-tone="loss"] {
+  border-left-color: rgba(255, 107, 107, 0.74);
+}
+
+.lobbyChatList article[data-feed-tone="room"] {
+  border-left-color: rgba(168, 89, 255, 0.78);
 }
 
 .lobbyChatList p {
@@ -7912,6 +8083,12 @@
     grid-template-columns: 1fr;
   }
 
+  .lobbyTop .lobbyHero,
+  .lobbySideColumn {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
   .lobbySideColumn {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -7937,6 +8114,8 @@
 
   .accountTools {
     grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr;
     justify-items: stretch;
     width: 100%;
   }
@@ -8071,6 +8250,21 @@
   .rewardStrip:hover .animatedMedia[data-animation-trigger="hover"],
   .rewardStrip:focus-within .animatedMedia[data-animation-trigger="hover"],
   .caseBox {
+    animation: none;
+  }
+
+  .modeTabs button:not(.menuProfile):hover .tabIcon,
+  .modeTabs button:not(.menuProfile):focus-visible .tabIcon,
+  .subTabs button:hover .tabIcon,
+  .subTabs button:focus-visible .tabIcon,
+  .modeTabs button:not(.menuProfile):hover .tabLabel,
+  .modeTabs button:not(.menuProfile):focus-visible .tabLabel,
+  .subTabs button:hover .tabLabel,
+  .subTabs button:focus-visible .tabLabel,
+  .modeTabs button:not(.menuProfile):hover .tabLabel::after,
+  .modeTabs button:not(.menuProfile):focus-visible .tabLabel::after,
+  .subTabs button:hover .tabLabel::after,
+  .subTabs button:focus-visible .tabLabel::after {
     animation: none;
   }
 }

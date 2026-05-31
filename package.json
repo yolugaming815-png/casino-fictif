@@ -7,7 +7,7 @@
     "dev": "vite --configLoader runner",
     "build": "tsc && vite build --configLoader runner && node scripts/make-standalone.mjs",
     "preview": "vite preview --configLoader runner --host 127.0.0.1 --port 4173",
-    "test": "node --test src/avatarLibrary.test.ts src/animationAssets.test.ts src/shopAssets.test.ts src/slotAssets.test.ts src/blackjackDeckThemes.test.ts src/gameLogic.test.ts src/blackjackLogic.test.ts src/plinkoLogic.test.ts src/rouletteLogic.test.ts src/shopLogic.test.ts src/rocketLogic.test.ts src/caseLogic.test.ts src/pokerLogic.test.ts"
+    "test": "node --test src/avatarLibrary.test.ts src/animationAssets.test.ts src/shopAssets.test.ts src/slotAssets.test.ts src/blackjackDeckThemes.test.ts src/lobbyActivity.test.ts src/gameLogic.test.ts src/blackjackLogic.test.ts src/plinkoLogic.test.ts src/rouletteLogic.test.ts src/shopLogic.test.ts src/rocketLogic.test.ts src/caseLogic.test.ts src/pokerLogic.test.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
