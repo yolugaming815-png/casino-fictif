@@ -124,6 +124,7 @@ export type OnlineRoomStatus = "waiting" | "playing" | "finished";
 export type OnlineRoomPlayer = {
   uid: string;
   displayName: string;
+  photoURL?: string;
 };
 
 export type PokerShowdownResult = {
@@ -707,6 +708,7 @@ function casinoPlayer(user: CasinoUser): OnlineRoomPlayer {
   return {
     uid: user.uid,
     displayName: user.displayName || "Joueur anonyme",
+    photoURL: publicProfilePhotoURL(user.photoURL),
   };
 }
 
@@ -750,6 +752,7 @@ function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomE
         .map((player) => ({
           uid: typeof player?.uid === "string" ? player.uid : "",
           displayName: typeof player?.displayName === "string" ? player.displayName : "Joueur anonyme",
+          photoURL: typeof player?.photoURL === "string" ? player.photoURL : "",
         }))
         .filter((player) => player.uid)
     : [];

@@ -26,8 +26,13 @@ describe("lobby activity feed", () => {
 
   it("builds a feed from active rooms and recent wins or losses", () => {
     const items = buildLobbyActivityFeed({
+      currentPlayerUid: "u1",
       currentPlayerName: "Daniel",
-      leaderboard: [{ uid: "u1", displayName: "Daniel", balance: 1200 }],
+      currentPlayerPhotoURL: "casino-avatar:daniel",
+      leaderboard: [
+        { uid: "u1", displayName: "Daniel", balance: 1200, photoURL: "casino-avatar:daniel" },
+        { uid: "u2", displayName: "Yoann", balance: 900, photoURL: "casino-avatar:yoann" },
+      ],
       rooms: [
         {
           id: "room-1",
@@ -58,5 +63,53 @@ describe("lobby activity feed", () => {
         "Daniel gagne 175 credits sur Plinko.",
       ],
     );
+    assert.equal(items[0].photoURL, "casino-avatar:yoann");
+    assert.equal(items[1].photoURL, "casino-avatar:daniel");
+  });
+
+  it("does not fabricate decorative leaderboard activity", () => {
+    const items = buildLobbyActivityFeed({
+      currentPlayerName: "Daniel",
+      leaderboard: [{ uid: "u1", displayName: "Daniel", balance: 1200, photoURL: "casino-avatar:daniel" }],
+      rooms: [],
+      histories: [],
+    });
+
+    assert.deepEqual(items, []);
+  });
+
+  it("uses the winner identity and avatar for finished rooms", () => {
+    const items = buildLobbyActivityFeed({
+      currentPlayerName: "Daniel",
+      leaderboard: [
+        { uid: "host", displayName: "Host", photoURL: "casino-avatar:host" },
+        { uid: "winner", displayName: "Gagnant", photoURL: "casino-avatar:winner" },
+      ],
+      rooms: [
+        {
+          id: "roulette-room",
+          type: "russian-roulette",
+          game: "Roulette russe",
+          status: "finished",
+          hostUid: "host",
+          hostName: "Host",
+          winnerUid: "winner",
+          winnerName: "Gagnant",
+          players: [
+            { uid: "host", displayName: "Host" },
+            { uid: "winner", displayName: "Gagnant" },
+          ],
+          playerIds: ["host", "winner"],
+          maxPlayers: 6,
+          russianPot: 120,
+          updatedAt: 3000,
+        },
+      ],
+      histories: [],
+    });
+
+    assert.equal(items[0]?.message, "Gagnant gagne 120 credits sur Roulette russe.");
+    assert.equal(items[0]?.uid, "winner");
+    assert.equal(items[0]?.photoURL, "casino-avatar:winner");
   });
 });

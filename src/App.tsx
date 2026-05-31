@@ -1794,12 +1794,14 @@ function App() {
   const lobbyActivityFeed = useMemo(
     () =>
       buildLobbyActivityFeed({
+        currentPlayerUid: accountUser?.uid,
         currentPlayerName: accountUser?.displayName || "Joueur",
+        currentPlayerPhotoURL: accountUser?.photoURL ?? undefined,
         leaderboard,
         rooms: lobbyActivityRooms,
         histories: lobbyActivityHistories,
       }),
-    [accountUser?.displayName, leaderboard, lobbyActivityRooms, lobbyActivityHistories],
+    [accountUser?.displayName, accountUser?.photoURL, accountUser?.uid, leaderboard, lobbyActivityRooms, lobbyActivityHistories],
   );
   const activityItems = useMemo(
     () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, privateMessages, duelHistory, visibleOnlineRooms),
@@ -4209,17 +4211,11 @@ function App() {
               <small>{balance.toLocaleString("fr-FR")} credits</small>
             </div>
           </button>
-          <div className={styles.menuAccountActions} aria-label="Compte et messages">
+          <div className={styles.menuAccountActions} aria-label="Compte">
             {accountUser ? (
-              <>
-                <button className={styles.menuActionButton} type="button" onClick={() => selectMainSection("messages")}>
-                  <span>Ouvrir les messages</span>
-                  {unreadMessagesCount > 0 ? <span className={styles.menuActionBadge}>{unreadMessagesCount}</span> : null}
-                </button>
-                <button className={styles.menuActionButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
-                  <span>Déconnexion</span>
-                </button>
-              </>
+              <button className={styles.menuActionButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
+                <span>Déconnexion</span>
+              </button>
             ) : (
               <button
                 className={styles.menuActionButton}
