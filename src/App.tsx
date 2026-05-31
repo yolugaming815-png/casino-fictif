@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, FormEvent, ReactNode } from "react";
+import type { ChangeEvent, CSSProperties, FormEvent, ReactNode } from "react";
 import Matter from "matter-js";
 import styles from "./App.module.css";
+import homeMusicSource from "./assets/audio/full-house.wav";
 import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
 import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
 import { SLOT_RESULT_ASSETS, SLOT_SYMBOL_ASSETS, type SlotResultAssetId } from "./slotAssets";
@@ -331,6 +332,10 @@ const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
 const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
+const HOME_MUSIC_MUTED_KEY = "casino-fictif-home-music-muted-v1";
+const HOME_MUSIC_VOLUME_KEY = "casino-fictif-home-music-volume-v1";
+const HOME_MUSIC_DEFAULT_VOLUME = 18;
+const HOME_MUSIC_MAX_VOLUME = 35;
 const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 const MESSAGE_SEND_COOLDOWN_MS = 2500;
 const CLAW_COST = 75;
@@ -1219,6 +1224,72 @@ function getNextHistoryId(items: Array<{ id: number }> | undefined) {
   return Math.max(-1, ...(items ?? []).map((item) => item.id)) + 1;
 }
 
+function clampHomeMusicVolume(value: number) {
+  return Math.max(0, Math.min(HOME_MUSIC_MAX_VOLUME, Math.round(value)));
+}
+
+function readHomeMusicVolume() {
+  try {
+    if (typeof window === "undefined") {
+      return HOME_MUSIC_DEFAULT_VOLUME;
+    }
+
+    const rawValue = window.localStorage.getItem(HOME_MUSIC_VOLUME_KEY);
+    if (rawValue === null) {
+      return HOME_MUSIC_DEFAULT_VOLUME;
+    }
+
+    const stored = Number(rawValue);
+    return Number.isFinite(stored) ? clampHomeMusicVolume(stored) : HOME_MUSIC_DEFAULT_VOLUME;
+  } catch {
+    return HOME_MUSIC_DEFAULT_VOLUME;
+  }
+}
+
+function readHomeMusicMuted() {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(HOME_MUSIC_MUTED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function HomeMusicControl({
+  muted,
+  volume,
+  onMuteToggle,
+  onVolumeChange,
+}: {
+  muted: boolean;
+  volume: number;
+  onMuteToggle: () => void;
+  onVolumeChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className={styles.soundControl} data-muted={muted ? "true" : "false"}>
+      <button
+        aria-label={muted ? "Activer la musique de la home" : "Couper la musique de la home"}
+        aria-pressed={muted}
+        className={styles.soundButton}
+        onClick={onMuteToggle}
+        title={muted ? "Activer la musique" : "Couper la musique"}
+        type="button"
+      >
+        {muted ? "Muet" : "Son"}
+      </button>
+      <input
+        aria-label="Volume musique home"
+        className={styles.soundSlider}
+        max={HOME_MUSIC_MAX_VOLUME}
+        min="0"
+        onChange={onVolumeChange}
+        type="range"
+        value={volume}
+      />
+    </div>
+  );
+}
+
 function App() {
   const savedGame = useMemo(() => loadSavedGame(), []);
   const plinkoLayout: PlinkoLayout = useMediaQuery("(max-width: 520px)") ? "mobile" : "desktop";
@@ -1227,6 +1298,8 @@ function App() {
   const [activeGame, setActiveGame] = useState<CasinoGame>("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<OnlineRoomType>("duel");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [homeMusicMuted, setHomeMusicMuted] = useState(readHomeMusicMuted);
+  const [homeMusicVolume, setHomeMusicVolume] = useState(readHomeMusicVolume);
   const paused = false;
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
@@ -1337,6 +1410,7 @@ function App() {
   const plinkoId = useRef(getNextHistoryId(savedGame?.plinkoHistory));
   const rouletteId = useRef(getNextHistoryId(savedGame?.rouletteHistory));
   const rocketId = useRef(getNextHistoryId(savedGame?.rocketHistory));
+  const homeMusicRef = useRef<HTMLAudioElement | null>(null);
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
   const clawId = useRef(getNextHistoryId(savedGame?.clawHistory));
 
@@ -1518,6 +1592,59 @@ function App() {
           baselines: createMissionBaselines(missionStats),
           claimedMissionIds: [],
         };
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(HOME_MUSIC_MUTED_KEY, String(homeMusicMuted));
+    } catch {
+      // Le controle audio doit rester utilisable meme si le stockage local est bloque.
+    }
+  }, [homeMusicMuted]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(HOME_MUSIC_VOLUME_KEY, String(homeMusicVolume));
+    } catch {
+      // Le volume par defaut sera repris si le stockage local est bloque.
+    }
+  }, [homeMusicVolume]);
+
+  useEffect(() => {
+    const audio = homeMusicRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    const volume = homeMusicVolume / 100;
+    audio.loop = true;
+    audio.volume = volume;
+    audio.muted = homeMusicMuted || homeMusicVolume === 0;
+
+    const shouldPlay = activeSection === "home" && !audio.muted;
+
+    if (!shouldPlay) {
+      audio.pause();
+      return;
+    }
+
+    const playHomeMusic = () => {
+      audio.volume = volume;
+      audio.muted = false;
+      void audio.play().catch(() => {
+        // Les navigateurs bloquent parfois l'audio avant une interaction utilisateur.
+      });
+    };
+
+    playHomeMusic();
+    window.addEventListener("pointerdown", playHomeMusic, { once: true });
+    window.addEventListener("keydown", playHomeMusic, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", playHomeMusic);
+      window.removeEventListener("keydown", playHomeMusic);
+    };
+  }, [activeSection, homeMusicMuted, homeMusicVolume]);
 
   useEffect(() => {
     if (missionState?.hourKey === missionHourKey) {
@@ -3575,11 +3702,62 @@ function App() {
     setMobileMenuOpen(false);
   }
 
+  function toggleHomeMusicMute() {
+    const nextMuted = !homeMusicMuted;
+    const nextVolume = !nextMuted && homeMusicVolume === 0 ? HOME_MUSIC_DEFAULT_VOLUME : homeMusicVolume;
+    const audio = homeMusicRef.current;
+
+    setHomeMusicMuted(nextMuted);
+    if (nextVolume !== homeMusicVolume) {
+      setHomeMusicVolume(nextVolume);
+    }
+
+    if (!audio) {
+      return;
+    }
+
+    audio.muted = nextMuted || nextVolume === 0;
+
+    if (nextMuted || activeSection !== "home" || nextVolume === 0) {
+      audio.pause();
+      return;
+    }
+
+    audio.volume = nextVolume / 100;
+    void audio.play().catch(() => {
+      // L'utilisateur pourra relancer la musique avec le meme bouton si le navigateur bloque.
+    });
+  }
+
+  function handleHomeMusicVolumeChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextVolume = clampHomeMusicVolume(Number(event.currentTarget.value));
+    const audio = homeMusicRef.current;
+
+    setHomeMusicVolume(nextVolume);
+    setHomeMusicMuted(nextVolume === 0);
+
+    if (!audio) {
+      return;
+    }
+
+    audio.volume = nextVolume / 100;
+    audio.muted = nextVolume === 0;
+
+    if (activeSection === "home" && nextVolume > 0) {
+      void audio.play().catch(() => {
+        // L'audio restera pret pour la prochaine interaction utilisateur.
+      });
+    } else {
+      audio.pause();
+    }
+  }
+
   const currentUserIsLeaderboardLeader = Boolean(accountUser && leaderboard[0]?.uid === accountUser.uid);
 
   return (
     <main className={styles.app}>
       <section className={styles.shell} aria-label="Jackpot City">
+        <audio aria-hidden="true" className={styles.hiddenAudio} loop preload="auto" ref={homeMusicRef} src={homeMusicSource} />
         <header className={styles.header}>
           <div className={styles.brandBlock}>
             <h1>Jackpot City</h1>
@@ -3622,11 +3800,15 @@ function App() {
                 Connexion avec Google
               </button>
             )}
+            <HomeMusicControl
+              muted={homeMusicMuted || homeMusicVolume === 0}
+              onMuteToggle={toggleHomeMusicMute}
+              onVolumeChange={handleHomeMusicVolumeChange}
+              volume={homeMusicVolume}
+            />
           </div>
 
-          <div className={styles.ageBadge} aria-label="Reserve aux adultes">
-            18+
-          </div>
+          <div className={styles.ageBadge} aria-label="Reserve aux adultes" />
         </header>
 
         {selectedProfile && (
