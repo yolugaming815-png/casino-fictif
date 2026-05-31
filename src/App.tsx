@@ -336,6 +336,8 @@ const HOME_MUSIC_MUTED_KEY = "casino-fictif-home-music-muted-v1";
 const HOME_MUSIC_VOLUME_KEY = "casino-fictif-home-music-volume-v1";
 const HOME_MUSIC_DEFAULT_VOLUME = 18;
 const HOME_MUSIC_MAX_VOLUME = 35;
+const HOME_MUSIC_DIMMED_RATIO = 0.7;
+const HOME_MUSIC_FADE_DURATION_MS = 3000;
 const WAITING_ROOM_TTL_MS = 30 * 60 * 1000;
 const MESSAGE_SEND_COOLDOWN_MS = 2500;
 const CLAW_COST = 75;
@@ -1228,6 +1230,15 @@ function clampHomeMusicVolume(value: number) {
   return Math.max(0, Math.min(HOME_MUSIC_MAX_VOLUME, Math.round(value)));
 }
 
+function getHomeMusicTargetVolume(volume: number, section: MainSection) {
+  const baseVolume = clampHomeMusicVolume(volume) / 100;
+  return section === "home" ? baseVolume : baseVolume * HOME_MUSIC_DIMMED_RATIO;
+}
+
+function easeHomeMusicFade(progress: number) {
+  return progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+}
+
 function readHomeMusicVolume() {
   try {
     if (typeof window === "undefined") {
@@ -1411,6 +1422,8 @@ function App() {
   const rouletteId = useRef(getNextHistoryId(savedGame?.rouletteHistory));
   const rocketId = useRef(getNextHistoryId(savedGame?.rocketHistory));
   const homeMusicRef = useRef<HTMLAudioElement | null>(null);
+  const homeMusicFadeFrameRef = useRef<number | null>(null);
+  const homeMusicHasSetInitialVolumeRef = useRef(false);
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
   const clawId = useRef(getNextHistoryId(savedGame?.clawHistory));
 
@@ -1616,20 +1629,47 @@ function App() {
       return;
     }
 
-    const volume = homeMusicVolume / 100;
     audio.loop = true;
-    audio.volume = volume;
     audio.muted = homeMusicMuted || homeMusicVolume === 0;
 
-    const shouldPlay = activeSection === "home" && !audio.muted;
+    if (homeMusicFadeFrameRef.current !== null) {
+      window.cancelAnimationFrame(homeMusicFadeFrameRef.current);
+      homeMusicFadeFrameRef.current = null;
+    }
 
-    if (!shouldPlay) {
+    if (audio.muted) {
+      homeMusicHasSetInitialVolumeRef.current = false;
       audio.pause();
       return;
     }
 
+    const targetVolume = getHomeMusicTargetVolume(homeMusicVolume, activeSection);
+
+    if (!homeMusicHasSetInitialVolumeRef.current) {
+      audio.volume = targetVolume;
+      homeMusicHasSetInitialVolumeRef.current = true;
+    } else {
+      const startVolume = audio.volume;
+      const volumeDelta = targetVolume - startVolume;
+      const startedAt = window.performance.now();
+
+      const fadeVolume = (now: number) => {
+        const progress = Math.min((now - startedAt) / HOME_MUSIC_FADE_DURATION_MS, 1);
+        audio.volume = startVolume + volumeDelta * easeHomeMusicFade(progress);
+
+        if (progress < 1) {
+          homeMusicFadeFrameRef.current = window.requestAnimationFrame(fadeVolume);
+          return;
+        }
+
+        audio.volume = targetVolume;
+        homeMusicFadeFrameRef.current = null;
+      };
+
+      homeMusicFadeFrameRef.current = window.requestAnimationFrame(fadeVolume);
+    }
+
     const playHomeMusic = () => {
-      audio.volume = volume;
       audio.muted = false;
       void audio.play().catch(() => {
         // Les navigateurs bloquent parfois l'audio avant une interaction utilisateur.
@@ -1643,6 +1683,10 @@ function App() {
     return () => {
       window.removeEventListener("pointerdown", playHomeMusic);
       window.removeEventListener("keydown", playHomeMusic);
+      if (homeMusicFadeFrameRef.current !== null) {
+        window.cancelAnimationFrame(homeMusicFadeFrameRef.current);
+        homeMusicFadeFrameRef.current = null;
+      }
     };
   }, [activeSection, homeMusicMuted, homeMusicVolume]);
 
@@ -3716,14 +3760,21 @@ function App() {
       return;
     }
 
+    if (homeMusicFadeFrameRef.current !== null) {
+      window.cancelAnimationFrame(homeMusicFadeFrameRef.current);
+      homeMusicFadeFrameRef.current = null;
+    }
+
     audio.muted = nextMuted || nextVolume === 0;
 
-    if (nextMuted || activeSection !== "home" || nextVolume === 0) {
+    if (nextMuted || nextVolume === 0) {
+      homeMusicHasSetInitialVolumeRef.current = false;
       audio.pause();
       return;
     }
 
-    audio.volume = nextVolume / 100;
+    audio.volume = getHomeMusicTargetVolume(nextVolume, activeSection);
+    homeMusicHasSetInitialVolumeRef.current = true;
     void audio.play().catch(() => {
       // L'utilisateur pourra relancer la musique avec le meme bouton si le navigateur bloque.
     });
@@ -3740,16 +3791,24 @@ function App() {
       return;
     }
 
-    audio.volume = nextVolume / 100;
+    if (homeMusicFadeFrameRef.current !== null) {
+      window.cancelAnimationFrame(homeMusicFadeFrameRef.current);
+      homeMusicFadeFrameRef.current = null;
+    }
+
     audio.muted = nextVolume === 0;
 
-    if (activeSection === "home" && nextVolume > 0) {
-      void audio.play().catch(() => {
-        // L'audio restera pret pour la prochaine interaction utilisateur.
-      });
-    } else {
+    if (nextVolume === 0) {
+      homeMusicHasSetInitialVolumeRef.current = false;
       audio.pause();
+      return;
     }
+
+    audio.volume = getHomeMusicTargetVolume(nextVolume, activeSection);
+    homeMusicHasSetInitialVolumeRef.current = true;
+    void audio.play().catch(() => {
+      // L'audio restera pret pour la prochaine interaction utilisateur.
+    });
   }
 
   const currentUserIsLeaderboardLeader = Boolean(accountUser && leaderboard[0]?.uid === accountUser.uid);
