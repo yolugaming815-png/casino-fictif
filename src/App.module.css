@@ -8073,6 +8073,10 @@
 @media (max-width: 1180px) {
   .header {
     grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 10px;
+    min-height: auto;
+    padding: 10px 14px;
   }
 
   .brandBlock {
@@ -8087,12 +8091,28 @@
   }
 
   .headerStats {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    align-self: center;
+  }
+
+  .headerStats div {
+    min-width: 104px;
+    padding: 7px 10px;
   }
 
   .accountTools {
     grid-column: 2;
+    grid-row: 2;
+    align-self: center;
     justify-self: end;
+  }
+
+  .accountTools .secondaryButton {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 0.86rem;
   }
 
   .lobbyTop {
@@ -8120,7 +8140,15 @@
 }
 
 @media (max-width: 780px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
   .headerStats {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    flex-wrap: wrap;
     width: 100%;
   }
 
@@ -8130,6 +8158,7 @@
 
   .accountTools {
     grid-column: 1 / -1;
+    grid-row: auto;
     display: grid;
     grid-template-columns: 1fr;
     justify-items: stretch;
