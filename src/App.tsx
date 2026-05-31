@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, CSSProperties, FormEvent, ReactNode } from "react";
 import Matter from "matter-js";
 import styles from "./App.module.css";
-import homeMusicSource from "./assets/audio/full-house.wav";
+import acesInVegasAfterpartySource from "./assets/audio/playlist/aces-in-vegas-afterparty.wav";
+import acesInVegasSource from "./assets/audio/playlist/aces-in-vegas.wav";
+import bigShoesJackpotSource from "./assets/audio/playlist/big-shoes-jackpot.wav";
+import bigShoesRoyalSuiteSource from "./assets/audio/playlist/big-shoes-royal-suite.wav";
+import fullHouseRoyaleSource from "./assets/audio/playlist/full-house-royale.wav";
+import vegasCasinoNightsSource from "./assets/audio/playlist/vegas-casino-nights.wav";
+import vegasNeonJackpotSource from "./assets/audio/playlist/vegas-neon-jackpot.wav";
+import jackpotCityHeaderBackground from "./assets/visuals/jackpot-city-header-bg.png";
 import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
 import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
 import { SLOT_RESULT_ASSETS, SLOT_SYMBOL_ASSETS, type SlotResultAssetId } from "./slotAssets";
@@ -328,12 +335,67 @@ type CasinoGame = "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "cl
 
 type MainSection = "home" | "games" | "online" | "missions" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
+type CasinoMusicTrack = {
+  id: string;
+  source: string;
+  title: string;
+  wave: number[];
+};
+
+const CASINO_MUSIC_TRACKS: CasinoMusicTrack[] = [
+  {
+    id: "full-house-royale",
+    source: fullHouseRoyaleSource,
+    title: "Full House Royale",
+    wave: [44, 66, 38, 78, 52, 88, 60, 72, 46, 82, 56, 70],
+  },
+  {
+    id: "aces-in-vegas",
+    source: acesInVegasSource,
+    title: "As de Vegas",
+    wave: [58, 36, 74, 42, 88, 50, 68, 92, 48, 76, 40, 64],
+  },
+  {
+    id: "aces-in-vegas-afterparty",
+    source: acesInVegasAfterpartySource,
+    title: "As de Vegas Afterparty",
+    wave: [70, 46, 82, 54, 64, 92, 44, 78, 60, 86, 50, 72],
+  },
+  {
+    id: "vegas-casino-nights",
+    source: vegasCasinoNightsSource,
+    title: "Nuits Casino Vegas",
+    wave: [34, 58, 76, 42, 70, 50, 88, 62, 48, 80, 56, 68],
+  },
+  {
+    id: "vegas-neon-jackpot",
+    source: vegasNeonJackpotSource,
+    title: "Jackpot Neon Vegas",
+    wave: [84, 52, 94, 68, 46, 78, 56, 90, 62, 74, 48, 86],
+  },
+  {
+    id: "big-shoes-jackpot",
+    source: bigShoesJackpotSource,
+    title: "Big Shoes Jackpot",
+    wave: [48, 72, 40, 64, 88, 54, 76, 44, 82, 58, 92, 66],
+  },
+  {
+    id: "big-shoes-royal-suite",
+    source: bigShoesRoyalSuiteSource,
+    title: "Big Shoes Suite Royale",
+    wave: [62, 86, 52, 74, 44, 92, 66, 80, 48, 70, 58, 84],
+  },
+];
+
+const CASINO_MUSIC_TRACK_IDS = CASINO_MUSIC_TRACKS.map((track) => track.id);
+
 const CASE_REEL_WINNER_INDEX = 34;
 const CASE_BOX_OPEN_DURATION_MS = 1200;
 const CASE_REEL_DURATION_MS = 3600;
 const SAVE_KEY = "casino-fictif-save-v1";
 const HOME_MUSIC_MUTED_KEY = "casino-fictif-home-music-muted-v1";
 const HOME_MUSIC_VOLUME_KEY = "casino-fictif-home-music-volume-v1";
+const HOME_MUSIC_TRACK_KEY = "casino-fictif-home-music-track-v1";
 const HOME_MUSIC_DEFAULT_VOLUME = 18;
 const HOME_MUSIC_MAX_VOLUME = 35;
 const HOME_MUSIC_DIMMED_RATIO = 0.7;
@@ -1239,6 +1301,38 @@ function easeHomeMusicFade(progress: number) {
   return progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 }
 
+function getCasinoMusicTrack(trackId: string) {
+  return CASINO_MUSIC_TRACKS.find((track) => track.id === trackId) ?? CASINO_MUSIC_TRACKS[0]!;
+}
+
+function shuffleHomeMusicTrackIds(excludedTrackId?: string) {
+  const shuffled = CASINO_MUSIC_TRACK_IDS.filter((trackId) => trackId !== excludedTrackId);
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
+
+function getRandomHomeMusicTrackId() {
+  return CASINO_MUSIC_TRACK_IDS[Math.floor(Math.random() * CASINO_MUSIC_TRACK_IDS.length)] ?? CASINO_MUSIC_TRACKS[0]!.id;
+}
+
+function readHomeMusicTrackId() {
+  try {
+    if (typeof window === "undefined") {
+      return getRandomHomeMusicTrackId();
+    }
+
+    const storedTrackId = window.localStorage.getItem(HOME_MUSIC_TRACK_KEY);
+    return storedTrackId && CASINO_MUSIC_TRACK_IDS.includes(storedTrackId) ? storedTrackId : getRandomHomeMusicTrackId();
+  } catch {
+    return getRandomHomeMusicTrackId();
+  }
+}
+
 function readHomeMusicVolume() {
   try {
     if (typeof window === "undefined") {
@@ -1267,36 +1361,111 @@ function readHomeMusicMuted() {
 
 function HomeMusicControl({
   muted,
+  onNextTrack,
   volume,
+  onPlaylistToggle,
   onMuteToggle,
+  onTrackSelect,
   onVolumeChange,
+  playlistOpen,
+  track,
+  tracks,
 }: {
   muted: boolean;
+  onNextTrack: () => void;
+  onPlaylistToggle: () => void;
   volume: number;
   onMuteToggle: () => void;
+  onTrackSelect: (trackId: string) => void;
   onVolumeChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  playlistOpen: boolean;
+  track: CasinoMusicTrack;
+  tracks: CasinoMusicTrack[];
 }) {
   return (
-    <div className={styles.soundControl} data-muted={muted ? "true" : "false"}>
-      <button
-        aria-label={muted ? "Activer la musique de la home" : "Couper la musique de la home"}
-        aria-pressed={muted}
-        className={styles.soundButton}
-        onClick={onMuteToggle}
-        title={muted ? "Activer la musique" : "Couper la musique"}
-        type="button"
-      >
-        {muted ? "Muet" : "Son"}
-      </button>
-      <input
-        aria-label="Volume musique home"
-        className={styles.soundSlider}
-        max={HOME_MUSIC_MAX_VOLUME}
-        min="0"
-        onChange={onVolumeChange}
-        type="range"
-        value={volume}
-      />
+    <div className={styles.soundControl} data-muted={muted ? "true" : "false"} data-playlist-open={playlistOpen ? "true" : "false"}>
+      <div className={styles.soundNowPlaying}>
+        <div className={styles.soundWave} aria-hidden="true">
+          {track.wave.map((height, index) => (
+            <span
+              key={`${track.id}-${index}`}
+              style={
+                {
+                  "--wave-delay": `${index * 70}ms`,
+                  "--wave-height": `${height}%`,
+                } as CSSProperties
+              }
+            />
+          ))}
+        </div>
+        <div className={styles.soundTrackText}>
+          <span>En lecture</span>
+          <strong>{track.title}</strong>
+        </div>
+      </div>
+
+      <div className={styles.soundActions}>
+        <button
+          aria-label={muted ? "Activer la musique du casino" : "Couper la musique du casino"}
+          aria-pressed={muted}
+          className={styles.soundButton}
+          onClick={onMuteToggle}
+          title={muted ? "Activer la musique" : "Couper la musique"}
+          type="button"
+        >
+          {muted ? "Muet" : "Son"}
+        </button>
+        <input
+          aria-label="Volume musique casino"
+          className={styles.soundSlider}
+          max={HOME_MUSIC_MAX_VOLUME}
+          min="0"
+          onChange={onVolumeChange}
+          type="range"
+          value={volume}
+        />
+        <button className={styles.soundIconButton} type="button" onClick={onNextTrack} aria-label="Musique suivante" title="Musique suivante">
+          Suiv.
+        </button>
+        <button
+          aria-expanded={playlistOpen}
+          aria-haspopup="listbox"
+          className={styles.playlistToggle}
+          onClick={onPlaylistToggle}
+          type="button"
+        >
+          Playlist
+        </button>
+      </div>
+
+      {playlistOpen ? (
+        <div className={styles.playlistPanel} role="listbox" aria-label="Playlist casino">
+          {tracks.map((playlistTrack) => (
+            <button
+              aria-selected={playlistTrack.id === track.id}
+              className={playlistTrack.id === track.id ? styles.activePlaylistTrack : ""}
+              key={playlistTrack.id}
+              onClick={() => onTrackSelect(playlistTrack.id)}
+              role="option"
+              type="button"
+            >
+              <span className={styles.playlistMiniWave} aria-hidden="true">
+                {playlistTrack.wave.slice(0, 6).map((height, index) => (
+                  <span
+                    key={`${playlistTrack.id}-mini-${index}`}
+                    style={
+                      {
+                        "--wave-height": `${height}%`,
+                      } as CSSProperties
+                    }
+                  />
+                ))}
+              </span>
+              <strong>{playlistTrack.title}</strong>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1310,8 +1479,11 @@ function App() {
   const [activeOnlineGame, setActiveOnlineGame] = useState<OnlineRoomType>("duel");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [homeMusicMuted, setHomeMusicMuted] = useState(readHomeMusicMuted);
+  const [homeMusicPlaylistOpen, setHomeMusicPlaylistOpen] = useState(false);
+  const [homeMusicTrackId, setHomeMusicTrackId] = useState(readHomeMusicTrackId);
   const [homeMusicVolume, setHomeMusicVolume] = useState(readHomeMusicVolume);
   const paused = false;
+  const currentHomeMusicTrack = useMemo(() => getCasinoMusicTrack(homeMusicTrackId), [homeMusicTrackId]);
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
   const [slotHistory, setSlotHistory] = useState<SlotHistoryItem[]>(savedGame?.slotHistory ?? []);
@@ -1424,6 +1596,8 @@ function App() {
   const homeMusicRef = useRef<HTMLAudioElement | null>(null);
   const homeMusicFadeFrameRef = useRef<number | null>(null);
   const homeMusicHasSetInitialVolumeRef = useRef(false);
+  const homeMusicQueueRef = useRef<string[]>(shuffleHomeMusicTrackIds(homeMusicTrackId));
+  const previousHomeMusicSourceRef = useRef<string | null>(null);
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
   const clawId = useRef(getNextHistoryId(savedGame?.clawHistory));
 
@@ -1500,15 +1674,6 @@ function App() {
     forceClosedPokerRoomsRef.current = new Set(recentKeys);
     localStorage.setItem(FORCE_CLOSED_POKER_STORAGE_KEY, JSON.stringify(recentKeys));
   }
-
-  const totalNet = useMemo(() => {
-    const slotNet = slotHistory.reduce((sum, item) => sum + item.net, 0);
-    const blackjackNet = blackjackHistory.reduce((sum, item) => sum + item.net, 0);
-    const plinkoNet = plinkoHistory.reduce((sum, item) => sum + item.net, 0);
-    const rouletteNet = rouletteHistory.reduce((sum, item) => sum + item.net, 0);
-    const rocketNet = rocketHistory.reduce((sum, item) => sum + item.net, 0);
-    return slotNet + blackjackNet + plinkoNet + rouletteNet + rocketNet;
-  }, [slotHistory, blackjackHistory, plinkoHistory, rouletteHistory, rocketHistory]);
 
   const slotBetAvailable = canPlaceBet(balance, slotBet);
   const blackjackBetAvailable = canPlaceBet(balance, blackjackBet);
@@ -1623,13 +1788,28 @@ function App() {
   }, [homeMusicVolume]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(HOME_MUSIC_TRACK_KEY, homeMusicTrackId);
+    } catch {
+      // La playlist reste aleatoire si le stockage local est bloque.
+    }
+  }, [homeMusicTrackId]);
+
+  useEffect(() => {
     const audio = homeMusicRef.current;
 
     if (!audio) {
       return;
     }
 
-    audio.loop = true;
+    const sourceChanged = previousHomeMusicSourceRef.current !== currentHomeMusicTrack.source;
+    if (sourceChanged) {
+      previousHomeMusicSourceRef.current = currentHomeMusicTrack.source;
+      homeMusicHasSetInitialVolumeRef.current = false;
+      audio.load();
+    }
+
+    audio.loop = false;
     audio.muted = homeMusicMuted || homeMusicVolume === 0;
 
     if (homeMusicFadeFrameRef.current !== null) {
@@ -1688,7 +1868,25 @@ function App() {
         homeMusicFadeFrameRef.current = null;
       }
     };
-  }, [activeSection, homeMusicMuted, homeMusicVolume]);
+  }, [activeSection, currentHomeMusicTrack.source, homeMusicMuted, homeMusicVolume]);
+
+  useEffect(() => {
+    const audio = homeMusicRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    const handleTrackEnded = () => {
+      playNextHomeMusicTrack();
+    };
+
+    audio.addEventListener("ended", handleTrackEnded);
+
+    return () => {
+      audio.removeEventListener("ended", handleTrackEnded);
+    };
+  }, [homeMusicTrackId]);
 
   useEffect(() => {
     if (missionState?.hourKey === missionHourKey) {
@@ -3746,6 +3944,36 @@ function App() {
     setMobileMenuOpen(false);
   }
 
+  function takeNextHomeMusicTrackId() {
+    const nextTrackId = homeMusicQueueRef.current.shift();
+
+    if (nextTrackId) {
+      return nextTrackId;
+    }
+
+    homeMusicQueueRef.current = shuffleHomeMusicTrackIds(homeMusicTrackId);
+    return homeMusicQueueRef.current.shift() ?? homeMusicTrackId;
+  }
+
+  function playNextHomeMusicTrack() {
+    const nextTrackId = takeNextHomeMusicTrackId();
+    setHomeMusicTrackId(nextTrackId);
+  }
+
+  function selectHomeMusicTrack(trackId: string) {
+    if (!CASINO_MUSIC_TRACK_IDS.includes(trackId)) {
+      return;
+    }
+
+    homeMusicQueueRef.current = shuffleHomeMusicTrackIds(trackId);
+    setHomeMusicTrackId(trackId);
+    setHomeMusicMuted(false);
+    if (homeMusicVolume === 0) {
+      setHomeMusicVolume(HOME_MUSIC_DEFAULT_VOLUME);
+    }
+    setHomeMusicPlaylistOpen(false);
+  }
+
   function toggleHomeMusicMute() {
     const nextMuted = !homeMusicMuted;
     const nextVolume = !nextMuted && homeMusicVolume === 0 ? HOME_MUSIC_DEFAULT_VOLUME : homeMusicVolume;
@@ -3816,50 +4044,28 @@ function App() {
   return (
     <main className={styles.app}>
       <section className={styles.shell} aria-label="Jackpot City">
-        <audio aria-hidden="true" className={styles.hiddenAudio} loop preload="auto" ref={homeMusicRef} src={homeMusicSource} />
-        <header className={styles.header}>
+        <audio aria-hidden="true" className={styles.hiddenAudio} preload="auto" ref={homeMusicRef} src={currentHomeMusicTrack.source} />
+        <header
+          className={styles.header}
+          style={
+            {
+              "--jackpot-header-bg": `url(${jackpotCityHeaderBackground})`,
+            } as CSSProperties
+          }
+        >
           <div className={styles.brandBlock}>
             <h1>Jackpot City</h1>
             <p className={styles.disclaimer}>Casino virtuel</p>
           </div>
 
-          <div className={styles.headerStats} aria-label="Statut de la partie">
-            <div>
-              <span>Solde</span>
-              <strong>{balance.toLocaleString("fr-FR")}</strong>
-            </div>
-            <div>
-              <span>Bilan</span>
-              <strong className={totalNet >= 0 ? styles.positive : styles.negative}>
-                {totalNet >= 0 ? "+" : ""}
-                {totalNet.toLocaleString("fr-FR")}
-              </strong>
-            </div>
-          </div>
-
           <div className={styles.accountTools}>
-            {accountUser ? (
-              <>
-                <button className={styles.secondaryButton} type="button" onClick={() => setActiveSection("messages")}>
-                  Ouvrir les messages
-                </button>
-                <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
-                  Déconnexion
-                </button>
-              </>
-            ) : (
-              <button
-                className={`${styles.secondaryButton} ${styles.googleAccountButton}`}
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={accountLoading || !isFirebaseConfigured()}
-                title="Connecte-toi pour sauvegarder tes scores"
-                data-tooltip="Connecte-toi pour sauvegarder tes scores"
-              >
-                Connexion avec Google
-              </button>
-            )}
             <HomeMusicControl
+              onNextTrack={playNextHomeMusicTrack}
+              playlistOpen={homeMusicPlaylistOpen}
+              onPlaylistToggle={() => setHomeMusicPlaylistOpen((open) => !open)}
+              onTrackSelect={selectHomeMusicTrack}
+              track={currentHomeMusicTrack}
+              tracks={CASINO_MUSIC_TRACKS}
               muted={homeMusicMuted || homeMusicVolume === 0}
               onMuteToggle={toggleHomeMusicMute}
               onVolumeChange={handleHomeMusicVolumeChange}
@@ -3931,6 +4137,29 @@ function App() {
               <small>{balance.toLocaleString("fr-FR")} credits</small>
             </div>
           </button>
+          <div className={styles.menuAccountActions} aria-label="Compte et messages">
+            {accountUser ? (
+              <>
+                <button className={styles.menuActionButton} type="button" onClick={() => selectMainSection("messages")}>
+                  <span>Ouvrir les messages</span>
+                  {unreadMessagesCount > 0 ? <span className={styles.menuActionBadge}>{unreadMessagesCount}</span> : null}
+                </button>
+                <button className={styles.menuActionButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
+                  <span>Déconnexion</span>
+                </button>
+              </>
+            ) : (
+              <button
+                className={styles.menuActionButton}
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={accountLoading || !isFirebaseConfigured()}
+                title="Connecte-toi pour sauvegarder tes scores"
+              >
+                <span>Connexion Google</span>
+              </button>
+            )}
+          </div>
           <button
             className={activeSection === "home" ? styles.activeTab : ""}
             type="button"
