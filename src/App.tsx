@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import { Bodies, Body, Composite, Engine, Runner } from "matter-js";
+import Matter from "matter-js";
 import styles from "./App.module.css";
 import { getAnimationAsset, type AnimationAssetId } from "./animationAssets";
 import { CASINO_AVATAR_PRESETS, casinoAvatarToken, publicCasinoAvatarUrl } from "./avatarLibrary";
@@ -181,6 +181,8 @@ import {
   type PrivateMessageEntry,
   type SkinTradeEntry,
 } from "./firebaseClient";
+
+const { Bodies, Body, Composite, Engine, Runner } = Matter;
 
 const APPLIED_TRADE_KEYS_STORAGE_KEY = "casino-fictif-applied-trades";
 const REFUNDED_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-refunded-inactive-poker";
@@ -8127,6 +8129,7 @@ function CaseOpeningGame({
                 (item) => item.category === caseDefinition.id && ownedSkinIds.includes(item.id),
               ).length;
               const totalCount = SHOP_ITEMS.filter((item) => item.category === caseDefinition.id && item.source !== "special").length;
+              const ownedRatio = totalCount > 0 ? Math.round((ownedCount / totalCount) * 100) : 0;
 
               return (
                 <button
@@ -8135,44 +8138,58 @@ function CaseOpeningGame({
                   key={caseDefinition.id}
                   onClick={() => onSelectCase(caseDefinition.id)}
                   disabled={opening}
+                  aria-pressed={active}
                 >
                   <CaseThemePreview category={caseDefinition.id} />
-                  <span>{caseDefinition.title}</span>
-                  <small>{caseDefinition.subtitle}</small>
-                  <strong>{priceOverrides.cases[caseDefinition.id] ?? caseDefinition.cost} credits</strong>
-                  <em>{ownedCount}/{totalCount} modeles</em>
+                  <span className={styles.caseCardKicker}>{active ? "Selectionnee" : "Caisse"}</span>
+                  <span className={styles.caseCardTitle}>{caseDefinition.title}</span>
+                  <small className={styles.caseCardSubtitle}>{caseDefinition.subtitle}</small>
+                  <span className={styles.caseCardStats}>
+                    <strong>{priceOverrides.cases[caseDefinition.id] ?? caseDefinition.cost} credits</strong>
+                    <em>
+                      {ownedCount}/{totalCount} modeles
+                    </em>
+                  </span>
+                  <span
+                    className={styles.caseCardProgress}
+                    style={{ "--case-progress": `${ownedRatio}%` } as CSSProperties}
+                    aria-hidden="true"
+                  >
+                    <span />
+                  </span>
                 </button>
               );
             })}
           </div>
 
           <div className={`${styles.caseOpeningPanel} ${caseThemeClass(selectedCase)}`}>
-            <div className={`${opening ? `${styles.caseBox} ${styles.caseBoxOpening}` : styles.caseBox} ${caseThemeClass(selectedCase)}`}>
-              <span className={styles.caseMark} />
-              <span className={styles.caseLid} />
-              <span className={styles.caseGlow} />
-              <span className={styles.caseBody} />
+            <div className={styles.caseStage}>
+              <span className={styles.caseStageAura} aria-hidden="true" />
+              <CaseBoxArtwork category={selectedCase} opening={opening} />
             </div>
 
-            {lastDrop ? (
-              <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
-                <SkinPreview item={lastDrop.item} large />
-                <div>
-                  <small>{rarityLabel(lastDrop.item.rarity)}</small>
-                  <h3>{lastDrop.item.name}</h3>
-          <p>{lastDrop.duplicate ? "Doublon ajoute a l'inventaire" : "Nouveau skin debloque"}</p>
+            <div className={styles.casePanelInfo}>
+              {lastDrop ? (
+                <article className={`${styles.caseDrop} ${styles[`rarity-${lastDrop.item.rarity}`]}`}>
+                  <SkinPreview item={lastDrop.item} large />
+                  <div>
+                    <small>{rarityLabel(lastDrop.item.rarity)}</small>
+                    <h3>{lastDrop.item.name}</h3>
+                    <p>{lastDrop.duplicate ? "Doublon ajoute a l'inventaire" : "Nouveau skin debloque"}</p>
+                  </div>
+                </article>
+              ) : (
+                <div className={styles.caseEmptyDrop}>
+                  <small>{selectedDefinition.subtitle}</small>
+                  <strong>{selectedDefinition.title}</strong>
+                  <span>Ouvre une caisse pour reveler un skin.</span>
                 </div>
-              </article>
-            ) : (
-              <div className={styles.caseEmptyDrop}>
-                <strong>{selectedDefinition.title}</strong>
-                <span>Ouvre une caisse pour reveler un skin.</span>
-              </div>
-            )}
+              )}
 
-            <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
-              {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
-            </button>
+              <button className={styles.primaryButton} type="button" onClick={onOpen} disabled={!canOpen}>
+                {opening ? "Ouverture..." : `Ouvrir pour ${selectedCaseCost} credits`}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -8319,12 +8336,7 @@ function CaseOpeningModal({
 
         {phase === "box" ? (
           <div className={styles.caseModalBoxStage}>
-            <div className={`${styles.caseBox} ${styles.caseBoxOpening} ${caseThemeClass(category)}`}>
-              <span className={styles.caseMark} />
-              <span className={styles.caseLid} />
-              <span className={styles.caseGlow} />
-              <span className={styles.caseBody} />
-            </div>
+            <CaseBoxArtwork category={category} opening />
             <p>La caisse s'ouvre avant le tirage des skins.</p>
           </div>
         ) : (
@@ -8373,14 +8385,37 @@ function CaseOpeningModal({
   );
 }
 
+function CaseBoxArtwork({ category, opening = false }: { category: SkinCategory; opening?: boolean }) {
+  return (
+    <div className={`${styles.caseBox} ${opening ? styles.caseBoxOpening : ""} ${caseThemeClass(category)}`}>
+      <span className={styles.caseArtworkGlow} />
+      <span className={`${styles.caseArtworkImage} ${caseArtworkClass(category)}`} />
+    </div>
+  );
+}
+
 function CaseThemePreview({ category }: { category: SkinCategory }) {
   return (
     <span className={`${styles.caseMiniPreview} ${caseThemeClass(category)}`} aria-hidden="true">
-      <span className={styles.caseMiniLid} />
-      <span className={styles.caseMiniBody} />
-      <span className={styles.caseMiniMark} />
+      <span className={`${styles.caseArtworkImage} ${styles.caseArtworkMini} ${caseArtworkClass(category)}`} />
     </span>
   );
+}
+
+function caseArtworkClass(category: SkinCategory): string {
+  if (category === "cardBack") {
+    return styles.caseArtBlackjack;
+  }
+
+  if (category === "rouletteBall") {
+    return styles.caseArtRoulette;
+  }
+
+  if (category === "rocketShip") {
+    return styles.caseArtRocket;
+  }
+
+  return styles.caseArtPlinko;
 }
 
 function SpecialChestPreview({ chest }: { chest: SpecialChestDefinition }) {
@@ -8595,14 +8630,299 @@ function AnimatedMedia({
   );
 }
 
+type FlameParticle = {
+  id: number;
+  left: number;
+  top: number;
+  size: number;
+  dx: number;
+  rise: number;
+  duration: number;
+  delay: number;
+};
+
+type FlameLayer = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  particles: FlameParticle[];
+};
+
+type FlameState = "idle" | "active" | "dying";
+
+const FLAME_CONFIG = {
+  heightMul: 1.08,
+  density: 0.72,
+  durMin: 2.35,
+  durRange: 2.2,
+  delaySpread: 6.5,
+  sampleStep: 4,
+  alphaThreshold: 120,
+};
+
+function getRenderedFlameText(text: string, textTransform: string) {
+  if (textTransform === "uppercase") {
+    return text.toUpperCase();
+  }
+
+  if (textTransform === "lowercase") {
+    return text.toLowerCase();
+  }
+
+  return text;
+}
+
+function buildFlameLayer(word: HTMLElement, text: HTMLElement): FlameLayer | null {
+  const computed = getComputedStyle(word);
+  const fontSize = parseFloat(computed.fontSize);
+  const wordWidth = text.offsetWidth;
+  const wordHeight = text.offsetHeight;
+  const renderedText = getRenderedFlameText(text.textContent ?? "", computed.textTransform);
+
+  if (!Number.isFinite(fontSize) || !wordWidth || !wordHeight) {
+    return null;
+  }
+
+  const headRoom = Math.round(wordHeight * 1.05);
+  const padX = Math.round(fontSize * 0.18);
+  const displayWidth = wordWidth + padX * 2;
+  const displayHeight = wordHeight + headRoom;
+  const sampleStep = FLAME_CONFIG.sampleStep;
+  const gridWidth = Math.ceil(displayWidth / sampleStep);
+  const gridHeight = Math.ceil(displayHeight / sampleStep);
+  const canvas = document.createElement("canvas");
+  canvas.width = gridWidth;
+  canvas.height = gridHeight;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    return null;
+  }
+
+  context.font = `${computed.fontStyle} ${computed.fontWeight} ${fontSize / sampleStep}px ${computed.fontFamily}`;
+  context.textBaseline = "top";
+  context.fillStyle = "#fff";
+  context.fillText(renderedText, padX / sampleStep, headRoom / sampleStep);
+
+  const pixels = context.getImageData(0, 0, gridWidth, gridHeight).data;
+  const ink: Array<[number, number]> = [];
+
+  for (let y = 0; y < gridHeight; y += 1) {
+    for (let x = 0; x < gridWidth; x += 1) {
+      if (pixels[(y * gridWidth + x) * 4 + 3] > FLAME_CONFIG.alphaThreshold) {
+        ink.push([x * sampleStep, y * sampleStep]);
+      }
+    }
+  }
+
+  if (ink.length === 0) {
+    for (let i = 0; i < 400; i += 1) {
+      ink.push([padX + Math.random() * wordWidth, headRoom + wordHeight * 0.85]);
+    }
+  }
+
+  const particleCount = Math.round(Math.min(260, Math.max(90, wordWidth * 0.6)) * FLAME_CONFIG.density);
+  const particles = Array.from({ length: particleCount }, (_, id) => {
+    const [particleX, particleY] = ink[(Math.random() * ink.length) | 0];
+    const size = 5 + Math.random() * 12;
+
+    return {
+      id,
+      left: particleX - size / 2,
+      top: particleY - size / 2,
+      size,
+      dx: Math.random() * 40 - 20,
+      rise: Math.round(headRoom * (0.55 + Math.random() * 0.6) * FLAME_CONFIG.heightMul),
+      duration: FLAME_CONFIG.durMin + Math.random() * FLAME_CONFIG.durRange,
+      delay: -Math.random() * FLAME_CONFIG.delaySpread,
+    };
+  });
+
+  return {
+    left: -padX,
+    top: -headRoom,
+    width: displayWidth,
+    height: displayHeight,
+    particles,
+  };
+}
+
+function FlameWord({ children }: { children: string }) {
+  const wordRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const builtRef = useRef(false);
+  const extinguishTimeoutRef = useRef<number | null>(null);
+  const [layer, setLayer] = useState<FlameLayer | null>(null);
+  const [flameState, setFlameState] = useState<FlameState>("idle");
+
+  const buildOnHover = () => {
+    if (builtRef.current) {
+      return;
+    }
+
+    builtRef.current = true;
+
+    const build = () => {
+      if (!wordRef.current || !textRef.current) {
+        builtRef.current = false;
+        return;
+      }
+
+      const nextLayer = buildFlameLayer(wordRef.current, textRef.current);
+      if (!nextLayer) {
+        builtRef.current = false;
+        return;
+      }
+
+      setLayer(nextLayer);
+    };
+
+    if ("fonts" in document) {
+      void document.fonts.ready.then(build);
+      return;
+    }
+
+    build();
+  };
+
+  const activateFlame = () => {
+    if (extinguishTimeoutRef.current !== null) {
+      window.clearTimeout(extinguishTimeoutRef.current);
+      extinguishTimeoutRef.current = null;
+    }
+
+    setFlameState("active");
+    buildOnHover();
+  };
+
+  const deactivateFlame = () => {
+    setFlameState((current) => (current === "idle" ? current : "dying"));
+
+    if (extinguishTimeoutRef.current !== null) {
+      window.clearTimeout(extinguishTimeoutRef.current);
+    }
+
+    extinguishTimeoutRef.current = window.setTimeout(() => {
+      setFlameState("idle");
+      extinguishTimeoutRef.current = null;
+    }, 1850);
+  };
+
+  useEffect(() => {
+    const buildTimeout = window.setTimeout(buildOnHover, 250);
+
+    return () => {
+      window.clearTimeout(buildTimeout);
+
+      if (extinguishTimeoutRef.current !== null) {
+        window.clearTimeout(extinguishTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (flameState !== "active") {
+      return undefined;
+    }
+
+    const deactivateWhenOutside = (event: PointerEvent | MouseEvent) => {
+      if (!wordRef.current) {
+        return;
+      }
+
+      const rect = wordRef.current.getBoundingClientRect();
+      const padding = 8;
+      const outside =
+        event.clientX < rect.left - padding ||
+        event.clientX > rect.right + padding ||
+        event.clientY < rect.top - padding ||
+        event.clientY > rect.bottom + padding;
+
+      if (outside) {
+        deactivateFlame();
+      }
+    };
+
+    document.addEventListener("pointermove", deactivateWhenOutside, { passive: true });
+    document.addEventListener("mousemove", deactivateWhenOutside, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointermove", deactivateWhenOutside);
+      document.removeEventListener("mousemove", deactivateWhenOutside);
+    };
+  }, [flameState]);
+
+  return (
+    <span
+      ref={wordRef}
+      className={styles.flameWord}
+      data-flame-active={flameState === "active" ? "true" : undefined}
+      data-flame-state={flameState}
+      onBlur={deactivateFlame}
+      onClick={activateFlame}
+      onFocus={activateFlame}
+      onMouseEnter={activateFlame}
+      onMouseLeave={deactivateFlame}
+      onMouseMove={activateFlame}
+      onMouseOver={activateFlame}
+      onPointerEnter={activateFlame}
+      onPointerLeave={deactivateFlame}
+      onPointerMove={activateFlame}
+      onPointerOver={activateFlame}
+    >
+      {layer ? (
+        <span
+          aria-hidden="true"
+          className={styles.flames}
+          style={{
+            left: `${layer.left}px`,
+            top: `${layer.top}px`,
+            width: `${layer.width}px`,
+            height: `${layer.height}px`,
+          }}
+        >
+          <span className={styles.flamesInner}>
+            {layer.particles.map((particle) => (
+              <span
+                className={styles.flameParticle}
+                key={particle.id}
+                style={
+                  {
+                    width: `${particle.size}px`,
+                    height: `${particle.size}px`,
+                    left: `${particle.left}px`,
+                    top: `${particle.top}px`,
+                    "--dx": `${particle.dx}px`,
+                    "--rise": `${particle.rise}px`,
+                    animationDuration: `${particle.duration}s`,
+                    animationDelay: `${particle.delay}s`,
+                  } as CSSProperties
+                }
+              />
+            ))}
+          </span>
+        </span>
+      ) : null}
+      <span ref={textRef} className={styles.flameText}>
+        {children}
+      </span>
+    </span>
+  );
+}
+
 function LobbyHero({ onPlay, onTournaments }: { onPlay: () => void; onTournaments: () => void }) {
   return (
     <section className={styles.lobbyHero}>
       <AnimatedMedia assetId="hero-duel-16x9" className={styles.heroBackdrop} label="Duel casino premium" />
       <div className={styles.heroContent}>
-        <h2>
-          Joue. Defie.
-          <span>Deviens une legende.</span>
+        <h2 className={styles.heroTitle}>
+          <span className={styles.heroTitleLine}>
+            <FlameWord>Joue.</FlameWord> <FlameWord>Defie.</FlameWord>
+          </span>{" "}
+          <span className={`${styles.heroTitleLine} ${styles.heroTitleAccent}`}>
+            <FlameWord>Deviens</FlameWord> <FlameWord>une</FlameWord> <FlameWord>legende.</FlameWord>
+          </span>
         </h2>
         <p>Affronte tes amis, grimpe au classement et debloque des skins.</p>
         <div className={styles.heroActions}>
