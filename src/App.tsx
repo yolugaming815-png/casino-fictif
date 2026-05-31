@@ -1222,7 +1222,7 @@ function App() {
   const [activeGame, setActiveGame] = useState<CasinoGame>("slots");
   const [activeOnlineGame, setActiveOnlineGame] = useState<OnlineRoomType>("duel");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const paused = false;
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
   const [slotHistory, setSlotHistory] = useState<SlotHistoryItem[]>(savedGame?.slotHistory ?? []);
@@ -3539,11 +3539,11 @@ function App() {
 
   return (
     <main className={styles.app}>
-      <section className={styles.shell} aria-label="Casino demo">
+      <section className={styles.shell} aria-label="Jackpot City">
         <header className={styles.header}>
           <div className={styles.brandBlock}>
-            <p className={styles.disclaimer}>Démo 18+ · aucun argent réel</p>
-            <h1>Casino</h1>
+            <h1>Jackpot City</h1>
+            <p className={styles.disclaimer}>Casino virtuel</p>
           </div>
 
           <div className={styles.headerStats} aria-label="Statut de la partie">
@@ -3560,33 +3560,27 @@ function App() {
             </div>
           </div>
 
-          <button
-            className={styles.pauseButton}
-            type="button"
-            onClick={() => setPaused((value) => !value)}
-            aria-pressed={paused}
-            aria-label={paused ? "Reprendre la partie" : "Faire une pause"}
-          >
-            {paused ? "Reprendre" : "Pause"}
-          </button>
-
           <div className={styles.accountTools}>
-            <span>{accountUser ? accountUser.displayName || accountUser.email || "Compte Google" : isFirebaseConfigured() ? "Sauvegarde" : "Comptes indisponibles"}</span>
             {accountUser ? (
-              <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
-                Déconnexion
-              </button>
+              <>
+                <span>{accountUser.displayName || accountUser.email || "Compte Google"}</span>
+                <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
+                  Déconnexion
+                </button>
+                <small>{accountMessage}</small>
+              </>
             ) : (
               <button
-                className={styles.secondaryButton}
+                className={`${styles.secondaryButton} ${styles.googleAccountButton}`}
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={accountLoading || !isFirebaseConfigured()}
+                title="Connecte-toi pour sauvegarder tes scores"
+                data-tooltip="Connecte-toi pour sauvegarder tes scores"
               >
-                Google
+                Connexion avec Google
               </button>
             )}
-            {accountUser && <small>{accountMessage}</small>}
           </div>
 
           <div className={styles.ageBadge} aria-label="Reserve aux adultes">
