@@ -62,7 +62,13 @@
 .brandBlock {
   display: grid;
   gap: 4px;
+  list-style: none;
   min-width: 0;
+}
+
+.brandBlock::marker,
+.brandBlock *::marker {
+  content: "";
 }
 
 .header h1 {

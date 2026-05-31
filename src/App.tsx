@@ -3606,7 +3606,6 @@ function App() {
 
         {!mobileMenuOpen && (
           <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
-            <span aria-hidden="true">☰</span>
             Menu
           </button>
         )}
