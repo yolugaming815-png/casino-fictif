@@ -4062,8 +4062,9 @@ function App() {
             muted
             playsInline
             preload="metadata"
-            src={jackpotCityHeaderVideo}
-          />
+          >
+            <source media="(min-width: 781px)" src={jackpotCityHeaderVideo} type="video/mp4" />
+          </video>
           <div className={styles.brandBlock}>
             <h1>Jackpot City</h1>
             <p className={styles.disclaimer}>Casino virtuel</p>
