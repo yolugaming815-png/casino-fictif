@@ -121,6 +121,7 @@ import {
   type RocketOutcome,
   type RocketTarget,
 } from "./rocketLogic";
+import { buildLobbyActivityFeed, countKnownLobbyPlayers, type LobbyActivityFeedItem } from "./lobbyActivity";
 import {
   advancePokerPhase,
   allInPokerPlayer,
@@ -1451,6 +1452,41 @@ function App() {
   const visibleOnlineRooms = useMemo(
     () => onlineRooms.filter((room) => !forceClosedPokerRoomsRef.current.has(room.id) && !hiddenInactivePokerRoomsRef.current.has(room.id) && !isInactivePokerRoom(room, now)),
     [onlineRooms, now],
+  );
+  const lobbyActivityRooms = useMemo(() => {
+    const roomById = new Map<string, OnlineRoomEntry>();
+
+    [...visibleOnlineRooms, ...duelHistory].forEach((room) => {
+      if (!roomById.has(room.id)) {
+        roomById.set(room.id, room);
+      }
+    });
+
+    return [...roomById.values()].slice(0, 8);
+  }, [visibleOnlineRooms, duelHistory]);
+  const lobbyActivityHistories = useMemo(
+    () => [
+      ...slotHistory.map((item) => ({ id: item.id, game: "Machine a sous", net: item.net, bet: item.bet })),
+      ...blackjackHistory.map((item) => ({ id: item.id, game: "Blackjack", net: item.net, bet: item.bet })),
+      ...plinkoHistory.map((item) => ({ id: item.id, game: "Plinko", net: item.net, bet: item.bet })),
+      ...rouletteHistory.map((item) => ({ id: item.id, game: "Roulette", net: item.net, bet: item.bet })),
+      ...rocketHistory.map((item) => ({ id: item.id, game: "Rocket", net: item.net, bet: item.bet })),
+    ],
+    [slotHistory, blackjackHistory, plinkoHistory, rouletteHistory, rocketHistory],
+  );
+  const lobbyKnownPlayerCount = useMemo(
+    () => countKnownLobbyPlayers(leaderboard, lobbyActivityRooms),
+    [leaderboard, lobbyActivityRooms],
+  );
+  const lobbyActivityFeed = useMemo(
+    () =>
+      buildLobbyActivityFeed({
+        currentPlayerName: accountUser?.displayName || "Joueur",
+        leaderboard,
+        rooms: lobbyActivityRooms,
+        histories: lobbyActivityHistories,
+      }),
+    [accountUser?.displayName, leaderboard, lobbyActivityRooms, lobbyActivityHistories],
   );
   const activityItems = useMemo(
     () => buildActivityItems(accountUser?.uid ?? "", friendRequests, skinTrades, privateMessages, duelHistory, visibleOnlineRooms),
@@ -3567,11 +3603,12 @@ function App() {
           <div className={styles.accountTools}>
             {accountUser ? (
               <>
-                <span>{accountUser.displayName || accountUser.email || "Compte Google"}</span>
+                <button className={styles.secondaryButton} type="button" onClick={() => setActiveSection("messages")}>
+                  Ouvrir les messages
+                </button>
                 <button className={styles.secondaryButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
                   Déconnexion
                 </button>
-                <small>{accountMessage}</small>
               </>
             ) : (
               <button
@@ -3871,10 +3908,11 @@ function App() {
 
         {activeSection === "home" ? (
           <HomeDashboard
-            activityCount={activityBadgeCount}
             balance={balance}
             currentUserId={accountUser?.uid ?? null}
             leaderboard={leaderboard}
+            lobbyActivityFeed={lobbyActivityFeed}
+            lobbyKnownPlayerCount={lobbyKnownPlayerCount}
             leaderboardMessage={leaderboardMessage}
             remainingAds={Math.max(0, DAILY_REWARDED_AD_LIMIT - normalizeRewardedAds(rewardedAds).watched)}
             onGoTo={(section) => setActiveSection(section)}
@@ -8443,10 +8481,11 @@ function SpecialChestRewards({ chest }: { chest: SpecialChestDefinition }) {
 }
 
 function HomeDashboard({
-  activityCount,
   balance,
   currentUserId,
   leaderboard,
+  lobbyActivityFeed,
+  lobbyKnownPlayerCount,
   leaderboardMessage,
   remainingAds,
   onGoTo,
@@ -8454,10 +8493,11 @@ function HomeDashboard({
   onSelectGame,
   onSelectOnlineGame,
 }: {
-  activityCount: number;
   balance: number;
   currentUserId: string | null;
   leaderboard: LeaderboardEntry[];
+  lobbyActivityFeed: LobbyActivityFeedItem[];
+  lobbyKnownPlayerCount: number;
   leaderboardMessage: string;
   remainingAds: number;
   onGoTo: (section: MainSection) => void;
@@ -8474,7 +8514,7 @@ function HomeDashboard({
 
         <aside className={styles.lobbySideColumn} aria-label="Classement et activite">
           <LobbyLeaderboard currentUserId={currentUserId} entries={topPlayers} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
-          <LobbySocialFeed activityCount={activityCount} entries={topPlayers} onGoTo={onGoTo} />
+          <LobbySocialFeed items={lobbyActivityFeed} playerCount={lobbyKnownPlayerCount} />
         </aside>
       </div>
 
@@ -8482,7 +8522,7 @@ function HomeDashboard({
       <LobbyTournaments onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
       <RewardStrip remainingAds={remainingAds} onGoTo={onGoTo} />
       <LobbyPromoGrid onGoTo={onGoTo} onSelectOnlineGame={onSelectOnlineGame} />
-      <LobbyStats activityCount={activityCount} balance={balance} leaderboardCount={leaderboard.length} remainingAds={remainingAds} />
+      <LobbyStats activityCount={lobbyActivityFeed.length} balance={balance} leaderboardCount={leaderboard.length} remainingAds={remainingAds} />
     </section>
   );
 }
@@ -9060,40 +9100,30 @@ function LobbyLeaderboard({
 }
 
 function LobbySocialFeed({
-  activityCount,
-  entries,
-  onGoTo,
+  items,
+  playerCount,
 }: {
-  activityCount: number;
-  entries: LeaderboardEntry[];
-  onGoTo: (section: MainSection) => void;
+  items: LobbyActivityFeedItem[];
+  playerCount: number;
 }) {
-  const visibleEntries = entries.slice(0, 4);
-
   return (
-    <section className={styles.lobbySocialFeed} aria-label="Chat du salon">
+    <section className={styles.lobbySocialFeed} aria-label="Activite du salon">
       <div className={styles.lobbyPanelHeader}>
-        <h2>Chat du salon</h2>
-        <span>{Math.max(12, entries.length * 17 + activityCount)} en ligne</span>
+        <h2>Activite du salon</h2>
+        <span>{playerCount.toLocaleString("fr-FR")} joueur{playerCount === 1 ? "" : "s"}</span>
       </div>
       <div className={styles.lobbyChatList}>
-        {visibleEntries.length === 0 ? (
-          <p className={styles.empty}>Connecte-toi pour voir les joueurs actifs.</p>
+        {items.length === 0 ? (
+          <p className={styles.empty}>Les activites du salon apparaitront ici.</p>
         ) : (
-          visibleEntries.map((entry, index) => (
-            <article key={entry.uid}>
-              <ProfileAvatar avatarSeed={entry.uid} className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
-              <p>
-                <strong>{entry.displayName}</strong>
-                {index === 0 ? " GG pour le top classement !" : index === 1 ? " Pret pour le prochain duel ?" : " Cette salle est active."}
-              </p>
+          items.map((item) => (
+            <article data-feed-tone={item.tone} key={item.id}>
+              <ProfileAvatar avatarSeed={item.uid || item.displayName} className={styles.lobbyRankAvatar} displayName={item.displayName} photoURL={item.photoURL} />
+              <p>{item.message}</p>
             </article>
           ))
         )}
       </div>
-      <button className={styles.lobbyGhostButton} type="button" onClick={() => onGoTo("messages")}>
-        Ouvrir les messages
-      </button>
     </section>
   );
 }
