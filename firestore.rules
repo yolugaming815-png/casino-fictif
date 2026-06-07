@@ -258,6 +258,12 @@ service cloud.firestore {
             && resource.data.status == "finished"
             && request.auth.uid in resource.data.playerIds
           )
+          || (
+            resource.data.type == "russian-roulette"
+            && resource.data.status == "finished"
+            && request.auth.uid in resource.data.playerIds
+            && request.time > resource.data.updatedAt + duration.value(1, "m")
+          )
         ));
     }
   }

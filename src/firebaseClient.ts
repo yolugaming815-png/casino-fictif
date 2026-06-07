@@ -208,6 +208,8 @@ export type DuelStats = {
 
 const STALE_WAITING_ROOM_MS = 30 * 60 * 1000;
 const INACTIVE_POKER_ROOM_MS = 30 * 60 * 1000;
+const FINISHED_RUSSIAN_ROOM_VISIBLE_MS = 20 * 1000;
+const FINISHED_RUSSIAN_ROOM_CLEANUP_MS = 60 * 1000;
 const POKER_MAX_PLAYERS = 10;
 const RUSSIAN_ROULETTE_MAX_PLAYERS = 6;
 const RUSSIAN_ROULETTE_ELIMINATION_CHANCE = 1 / 6;
@@ -962,12 +964,35 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
     const createdAt = timestampToMillis(room.createdAt);
     return room.status === "waiting" && createdAt !== null && now - createdAt > STALE_WAITING_ROOM_MS;
   });
+  const staleFinishedRussianRooms = parsedRooms.filter((room) => {
+    const updatedAt = timestampToMillis(room.updatedAt);
+    return room.type === "russian-roulette" && room.status === "finished" && updatedAt !== null && now - updatedAt > FINISHED_RUSSIAN_ROOM_CLEANUP_MS;
+  });
 
-  await Promise.allSettled(staleWaitingRooms.map((room) => deleteDoc(doc(getFirestore(app), "onlineRooms", room.id))));
+  await Promise.allSettled(
+    [...staleWaitingRooms, ...staleFinishedRussianRooms].map((room) => deleteDoc(doc(getFirestore(app), "onlineRooms", room.id))),
+  );
 
   return parsedRooms
-    .filter((room) => !staleWaitingRooms.some((staleRoom) => staleRoom.id === room.id))
-    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker" || room.type === "russian-roulette"));
+    .filter((room) => ![...staleWaitingRooms, ...staleFinishedRussianRooms].some((staleRoom) => staleRoom.id === room.id))
+    .filter((room) => room.hostUid && room.players.length > 0 && isVisibleOnlineRoom(room, now));
+}
+
+function isVisibleOnlineRoom(room: OnlineRoomEntry, now = Date.now()) {
+  if (room.status !== "finished") {
+    return true;
+  }
+
+  if (room.type === "poker") {
+    return true;
+  }
+
+  if (room.type !== "russian-roulette") {
+    return false;
+  }
+
+  const updatedAt = timestampToMillis(room.updatedAt);
+  return updatedAt === null || now - updatedAt <= FINISHED_RUSSIAN_ROOM_VISIBLE_MS;
 }
 
 function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[]) {
@@ -978,7 +1003,7 @@ function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[]) {
       const createdAt = timestampToMillis(room.createdAt);
       return !(room.status === "waiting" && createdAt !== null && now - createdAt > STALE_WAITING_ROOM_MS);
     })
-    .filter((room) => room.hostUid && room.players.length > 0 && (room.status !== "finished" || room.type === "poker" || room.type === "russian-roulette"));
+    .filter((room) => room.hostUid && room.players.length > 0 && isVisibleOnlineRoom(room, now));
 }
 
 export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => void, onError?: () => void) {
