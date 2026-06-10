@@ -1,0 +1,328 @@
+.crashPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerTitle h2 {
+  margin: 0;
+}
+
+.headerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  color: #d5ddd9;
+  font-size: 0.88rem;
+}
+
+.phaseTag {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.phaseTag[data-phase="betting"] {
+  border-color: rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.12);
+  color: #ffd166;
+}
+
+.phaseTag[data-phase="flying"] {
+  border-color: rgba(124, 255, 178, 0.5);
+  background: rgba(124, 255, 178, 0.1);
+  color: #7cffb2;
+}
+
+.phaseTag[data-phase="revealed"] {
+  border-color: rgba(255, 77, 109, 0.5);
+  background: rgba(255, 77, 109, 0.12);
+  color: #ff8896;
+}
+
+.historyStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.historyBadge {
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.historyBadge[data-tone="low"] {
+  border: 1px solid rgba(255, 77, 109, 0.4);
+  background: rgba(255, 77, 109, 0.13);
+  color: #ff8896;
+}
+
+.historyBadge[data-tone="high"] {
+  border: 1px solid rgba(124, 255, 178, 0.4);
+  background: rgba(124, 255, 178, 0.1);
+  color: #7cffb2;
+}
+
+.phaseBlock {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.statusLine {
+  margin: 0;
+  color: #d5ddd9;
+}
+
+.countdown {
+  color: #ffd166;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.myBetLine {
+  margin: 0;
+  color: #d5ddd9;
+}
+
+.flightZone {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 30px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(168, 89, 255, 0.28);
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(168, 89, 255, 0.16), transparent 65%),
+    rgba(4, 5, 18, 0.9);
+}
+
+.bigMultiplier {
+  font-size: clamp(48px, 9vw, 88px);
+  font-weight: 900;
+  line-height: 1;
+  color: #7cffb2;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 26px rgba(124, 255, 178, 0.45);
+  animation: crashGlowPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes crashGlowPulse {
+  0%,
+  100% {
+    text-shadow: 0 0 18px rgba(124, 255, 178, 0.35);
+  }
+  50% {
+    text-shadow: 0 0 34px rgba(124, 255, 178, 0.6);
+  }
+}
+
+.cashOutButton {
+  min-height: 64px;
+  padding: 0 40px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffe1a0, #ffd166);
+  color: #111318;
+  font: inherit;
+  font-size: clamp(1.05rem, 2.4vw, 1.4rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 0 28px rgba(255, 209, 102, 0.4);
+}
+
+.cashOutButton:hover:not(:disabled),
+.cashOutButton:focus-visible:not(:disabled) {
+  box-shadow: 0 0 40px rgba(255, 209, 102, 0.6);
+}
+
+.cashOutButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cashedOutLine {
+  margin: 0;
+  color: #ffd166;
+  font-weight: 700;
+}
+
+.alertRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 77, 109, 0.35);
+  background: rgba(255, 77, 109, 0.08);
+  color: #ff8896;
+  font-weight: 700;
+}
+
+.crashedLine {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #d5ddd9;
+}
+
+.crashedPoint {
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 900;
+  color: #ff8896;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 22px rgba(255, 77, 109, 0.4);
+}
+
+.voidedLine {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  background: rgba(255, 209, 102, 0.1);
+  color: #ffe1a0;
+  font-weight: 700;
+}
+
+.verifyLine {
+  margin: 0;
+  color: #9aa3b5;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.verifyBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.verifyBadge[data-state="ok"] {
+  border: 1px solid rgba(124, 255, 178, 0.45);
+  background: rgba(124, 255, 178, 0.1);
+  color: #7cffb2;
+}
+
+.verifyBadge[data-state="ko"] {
+  border: 1px solid rgba(255, 77, 109, 0.45);
+  background: rgba(255, 77, 109, 0.12);
+  color: #ff8896;
+}
+
+.verifyBadge[data-state="pending"] {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d5ddd9;
+}
+
+.betsList {
+  display: grid;
+  gap: 6px;
+}
+
+.betsTitle {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  color: #d5ddd9;
+}
+
+.betRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.9rem;
+  color: #d5ddd9;
+}
+
+.betRow[data-state="cashed"] {
+  border-color: rgba(255, 209, 102, 0.4);
+}
+
+.betRow[data-state="won"] {
+  border-color: rgba(124, 255, 178, 0.4);
+  background: rgba(124, 255, 178, 0.06);
+}
+
+.betRow[data-state="lost"] {
+  border-color: rgba(255, 77, 109, 0.35);
+  background: rgba(255, 77, 109, 0.05);
+}
+
+.betName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: #f9f7ef;
+}
+
+.betAmount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #ffd166;
+}
+
+.betOutcome {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.betRow[data-state="won"] .betOutcome {
+  color: #7cffb2;
+  font-weight: 800;
+}
+
+.betRow[data-state="lost"] .betOutcome {
+  color: #ff8896;
+}
+
+.betRow[data-state="cashed"] .betOutcome {
+  color: #ffd166;
+}
+
+.error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 77, 109, 0.35);
+  background: rgba(255, 77, 109, 0.08);
+  color: #ff8896;
+  font-weight: 700;
+}
+
+.note {
+  margin: 0;
+  color: #8b93a8;
+  font-size: 0.82rem;
+}

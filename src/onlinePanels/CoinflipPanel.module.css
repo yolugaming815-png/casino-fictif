@@ -1,0 +1,163 @@
+.coinflipPanel {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(255, 209, 102, 0.22);
+  background: rgba(10, 12, 20, 0.72);
+}
+
+.panelHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelHeader h2 {
+  margin: 0;
+}
+
+.panelHeader p {
+  margin: 4px 0 0;
+  color: #d5ddd9;
+}
+
+.flipStage {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  padding: 18px;
+  border-radius: 8px;
+  background: rgba(16, 18, 24, 0.68);
+  text-align: center;
+  color: #d5ddd9;
+  perspective: 600px;
+}
+
+.flipStage p {
+  margin: 0;
+}
+
+.coin {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  transform-style: preserve-3d;
+  animation: coinSpin 0.6s linear infinite;
+}
+
+.coin[data-result="tails"] {
+  animation-name: coinSpinTails;
+}
+
+.coinSettled {
+  animation: none;
+  transform: none;
+}
+
+.coinFace {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  backface-visibility: hidden;
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: #111318;
+  background: radial-gradient(circle at 30% 28%, #ffe9b0, #ffd166 55%, #c89b3c);
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 22px rgba(255, 209, 102, 0.45);
+}
+
+.coinBack {
+  transform: rotateY(180deg);
+  background: radial-gradient(circle at 30% 28%, #e7e9f2, #b9bdcc 55%, #7e8398);
+}
+
+@keyframes coinSpin {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes coinSpinTails {
+  from {
+    transform: rotateY(180deg);
+  }
+  to {
+    transform: rotateY(540deg);
+  }
+}
+
+.roomsBlock h3 {
+  margin: 0 0 10px;
+}
+
+.roomList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roomRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.roomMeta {
+  display: block;
+  margin-top: 4px;
+  color: #9aa6a0;
+  font-size: 0.9rem;
+}
+
+.waitingTag {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffd166;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.resultTag {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(192, 48, 58, 0.16);
+  color: #ff8d96;
+  font-weight: 900;
+  font-size: 0.9rem;
+}
+
+.resultTag[data-win="true"] {
+  background: rgba(29, 122, 79, 0.2);
+  color: #7be0a3;
+}
+
+.notice {
+  margin: 0;
+  color: #9aa6a0;
+}
+
+.errorMessage {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(192, 48, 58, 0.16);
+  color: #ff8d96;
+  font-weight: 700;
+}

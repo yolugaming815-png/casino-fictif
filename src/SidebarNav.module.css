@@ -1,0 +1,61 @@
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* En-tête de groupe pliable : hérite des styles .modeTabs button d'App.module.css,
+   on n'ajoute ici que la variante "titre de groupe". */
+.groupHeader {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.groupHeader[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.groupEmoji {
+  width: 22px;
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.groupLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.groupChevron {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  transition: transform 160ms ease;
+}
+
+.groupChevronOpen {
+  transform: rotate(90deg);
+}
+
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(125, 211, 252, 0.14);
+  margin-left: 9px;
+}
+
+.groupBody > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.profileLevel {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 10px 6px;
+}

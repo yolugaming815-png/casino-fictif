@@ -1,0 +1,303 @@
+.arena {
+  display: grid;
+  gap: 16px;
+}
+
+.arenaHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.arenaHeader h2 {
+  margin: 0;
+}
+
+.potBadge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffe1a0;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.scoreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.scoreCard {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scoreCardMe {
+  border-color: rgba(124, 60, 255, 0.5);
+  background: rgba(124, 60, 255, 0.12);
+}
+
+.scoreTotal {
+  color: #ffd166;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.roundDots {
+  display: flex;
+  gap: 6px;
+}
+
+.roundDot {
+  min-width: 44px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #8b93a7;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.roundDotDone {
+  background: rgba(121, 226, 159, 0.14);
+  color: #79e29f;
+}
+
+.playZone {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.roundLabel {
+  margin: 0;
+  color: #d5ddd9;
+}
+
+.miniReels {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  gap: 10px;
+}
+
+.miniReel {
+  display: grid;
+  place-items: center;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 209, 102, 0.25);
+  background: #120d08;
+  font-size: 1.9rem;
+}
+
+.miniReelSpinning {
+  animation: duelReelPulse 180ms ease-in-out infinite;
+}
+
+.miniReels .miniReelSpinning:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.miniReels .miniReelSpinning:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+@keyframes duelReelPulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    filter: blur(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+    filter: blur(1px);
+  }
+}
+
+.plinkoStrip {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.plinkoBall {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffd166;
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.8);
+  animation: duelPlinkoDrop 1.5s ease-in-out infinite;
+}
+
+@keyframes duelPlinkoDrop {
+  0% {
+    transform: translate(0, -6px);
+  }
+
+  25% {
+    transform: translate(110px, 4px);
+  }
+
+  50% {
+    transform: translate(240px, -4px);
+  }
+
+  75% {
+    transform: translate(140px, 6px);
+  }
+
+  100% {
+    transform: translate(320px, 10px);
+  }
+}
+
+.plinkoSlots {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 4px;
+}
+
+.plinkoSlot {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #8b93a7;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.plinkoSlotHit {
+  background: rgba(255, 209, 102, 0.22);
+  color: #ffd166;
+  box-shadow: 0 0 14px rgba(255, 209, 102, 0.35);
+}
+
+.rocketControls {
+  width: 100%;
+  max-width: 420px;
+}
+
+.rocketControls input[type="range"] {
+  flex: 1;
+  min-width: 160px;
+  padding: 0;
+  background: transparent;
+}
+
+.rocketTargetValue {
+  min-width: 52px;
+  color: #ffd166;
+  font-size: 1.05rem;
+}
+
+.rocketStage {
+  min-height: 32px;
+  font-weight: 800;
+}
+
+.rocketFlying {
+  display: inline-block;
+  color: #9fb4ff;
+  animation: duelRocketShake 240ms ease-in-out infinite;
+}
+
+@keyframes duelRocketShake {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.roundScore {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.positiveText {
+  color: #79e29f;
+}
+
+.negativeText {
+  color: #ff7a8a;
+}
+
+.waitingPanel {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(124, 60, 255, 0.1);
+}
+
+.waitingPanel p {
+  margin: 0;
+  color: #d5ddd9;
+}
+
+.waitingSpinner {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #ffd166;
+  animation: duelSpin 800ms linear infinite;
+}
+
+@keyframes duelSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.finalPanel {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.finalPanel strong {
+  font-size: 1.1rem;
+}
+
+.finalWin {
+  border-color: rgba(121, 226, 159, 0.4);
+  background: rgba(121, 226, 159, 0.12);
+  color: #79e29f;
+}
+
+.finalLose {
+  border-color: rgba(255, 122, 138, 0.35);
+  background: rgba(255, 122, 138, 0.1);
+  color: #ffb3bd;
+}
+
+.finalPanel span {
+  color: #d5ddd9;
+  font-size: 0.9rem;
+}
+
+.spectatorHint {
+  margin: 0;
+  color: #8b93a7;
+}

@@ -1,0 +1,158 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.75fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.grid {
+  display: grid;
+  gap: 8px;
+  max-width: 460px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  color: #f3f6f4;
+  font-size: clamp(16px, 3.2vw, 24px);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cell:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(255, 209, 102, 0.55);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.cellSafe {
+  border-color: rgba(116, 236, 158, 0.6);
+  background: rgba(116, 236, 158, 0.14);
+  box-shadow: inset 0 0 14px rgba(116, 236, 158, 0.2);
+}
+
+.cellMine {
+  border-color: rgba(255, 107, 107, 0.5);
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.cellMineHit {
+  border-color: rgba(255, 107, 107, 0.9);
+  background: rgba(255, 107, 107, 0.28);
+  box-shadow: 0 0 16px rgba(255, 107, 107, 0.45);
+}
+
+.cellSpent {
+  opacity: 0.45;
+}
+
+.sidebar {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.statRow span {
+  color: #b8c2bd;
+}
+
+.statRow strong {
+  color: #f6d58c;
+  font-size: 18px;
+}
+
+.cashOutButton {
+  margin-top: 6px;
+  padding: 12px;
+  font-size: 16px;
+}
+
+.minesSelector {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.minesOption {
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: transparent;
+  color: #d5ddd9;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.minesOption:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.minesOptionActive {
+  border-color: rgba(255, 209, 102, 0.8);
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffe1a0;
+}
+
+.multiplierTable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.multiplierChip {
+  display: grid;
+  justify-items: center;
+  min-width: 58px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.multiplierChip small {
+  color: #b8c2bd;
+}
+
+.multiplierChip span {
+  font-weight: 700;
+  color: #f3f6f4;
+}
+
+.multiplierChipActive {
+  border-color: rgba(116, 236, 158, 0.7);
+  background: rgba(116, 236, 158, 0.14);
+}
+
+.multiplierChipActive span {
+  color: #74ec9e;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grid {
+    max-width: none;
+  }
+}

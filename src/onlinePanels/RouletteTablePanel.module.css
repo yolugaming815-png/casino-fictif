@@ -1,0 +1,186 @@
+.tablePanel {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(255, 209, 102, 0.22);
+  background: rgba(10, 12, 20, 0.72);
+}
+
+.tableHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tableHeader h2 {
+  margin: 0;
+}
+
+.tableHeader p {
+  margin: 4px 0 0;
+  color: #d5ddd9;
+}
+
+.historyStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(16, 18, 24, 0.68);
+}
+
+.historyDot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 900;
+  color: #f9f7ef;
+  background: #19212c;
+}
+
+.historyDot[data-color="red"] {
+  background: #c0303a;
+  box-shadow: 0 0 8px rgba(192, 48, 58, 0.5);
+}
+
+.historyDot[data-color="black"] {
+  background: #14161d;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.historyDot[data-color="green"] {
+  background: #1d7a4f;
+  box-shadow: 0 0 8px rgba(29, 122, 79, 0.5);
+}
+
+.countdownRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: #d5ddd9;
+}
+
+.countdown {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.countdown[data-done="true"] {
+  background: rgba(192, 48, 58, 0.18);
+  color: #ff8d96;
+}
+
+.resultBlock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.resultBlock h3 {
+  margin: 0 0 10px;
+}
+
+.resultNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #f9f7ef;
+  background: #19212c;
+}
+
+.resultNumber[data-color="red"] {
+  background: #c0303a;
+  box-shadow: 0 0 18px rgba(192, 48, 58, 0.55);
+}
+
+.resultNumber[data-color="black"] {
+  background: #14161d;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.resultNumber[data-color="green"] {
+  background: #1d7a4f;
+  box-shadow: 0 0 18px rgba(29, 122, 79, 0.55);
+}
+
+.betsBoard h3 {
+  margin: 0 0 10px;
+}
+
+.betsList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.betsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.betsRow[data-me="true"] {
+  border-color: rgba(255, 209, 102, 0.4);
+}
+
+.betChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.betChip {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(16, 18, 24, 0.68);
+  color: #d5ddd9;
+  font-size: 0.85rem;
+}
+
+.payout {
+  margin-left: auto;
+  color: #ff8d96;
+}
+
+.payout[data-win="true"] {
+  color: #7be0a3;
+}
+
+.notice {
+  margin: 0;
+  color: #9aa6a0;
+}
+
+.errorMessage {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(192, 48, 58, 0.16);
+  color: #ff8d96;
+  font-weight: 700;
+}

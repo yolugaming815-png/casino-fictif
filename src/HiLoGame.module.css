@@ -1,0 +1,113 @@
+.hiloLayout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.hiloCard {
+  position: relative;
+  display: grid;
+  align-content: space-between;
+  width: 132px;
+  height: 188px;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f9f7ef;
+  color: #101218;
+  border: 1px solid rgba(16, 18, 24, 0.14);
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.32),
+    0 0 24px rgba(168, 89, 255, 0.18);
+  font-weight: 900;
+}
+
+.hiloCardRed {
+  color: #c4283c;
+}
+
+.hiloCardDimmed {
+  opacity: 0.55;
+  filter: saturate(0.7);
+}
+
+.hiloCardEmpty {
+  background: rgba(8, 10, 24, 0.82);
+  border: 1px dashed rgba(168, 89, 255, 0.4);
+  color: #b8c2bd;
+  place-content: center;
+  box-shadow: none;
+}
+
+.hiloCardPlaceholder {
+  font-size: 2.6rem;
+  opacity: 0.7;
+}
+
+.hiloCardCorner {
+  display: grid;
+  justify-items: center;
+  justify-self: start;
+  line-height: 1;
+  font-size: 1.2rem;
+}
+
+.hiloCardCorner small {
+  font-size: 0.95rem;
+}
+
+.hiloCardCornerBottom {
+  justify-self: end;
+  transform: rotate(180deg);
+}
+
+.hiloCardSuit {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  font-size: 3.4rem;
+  pointer-events: none;
+}
+
+.hiloStats {
+  display: grid;
+  gap: 10px;
+  min-width: 200px;
+}
+
+.hiloStat {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(168, 89, 255, 0.2);
+  background: rgba(8, 10, 24, 0.72);
+}
+
+.hiloStat small {
+  color: #b8c2bd;
+}
+
+.hiloStat strong {
+  font-size: 1.15rem;
+  color: #f9f7ef;
+}
+
+.guessButton {
+  min-width: 168px;
+}
+
+.cashOutButton {
+  min-width: 150px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  color: #ffd166;
+  font-weight: 900;
+}
+
+.cashOutButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
