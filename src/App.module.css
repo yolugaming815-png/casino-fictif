@@ -9978,3 +9978,53 @@
 .rocketCashOutButton:hover:not(:disabled) {
   filter: brightness(1.08);
 }
+
+/* === Vague 3b : integration multijoueur === */
+
+.pokerBlindsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(110, 168, 254, 0.1);
+}
+
+.pokerBlindsRow span {
+  color: #d5ddd9;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.pokerDealerBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #ffd166;
+  color: #1a1d23;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+.pokerEliminatedSeat {
+  opacity: 0.45;
+  filter: grayscale(0.8);
+}
+
+.pokerModeChoice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.pokerModeChoice button {
+  flex: 0 0 auto;
+}

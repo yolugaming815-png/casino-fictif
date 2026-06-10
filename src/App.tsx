@@ -194,6 +194,7 @@ import {
   signInWithGoogle,
   signOutGoogle,
   startDuelRoom,
+  startNextPokerHand,
   startPokerRoom,
   startRussianRouletteRoom,
   subscribeAdminPriceOverrides,
@@ -214,6 +215,27 @@ import {
   type PrivateMessageEntry,
   type SkinTradeEntry,
 } from "./firebaseClient";
+import { loadSettledKeys, rememberSettledKey, type Settlement } from "./onlineSettlement";
+import { computeCrashSettlements, createCrashRoom } from "./crashRooms";
+import { computeRouletteTableSettlements, createRouletteTableRoom } from "./rouletteTableRooms";
+import { computeRussianSideBetSettlements } from "./russianSideBets";
+import { computeCoinflipSettlements } from "./coinflipRooms";
+import { subscribeIncomingGifts, type GiftEntry } from "./gifts";
+import {
+  computeFriendBetSettlements,
+  markFriendBetEscrowed,
+  markFriendBetSettled,
+  subscribeFriendBets,
+  type FriendBetEntry,
+} from "./friendBets";
+import { POKER_DEFAULT_BUY_IN, parsePokerRoomExtras, type PokerMode } from "./pokerLogic";
+import { CrashPanel } from "./onlinePanels/CrashPanel";
+import { RouletteTablePanel } from "./onlinePanels/RouletteTablePanel";
+import { RussianSideBetsPanel } from "./onlinePanels/RussianSideBetsPanel";
+import { CoinflipPanel } from "./onlinePanels/CoinflipPanel";
+import { DuelArenaPanel } from "./onlinePanels/DuelArenaPanel";
+import { GiftsPanel } from "./onlinePanels/GiftsPanel";
+import { FriendBetsPanel } from "./onlinePanels/FriendBetsPanel";
 
 const { Bodies, Body, Composite, Engine, Runner } = Matter;
 
@@ -222,6 +244,13 @@ const REFUNDED_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-refunded-inactive-pok
 const HIDDEN_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-hidden-inactive-poker";
 const FORCE_CLOSED_POKER_STORAGE_KEY = "casino-fictif-force-closed-poker";
 const RUSSIAN_ROULETTE_REWARDS_KEY = "casino-fictif-russian-roulette-rewards-v1";
+const CRASH_SETTLEMENTS_KEY = "casino-crash-settlements-v1";
+const ROULETTE_TABLE_SETTLEMENTS_KEY = "casino-rt-settlements-v1";
+const SIDE_BET_SETTLEMENTS_KEY = "casino-sidebet-settlements-v1";
+const COINFLIP_SETTLEMENTS_KEY = "casino-coinflip-settlements-v1";
+const FRIEND_BET_SETTLEMENTS_KEY = "casino-friendbet-settlements-v1";
+const SEEDED_DUEL_SETTLEMENTS_KEY = "casino-seeded-duel-settlements-v1";
+const POKER_SITNGO_SETTLEMENTS_KEY = "casino-poker-sitngo-settlements-v1";
 
 type SlotHistoryItem = Omit<SpinOutcome, "reels"> & {
   id: number;
@@ -474,8 +503,6 @@ const REWARDED_AD_CREDITS = 250;
 const DAILY_REWARDED_AD_LIMIT = 5;
 const REWARDED_AD_WATCH_MS = 6500;
 const PLINKO_MAX_BET = 1000;
-const DUEL_PLINKO_BALLS_PER_ROUND = 15;
-const DUEL_PLINKO_BET_PER_BALL = 10;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
 const MISSION_REWARDS: Record<MissionDifficulty, number> = {
   easy: 150,
@@ -868,20 +895,6 @@ function parseBetInput(value: string, max?: number): Bet {
   const parsed = Math.floor(Number(value));
   const minimumBet = Number.isFinite(parsed) ? Math.max(MIN_BET, parsed) : MIN_BET;
   return max === undefined ? minimumBet : Math.min(max, minimumBet);
-}
-
-function getDuelGameKind(game: string): "plinko" | "roulette" | "quick" {
-  const normalized = game.toLowerCase();
-
-  if (normalized.includes("roulette")) {
-    return "roulette";
-  }
-
-  if (normalized.includes("plinko")) {
-    return "plinko";
-  }
-
-  return "quick";
 }
 
 function readStoredSet(key: string): Set<string> {
@@ -1932,6 +1945,8 @@ function App() {
   const [onlineRooms, setOnlineRooms] = useState<OnlineRoomEntry[]>([]);
   const [onlineMessage, setOnlineMessage] = useState("Connecte-toi pour creer ou rejoindre un salon.");
   const [duelHistory, setDuelHistory] = useState<OnlineRoomEntry[]>([]);
+  const [incomingGifts, setIncomingGifts] = useState<GiftEntry[]>([]);
+  const [friendBetsList, setFriendBetsList] = useState<FriendBetEntry[]>([]);
   const [selectedProfileStats, setSelectedProfileStats] = useState<DuelStats | null>(null);
   const [onlineActionRoomId, setOnlineActionRoomId] = useState<string | null>(null);
   const settledPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem("casino-fictif-settled-poker") ?? "[]") as string[]));
@@ -2067,6 +2082,32 @@ function App() {
     ? privateMessages.filter((message) => message.toUid === accountUser.uid && !message.readBy.includes(accountUser.uid)).length
     : 0;
   const activityBadgeCount = pendingFriendRequestsCount + pendingTradeOffersCount + unreadMessagesCount;
+  const pendingFriendBetsCount = accountUser
+    ? friendBetsList.filter((bet) => bet.status === "proposed" && bet.opponentUid === accountUser.uid).length
+    : 0;
+  const pendingGiftsCount = incomingGifts.length;
+  const acceptedFriends = useMemo(() => {
+    if (!accountUser) {
+      return [] as Array<{ uid: string; displayName: string }>;
+    }
+
+    const items: Array<{ uid: string; displayName: string }> = [];
+
+    friendRequests.forEach((request) => {
+      if (request.status !== "accepted" || (request.fromUid !== accountUser.uid && request.toUid !== accountUser.uid)) {
+        return;
+      }
+
+      const isSender = request.fromUid === accountUser.uid;
+      const uid = isSender ? request.toUid : request.fromUid;
+
+      if (!items.some((item) => item.uid === uid)) {
+        items.push({ uid, displayName: isSender ? request.toDisplayName : request.fromDisplayName });
+      }
+    });
+
+    return items;
+  }, [accountUser, friendRequests]);
   const equippedItems = useMemo(
     () => ({
       plinkoBall: getShopItem(equippedSkins.plinkoBall),
@@ -2579,6 +2620,11 @@ function App() {
         return;
       }
 
+      if (parsePokerRoomExtras(room.raw).mode === "sitngo") {
+        // Sit & go : le pot est en jetons de tournoi, regle par l'effet sitngo dedie.
+        return;
+      }
+
       const settlementKey = `${room.id}:${room.pokerHandId}`;
 
       if (settledPokerRoomsRef.current.has(settlementKey)) {
@@ -2635,6 +2681,11 @@ function App() {
         return;
       }
 
+      if (parsePokerRoomExtras(room.raw).mode === "sitngo") {
+        // Sit & go : pas d'ante sur le solde, le buy-in est debite par l'effet sitngo dedie.
+        return;
+      }
+
       const anteKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
 
       if (paidPokerAnteRoomsRef.current.has(anteKey)) {
@@ -2646,6 +2697,220 @@ function App() {
       setBalance((current) => Math.max(0, current - 25));
     });
   }, [accountUser, onlineRooms]);
+
+  function applyOnlineSettlements(storageKey: string, settlements: Settlement[], onApplied?: (settlement: Settlement) => void) {
+    if (settlements.length === 0) {
+      return;
+    }
+
+    const settledKeys = loadSettledKeys(storageKey);
+
+    settlements.forEach((settlement) => {
+      if (settledKeys.has(settlement.key)) {
+        return;
+      }
+
+      rememberSettledKey(storageKey, settlement.key);
+      settledKeys.add(settlement.key);
+      setBalance((current) => Math.max(0, current + settlement.delta));
+      setOnlineMessage(settlement.message);
+      onApplied?.(settlement);
+    });
+  }
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "crash" || !room.playerIds.includes(accountUser.uid)) {
+        return;
+      }
+
+      applyOnlineSettlements(CRASH_SETTLEMENTS_KEY, computeCrashSettlements(room, accountUser.uid));
+    });
+  }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "roulette-table" || !room.playerIds.includes(accountUser.uid)) {
+        return;
+      }
+
+      applyOnlineSettlements(ROULETTE_TABLE_SETTLEMENTS_KEY, computeRouletteTableSettlements(room, accountUser.uid));
+    });
+  }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "russian-roulette" || room.playerIds.includes(accountUser.uid)) {
+        return;
+      }
+
+      applyOnlineSettlements(SIDE_BET_SETTLEMENTS_KEY, computeRussianSideBetSettlements(room, accountUser.uid));
+    });
+  }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "coinflip" || !room.playerIds.includes(accountUser.uid)) {
+        return;
+      }
+
+      applyOnlineSettlements(COINFLIP_SETTLEMENTS_KEY, computeCoinflipSettlements(room, accountUser.uid));
+    });
+  }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    const settlements = computeFriendBetSettlements(friendBetsList, accountUser.uid);
+    const betsById = new Map(friendBetsList.map((bet) => [bet.id, bet]));
+
+    applyOnlineSettlements(FRIEND_BET_SETTLEMENTS_KEY, settlements, (settlement) => {
+      const [betId, kind] = settlement.key.split(":");
+      const bet = betsById.get(betId);
+
+      if (!bet) {
+        return;
+      }
+
+      // Marque l'etat cote Firestore (escrow/refund/payout) pour la transparence entre clients.
+      if (kind === "escrow") {
+        markFriendBetEscrowed(bet, accountUser).catch(() => undefined);
+      } else if (kind === "payout") {
+        markFriendBetSettled(bet.id, "payoutClaimed").catch(() => undefined);
+      } else if (kind === "refund") {
+        markFriendBetSettled(bet.id, bet.creatorUid === accountUser.uid ? "creatorRefunded" : "opponentRefunded").catch(() => undefined);
+      }
+    });
+  }, [accountUser, friendBetsList]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    const seededDuels = [...onlineRooms, ...duelHistory].filter(
+      (room, index, rooms) =>
+        room.type === "duel" &&
+        room.duelRewardMode === "seeded-v2" &&
+        (room.status === "playing" || room.status === "finished") &&
+        room.playerIds.includes(accountUser.uid) &&
+        rooms.findIndex((candidate) => candidate.id === room.id) === index,
+    );
+
+    seededDuels.forEach((room) => {
+      const rawStake = room.raw.duelStake;
+      const stake = typeof rawStake === "number" && Number.isFinite(rawStake) ? Math.max(25, Math.floor(rawStake)) : 200;
+      const settlements: Settlement[] = [
+        {
+          key: `${room.id}:stake:${accountUser.uid}`,
+          delta: -stake,
+          message: `Duel lance : mise de ${stake.toLocaleString("fr-FR")} credits engagee.`,
+        },
+      ];
+
+      if (room.status === "finished") {
+        const myTotal = room.duelScores[accountUser.uid]?.total ?? 0;
+        const opponentTotal = room.players
+          .filter((player) => player.uid !== accountUser.uid)
+          .reduce((sum, player) => sum + (room.duelScores[player.uid]?.total ?? 0), 0);
+
+        if (myTotal === opponentTotal) {
+          settlements.push({
+            key: `${room.id}:seeded-payout`,
+            delta: stake,
+            message: `Egalite parfaite : ta mise de ${stake.toLocaleString("fr-FR")} credits est remboursee.`,
+          });
+        } else if (room.winnerUid === accountUser.uid) {
+          settlements.push({
+            key: `${room.id}:seeded-payout`,
+            delta: stake * 2,
+            message: `Duel gagne : tu remportes ${(stake * 2).toLocaleString("fr-FR")} credits.`,
+          });
+        }
+      }
+
+      applyOnlineSettlements(SEEDED_DUEL_SETTLEMENTS_KEY, settlements);
+    });
+  }, [accountUser, onlineRooms, duelHistory]);
+
+  useEffect(() => {
+    if (!accountUser || !cloudSaveReadyRef.current) {
+      return;
+    }
+
+    onlineRooms.forEach((room) => {
+      if (room.type !== "poker" || !room.playerIds.includes(accountUser.uid)) {
+        return;
+      }
+
+      if (room.status !== "playing" && room.status !== "finished") {
+        return;
+      }
+
+      const extras = parsePokerRoomExtras(room.raw);
+
+      if (extras.mode !== "sitngo") {
+        return;
+      }
+
+      const settlements: Settlement[] = [
+        {
+          key: `${room.id}:buyin:${accountUser.uid}`,
+          delta: -extras.buyIn,
+          message: `Sit & go lance : buy-in de ${extras.buyIn.toLocaleString("fr-FR")} credits debite.`,
+        },
+      ];
+
+      if (room.status === "finished" && room.winnerUid === accountUser.uid) {
+        // Le nombre de buy-ins correspond aux stacks distribues au lancement (les joueurs partis restent comptes).
+        const entrants = Math.max(2, Object.keys(extras.stacks).length, room.players.length);
+        const prize = extras.buyIn * entrants;
+        settlements.push({
+          key: `${room.id}:sitngo-payout`,
+          delta: prize,
+          message: `Sit & go remporte : +${prize.toLocaleString("fr-FR")} credits.`,
+        });
+      }
+
+      applyOnlineSettlements(POKER_SITNGO_SETTLEMENTS_KEY, settlements);
+    });
+  }, [accountUser, onlineRooms]);
+
+  useEffect(() => {
+    if (!accountUser) {
+      setIncomingGifts([]);
+      return;
+    }
+
+    return subscribeIncomingGifts(accountUser.uid, setIncomingGifts);
+  }, [accountUser]);
+
+  useEffect(() => {
+    if (!accountUser) {
+      setFriendBetsList([]);
+      return;
+    }
+
+    return subscribeFriendBets(accountUser.uid, setFriendBetsList, () => setFriendBetsList([]));
+  }, [accountUser]);
 
   useEffect(() => {
     if (!accountUser || !cloudSaveReadyRef.current) {
@@ -3242,21 +3507,30 @@ function App() {
     }
   }
 
-  async function handleStartPokerRoom(room: OnlineRoomEntry) {
+  async function handleStartPokerRoom(room: OnlineRoomEntry, mode: PokerMode = "cash") {
     if (!accountUser) {
       setOnlineMessage("Connecte-toi pour lancer la table.");
       return;
     }
 
-    if (balance < 25) {
+    if (mode === "sitngo" && balance < POKER_DEFAULT_BUY_IN) {
+      setOnlineMessage(`Il faut ${POKER_DEFAULT_BUY_IN} credits pour payer le buy-in du sit & go.`);
+      return;
+    }
+
+    if (mode === "cash" && balance < 25) {
       setOnlineMessage("Il faut au moins 25 credits pour entrer dans une main de poker.");
       return;
     }
 
     try {
       setOnlineActionRoomId(room.id);
-      await startPokerRoom(room, accountUser);
-      setOnlineMessage("Table lancee. Les cartes sont distribuees.");
+      await startPokerRoom(room, accountUser, { mode });
+      setOnlineMessage(
+        mode === "sitngo"
+          ? `Sit & go lance : stacks de 1000 jetons, buy-in ${POKER_DEFAULT_BUY_IN} credits.`
+          : "Table lancee. Les cartes sont distribuees.",
+      );
       await refreshOnlineRooms();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -3264,6 +3538,71 @@ function App() {
     } finally {
       setOnlineActionRoomId(null);
     }
+  }
+
+  async function handleNextPokerHand(room: OnlineRoomEntry) {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour lancer la main suivante.");
+      return;
+    }
+
+    try {
+      setOnlineActionRoomId(room.id);
+      await startNextPokerHand(room, accountUser);
+      setOnlineMessage("Main suivante distribuee.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Main suivante impossible : ${message}`);
+    } finally {
+      setOnlineActionRoomId(null);
+    }
+  }
+
+  async function handleCreateCrashRoom() {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour creer une table crash.");
+      return;
+    }
+
+    try {
+      const roomId = await createCrashRoom(accountUser);
+      setOnlineMessage(roomId ? "Table crash creee : place une mise pour embarquer." : "Firebase doit etre configure pour le crash.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Creation impossible : ${message}`);
+    }
+  }
+
+  async function handleCreateRouletteTableRoom() {
+    if (!accountUser) {
+      setOnlineMessage("Connecte-toi pour ouvrir une table roulette.");
+      return;
+    }
+
+    try {
+      const roomId = await createRouletteTableRoom(accountUser);
+      setOnlineMessage(roomId ? "Table roulette ouverte : les mises sont lancees." : "Firebase doit etre configure pour la roulette live.");
+      await refreshOnlineRooms();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      setOnlineMessage(`Creation impossible : ${message}`);
+    }
+  }
+
+  function handleClaimGift(gift: GiftEntry) {
+    setBalance((current) => current + Math.max(0, Math.floor(gift.amount)));
+    setFriendsMessage(`Cadeau de ${gift.fromDisplayName} recupere : +${Math.floor(gift.amount).toLocaleString("fr-FR")} credits.`);
+  }
+
+  function handleGiftSent(amount: number) {
+    setBalance((current) => Math.max(0, current - Math.max(0, Math.floor(amount))));
+    setFriendsMessage(`Cadeau envoye : ${Math.floor(amount).toLocaleString("fr-FR")} credits offerts.`);
+  }
+
+  function handleFriendBetAction() {
+    setTradesMessage("Pari entre amis mis a jour.");
   }
 
   async function handleAdvancePokerPhase(room: OnlineRoomEntry) {
@@ -3310,9 +3649,10 @@ function App() {
       return;
     }
 
+    const isSitngo = parsePokerRoomExtras(room.raw).mode === "sitngo";
     const amountToCall = Math.max(0, room.pokerCurrentBet - (room.pokerContributions[accountUser.uid] ?? 0));
 
-    if (balance < amountToCall) {
+    if (!isSitngo && balance < amountToCall) {
       setOnlineMessage("Solde insuffisant pour suivre.");
       return;
     }
@@ -3320,7 +3660,9 @@ function App() {
     try {
       setOnlineActionRoomId(room.id);
       await callPokerPlayer(room, accountUser);
-      setBalance((current) => current - amountToCall);
+      if (!isSitngo) {
+        setBalance((current) => current - amountToCall);
+      }
       setOnlineMessage("Mise suivie.");
       await refreshOnlineRooms();
     } catch (error) {
@@ -3337,27 +3679,32 @@ function App() {
       return;
     }
 
+    const isSitngo = parsePokerRoomExtras(room.raw).mode === "sitngo";
     const amountToCall = Math.max(0, room.pokerCurrentBet - (room.pokerContributions[accountUser.uid] ?? 0));
 
-    if (amountToCall <= 0) {
-      setOnlineMessage("Tu peux checker, il n'y a rien a suivre.");
-      return;
-    }
+    if (!isSitngo) {
+      if (amountToCall <= 0) {
+        setOnlineMessage("Tu peux checker, il n'y a rien a suivre.");
+        return;
+      }
 
-    if (balance <= 0) {
-      setOnlineMessage("Tu n'as plus de credits pour faire tapis.");
-      return;
-    }
+      if (balance <= 0) {
+        setOnlineMessage("Tu n'as plus de credits pour faire tapis.");
+        return;
+      }
 
-    if (balance >= amountToCall) {
-      setOnlineMessage("Tu as assez de credits pour suivre normalement.");
-      return;
+      if (balance >= amountToCall) {
+        setOnlineMessage("Tu as assez de credits pour suivre normalement.");
+        return;
+      }
     }
 
     try {
       setOnlineActionRoomId(room.id);
-      await allInPokerPlayer(room, accountUser, balance);
-      setBalance(0);
+      await allInPokerPlayer(room, accountUser, isSitngo ? 0 : balance);
+      if (!isSitngo) {
+        setBalance(0);
+      }
       setOnlineMessage("Tapis envoye : les cartes sont revelees.");
       await refreshOnlineRooms();
     } catch (error) {
@@ -3386,9 +3733,10 @@ function App() {
       return;
     }
 
+    const isSitngo = parsePokerRoomExtras(room.raw).mode === "sitngo";
     const amountToPay = Math.max(0, newBet - (room.pokerContributions[accountUser.uid] ?? 0));
 
-    if (balance < amountToPay) {
+    if (!isSitngo && balance < amountToPay) {
       setOnlineMessage("Solde insuffisant pour relancer.");
       return;
     }
@@ -3396,7 +3744,9 @@ function App() {
     try {
       setOnlineActionRoomId(room.id);
       await raisePokerPlayer(room, accountUser, newBet);
-      setBalance((current) => current - amountToPay);
+      if (!isSitngo) {
+        setBalance((current) => current - amountToPay);
+      }
       setOnlineMessage(`Mise de ${newBet.toLocaleString("fr-FR")} credits enregistree.`);
       await refreshOnlineRooms();
     } catch (error) {
@@ -5025,6 +5375,30 @@ function App() {
                 <MenuIcon name="roulette" />
                 <span className={styles.tabLabel}>Roulette russe</span>
               </button>
+              <button
+                className={activeOnlineGame === "crash" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => selectOnlineGame("crash")}
+              >
+                <MenuIcon name="crash" />
+                <span className={styles.tabLabel}>Crash</span>
+              </button>
+              <button
+                className={activeOnlineGame === "roulette-table" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => selectOnlineGame("roulette-table")}
+              >
+                <MenuIcon name="rouletteTable" />
+                <span className={styles.tabLabel}>Roulette live</span>
+              </button>
+              <button
+                className={activeOnlineGame === "coinflip" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => selectOnlineGame("coinflip")}
+              >
+                <MenuIcon name="coinflip" />
+                <span className={styles.tabLabel}>Pile ou face</span>
+              </button>
             </div>
           )}
           <button
@@ -5079,7 +5453,9 @@ function App() {
           >
             <MenuIcon name="friends" />
             <span className={styles.tabLabel}>Amis</span>
-            {pendingFriendRequestsCount > 0 ? <span className={styles.tabBadge}>{pendingFriendRequestsCount}</span> : null}
+            {pendingFriendRequestsCount + pendingGiftsCount > 0 ? (
+              <span className={styles.tabBadge}>{pendingFriendRequestsCount + pendingGiftsCount}</span>
+            ) : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
@@ -5089,7 +5465,9 @@ function App() {
           >
             <MenuIcon name="trades" />
             <span className={styles.tabLabel}>Echanges</span>
-            {pendingTradeOffersCount > 0 ? <span className={styles.tabBadge}>{pendingTradeOffersCount}</span> : null}
+            {pendingTradeOffersCount + pendingFriendBetsCount > 0 ? (
+              <span className={styles.tabBadge}>{pendingTradeOffersCount + pendingFriendBetsCount}</span>
+            ) : null}
             <span className={styles.tabChevron} aria-hidden="true">›</span>
           </button>
           <button
@@ -5167,6 +5545,8 @@ function App() {
             now={now}
             rooms={visibleOnlineRooms}
             onCreateRoom={handleCreateOnlineRoom}
+            onCreateCrashRoom={handleCreateCrashRoom}
+            onCreateRouletteTableRoom={handleCreateRouletteTableRoom}
             onAdvancePoker={handleAdvancePokerPhase}
             onAllInPoker={handleAllInPoker}
             onCallPoker={handleCallPoker}
@@ -5175,6 +5555,7 @@ function App() {
             onForceClosePoker={handleForceClosePokerRoom}
             onJoinRoom={handleJoinOnlineRoom}
             onLeaveRoom={handleLeaveOnlineRoom}
+            onNextPokerHand={handleNextPokerHand}
             onOpenProfile={handleOpenPlayerProfile}
             onPlayDuelRound={handlePlayDuelRound}
             onPlayRussianRoulette={handlePlayRussianRouletteRoom}
@@ -5241,28 +5622,52 @@ function App() {
             />
           </>
         ) : activeSection === "friends" ? (
-          <FriendsGame
-            currentUser={accountUser}
-            friendRequests={friendRequests}
-            leaderboard={leaderboard}
-            message={friendsMessage}
-            onAnswer={handleAnswerFriendRequest}
-            onOpenProfile={handleOpenPlayerProfile}
-          />
+          <>
+            <FriendsGame
+              currentUser={accountUser}
+              friendRequests={friendRequests}
+              leaderboard={leaderboard}
+              message={friendsMessage}
+              onAnswer={handleAnswerFriendRequest}
+              onOpenProfile={handleOpenPlayerProfile}
+            />
+            {accountUser ? (
+              <GiftsPanel
+                user={accountUser}
+                balance={balance}
+                friends={acceptedFriends}
+                leaderboard={leaderboard}
+                incomingGifts={incomingGifts}
+                onClaim={handleClaimGift}
+                onSent={handleGiftSent}
+              />
+            ) : null}
+          </>
         ) : activeSection === "trades" ? (
-          <TradesGame
-            balance={balance}
-            currentUser={accountUser}
-            friendRequests={friendRequests}
-            leaderboard={leaderboard}
-            message={tradesMessage}
-            ownedSkinIds={ownedSkinIds}
-            specialInventory={specialInventory}
-            trades={skinTrades}
-            onAnswer={handleAnswerSkinTrade}
-            onCounter={handleCounterSkinTrade}
-            onCreate={handleCreateSkinTrade}
-          />
+          <>
+            <TradesGame
+              balance={balance}
+              currentUser={accountUser}
+              friendRequests={friendRequests}
+              leaderboard={leaderboard}
+              message={tradesMessage}
+              ownedSkinIds={ownedSkinIds}
+              specialInventory={specialInventory}
+              trades={skinTrades}
+              onAnswer={handleAnswerSkinTrade}
+              onCounter={handleCounterSkinTrade}
+              onCreate={handleCreateSkinTrade}
+            />
+            {accountUser ? (
+              <FriendBetsPanel
+                user={accountUser}
+                balance={balance}
+                friends={acceptedFriends}
+                bets={friendBetsList}
+                onAction={handleFriendBetAction}
+              />
+            ) : null}
+          </>
         ) : activeSection === "messages" ? (
           <MessagesGame
             currentUser={accountUser}
@@ -6858,10 +7263,13 @@ function OnlineGames({
   onCallPoker,
   onCheckPoker,
   onCreateRoom,
+  onCreateCrashRoom,
+  onCreateRouletteTableRoom,
   onFoldPoker,
   onForceClosePoker,
   onJoinRoom,
   onLeaveRoom,
+  onNextPokerHand,
   onOpenProfile,
   onPlayDuelRound,
   onPlayRussianRoulette,
@@ -6886,17 +7294,20 @@ function OnlineGames({
   onCallPoker: (room: OnlineRoomEntry) => void;
   onCheckPoker: (room: OnlineRoomEntry) => void;
   onCreateRoom: (type: OnlineRoomType, game: string, invitedPlayer?: OnlineRoomPlayer, options?: { russianBet?: number }) => void;
+  onCreateCrashRoom: () => void;
+  onCreateRouletteTableRoom: () => void;
   onFoldPoker: (room: OnlineRoomEntry) => void;
   onForceClosePoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
+  onNextPokerHand: (room: OnlineRoomEntry) => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry, roundScore?: number) => void;
   onPlayRussianRoulette: (room: OnlineRoomEntry) => void;
   onRefreshRooms: () => void;
   onRaisePoker: (room: OnlineRoomEntry, targetBet: number) => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
-  onStartPoker: (room: OnlineRoomEntry) => void;
+  onStartPoker: (room: OnlineRoomEntry, pokerMode: PokerMode) => void;
   onStartRussianRoulette: (room: OnlineRoomEntry) => void;
 }) {
   const [russianBetText, setRussianBetText] = useState("25");
@@ -6952,11 +7363,11 @@ function OnlineGames({
           </div>
 
           <div className={styles.onlineDuelGrid}>
-            {["Plinko", "Rocket Games", "Roulette"].map((gameName, index) => (
+            {["Plinko", "Rocket Games", "Machine a sous"].map((gameName, index) => (
               <article className={styles.onlineModeCard} key={gameName}>
                 <span>Mode {index + 1}</span>
                 <h3>Duel {gameName}</h3>
-                <p>3 manches chacun. Le meilleur bilan virtuel gagne le duel.</p>
+                <p>3 manches seedees identiques pour les 2 joueurs. Le meilleur total gagne la mise.</p>
                 <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel ${gameName}`)}>
                   Creer un duel
                 </button>
@@ -6989,8 +7400,8 @@ function OnlineGames({
                     <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel Plinko avec ${friend.displayName}`, friend)}>
                       Plinko
                     </button>
-                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel Roulette avec ${friend.displayName}`, friend)}>
-                      Roulette
+                    <button className={styles.primaryButton} type="button" onClick={() => onCreateRoom("duel", `Duel Rocket avec ${friend.displayName}`, friend)}>
+                      Rocket
                     </button>
                   </div>
                 </article>
@@ -7021,6 +7432,8 @@ function OnlineGames({
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
         now={now}
+        currentUser={currentUser}
+        onNextPokerHand={onNextPokerHand}
       />
         <DuelHistoryPanel currentUserId={currentUser.uid} history={duelHistory} />
       </>
@@ -7087,8 +7500,141 @@ function OnlineGames({
           onStartPoker={onStartPoker}
           actionRoomId={actionRoomId}
           now={now}
+          currentUser={currentUser}
+          onNextPokerHand={onNextPokerHand}
         />
       </>
+    );
+  }
+
+  if (mode === "crash") {
+    const activeCrashRoom = visibleRooms.find((room) => room.status === "playing" && room.playerIds.includes(currentUserId));
+
+    return (
+      <>
+        <section className={styles.machine}>
+          <div className={styles.shopHeader}>
+            <div>
+              <h2>Crash multijoueur</h2>
+              <p>
+                Mise pendant la phase d'attente, regarde le multiplicateur grimper et encaisse avant le crash. Manche verifiable
+                (hash + seed reveles a la fin).
+              </p>
+            </div>
+            <strong>x1.00 → x250</strong>
+          </div>
+
+          <div className={styles.onlineDuelGrid}>
+            <article className={styles.onlineModeCard}>
+              <span>Table partagee</span>
+              <h3>Crash en direct</h3>
+              <p>Jusqu'a 8 joueurs par table. Chacun mise et choisit son moment pour sauter.</p>
+              <button className={styles.primaryButton} type="button" onClick={onCreateCrashRoom}>
+                Creer une table crash
+              </button>
+            </article>
+          </div>
+        </section>
+
+        {activeCrashRoom && <CrashPanel room={activeCrashRoom} user={currentUser} balance={balance} onLeave={onLeaveRoom} />}
+
+        <OnlineRoomsPanel
+          balance={balance}
+          currentUserId={currentUser.uid}
+          message={message}
+          rooms={visibleRooms.filter((room) => room.id !== activeCrashRoom?.id)}
+          onJoinRoom={onJoinRoom}
+          onLeaveRoom={onLeaveRoom}
+          onPlayDuelRound={onPlayDuelRound}
+          onPlayRussianRoulette={onPlayRussianRoulette}
+          onRefreshRooms={onRefreshRooms}
+          onStartDuel={onStartDuel}
+          onStartRussianRoulette={onStartRussianRoulette}
+          onAdvancePoker={onAdvancePoker}
+          onAllInPoker={onAllInPoker}
+          onCallPoker={onCallPoker}
+          onCheckPoker={onCheckPoker}
+          onFoldPoker={onFoldPoker}
+          onForceClosePoker={onForceClosePoker}
+          onRaisePoker={onRaisePoker}
+          onStartPoker={onStartPoker}
+          actionRoomId={actionRoomId}
+          now={now}
+          currentUser={currentUser}
+          onNextPokerHand={onNextPokerHand}
+        />
+      </>
+    );
+  }
+
+  if (mode === "roulette-table") {
+    const activeRouletteRoom = visibleRooms.find((room) => room.status === "playing" && room.playerIds.includes(currentUserId));
+
+    return (
+      <>
+        <section className={styles.machine}>
+          <div className={styles.shopHeader}>
+            <div>
+              <h2>Roulette live</h2>
+              <p>Une table partagee : 20 secondes de mises, un seul tirage pour tous les joueurs assis.</p>
+            </div>
+            <strong>Jusqu'a 8 joueurs</strong>
+          </div>
+
+          <div className={styles.onlineDuelGrid}>
+            <article className={styles.onlineModeCard}>
+              <span>Table partagee</span>
+              <h3>Roulette europeenne</h3>
+              <p>Rouge/noir, douzaines, pleins... chacun pose ses mises avant le spin commun.</p>
+              <button className={styles.primaryButton} type="button" onClick={onCreateRouletteTableRoom}>
+                Ouvrir une table roulette
+              </button>
+            </article>
+          </div>
+        </section>
+
+        {activeRouletteRoom && (
+          <RouletteTablePanel room={activeRouletteRoom} user={currentUser} balance={balance} onLeave={onLeaveRoom} />
+        )}
+
+        <OnlineRoomsPanel
+          balance={balance}
+          currentUserId={currentUser.uid}
+          message={message}
+          rooms={visibleRooms.filter((room) => room.id !== activeRouletteRoom?.id)}
+          onJoinRoom={onJoinRoom}
+          onLeaveRoom={onLeaveRoom}
+          onPlayDuelRound={onPlayDuelRound}
+          onPlayRussianRoulette={onPlayRussianRoulette}
+          onRefreshRooms={onRefreshRooms}
+          onStartDuel={onStartDuel}
+          onStartRussianRoulette={onStartRussianRoulette}
+          onAdvancePoker={onAdvancePoker}
+          onAllInPoker={onAllInPoker}
+          onCallPoker={onCallPoker}
+          onCheckPoker={onCheckPoker}
+          onFoldPoker={onFoldPoker}
+          onForceClosePoker={onForceClosePoker}
+          onRaisePoker={onRaisePoker}
+          onStartPoker={onStartPoker}
+          actionRoomId={actionRoomId}
+          now={now}
+          currentUser={currentUser}
+          onNextPokerHand={onNextPokerHand}
+        />
+      </>
+    );
+  }
+
+  if (mode === "coinflip") {
+    return (
+      <CoinflipPanel
+        rooms={visibleRooms}
+        user={currentUser}
+        balance={balance}
+        friends={friends.map((friend) => ({ uid: friend.uid, displayName: friend.displayName }))}
+        onRefresh={onRefreshRooms}
+      />
     );
   }
 
@@ -7098,7 +7644,7 @@ function OnlineGames({
         <div className={styles.shopHeader}>
           <div>
             <h2>Partie en ligne</h2>
-            <p>Table de poker fictive pour jouer entre comptes connectes.</p>
+            <p>Table de poker fictive : cash game classique ou sit &amp; go a stacks de jetons.</p>
           </div>
           <strong>Texas Hold'em</strong>
         </div>
@@ -7156,16 +7702,18 @@ function OnlineGames({
         onStartPoker={onStartPoker}
         actionRoomId={actionRoomId}
         now={now}
+        currentUser={currentUser}
+        onNextPokerHand={onNextPokerHand}
       />
 
       <section className={styles.columns}>
         <article className={styles.panel}>
-          <h2>Duel</h2>
-          <p>Le duel sera le mode le plus simple a rendre vraiment jouable en ligne : invitation, manches, score total, gagnant.</p>
+          <h2>Cash game</h2>
+          <p>Les mises sont debitees de ton solde de credits, le pot est reverse au gagnant de chaque main.</p>
         </article>
         <article className={styles.panel}>
-          <h2>Poker</h2>
-          <p>La table est prete visuellement. La prochaine etape sera de sauvegarder les salons dans Firebase pour que plusieurs joueurs rejoignent la meme partie.</p>
+          <h2>Sit &amp; go</h2>
+          <p>Buy-in fixe de {POKER_DEFAULT_BUY_IN} credits, stacks de 1000 jetons, blinds qui doublent toutes les 4 mains. Le dernier survivant remporte tous les buy-ins.</p>
         </article>
       </section>
     </>
@@ -7175,6 +7723,7 @@ function OnlineGames({
 function OnlineRoomsPanel({
   actionRoomId,
   balance,
+  currentUser,
   currentUserId,
   message,
   now,
@@ -7187,6 +7736,7 @@ function OnlineRoomsPanel({
   onForceClosePoker,
   onJoinRoom,
   onLeaveRoom,
+  onNextPokerHand,
   onPlayDuelRound,
   onPlayRussianRoulette,
   onRaisePoker,
@@ -7197,6 +7747,7 @@ function OnlineRoomsPanel({
 }: {
   actionRoomId: string | null;
   balance: number;
+  currentUser: CasinoUser | null;
   currentUserId: string;
   message: string;
   now: number;
@@ -7209,12 +7760,13 @@ function OnlineRoomsPanel({
   onForceClosePoker: (room: OnlineRoomEntry) => void;
   onJoinRoom: (room: OnlineRoomEntry) => void;
   onLeaveRoom: (room: OnlineRoomEntry) => void;
+  onNextPokerHand: (room: OnlineRoomEntry) => void;
   onPlayDuelRound: (room: OnlineRoomEntry, roundScore?: number) => void;
   onPlayRussianRoulette: (room: OnlineRoomEntry) => void;
   onRaisePoker: (room: OnlineRoomEntry, targetBet: number) => void;
   onRefreshRooms: () => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
-  onStartPoker: (room: OnlineRoomEntry) => void;
+  onStartPoker: (room: OnlineRoomEntry, pokerMode: PokerMode) => void;
   onStartRussianRoulette: (room: OnlineRoomEntry) => void;
 }) {
   return (
@@ -7239,11 +7791,26 @@ function OnlineRoomsPanel({
             const busy = actionRoomId === room.id;
             const invitedLabel = room.invitedName ? ` | Invite : ${room.invitedName}` : "";
             const countdownLabel = formatWaitingRoomCountdown(room, now);
+            const liveTable = room.type === "crash" || room.type === "roulette-table";
+            const joinable = room.status === "waiting" || (liveTable && room.status === "playing");
+            const typeLabel =
+              room.type === "poker"
+                ? "Table poker"
+                : room.type === "russian-roulette"
+                  ? "Roulette russe"
+                  : room.type === "crash"
+                    ? "Table crash"
+                    : room.type === "roulette-table"
+                      ? "Roulette live"
+                      : room.type === "coinflip"
+                        ? "Pile ou face"
+                        : "Duel";
+            const seededDuel = room.type === "duel" && room.duelRewardMode === "seeded-v2" && room.status !== "waiting";
 
             return (
               <article className={styles.onlineRoomCard} key={room.id}>
                 <div>
-                  <span>{room.type === "poker" ? "Table poker" : room.type === "russian-roulette" ? "Roulette russe" : "Duel"}</span>
+                  <span>{typeLabel}</span>
                   <h3>{room.game}</h3>
                   <p>
                     Hote : {room.hostName}
@@ -7263,12 +7830,15 @@ function OnlineRoomsPanel({
                   className={alreadyJoined ? styles.secondaryButton : styles.primaryButton}
                   type="button"
                   onClick={() => (alreadyJoined ? onLeaveRoom(room) : onJoinRoom(room))}
-                  disabled={busy || room.status !== "waiting" || (!alreadyJoined && full)}
+                  disabled={busy || !joinable || (!alreadyJoined && full)}
                 >
-                  {busy ? "..." : room.status !== "waiting" ? "Partie lancee" : alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
+                  {busy ? "..." : !joinable ? "Partie lancee" : alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
                 </button>
-                {room.type === "duel" && (
-                  <DuelRoomPanel busy={busy} currentUserId={currentUserId} room={room} onPlayRound={onPlayDuelRound} onStartDuel={onStartDuel} />
+                {room.type === "duel" && !seededDuel && (
+                  <DuelRoomPanel busy={busy} currentUserId={currentUserId} room={room} onStartDuel={onStartDuel} />
+                )}
+                {seededDuel && (
+                  <DuelArenaPanel room={room} user={currentUser} onPlayRound={(duelRoom, score) => onPlayDuelRound(duelRoom, score)} />
                 )}
                 {room.type === "poker" && (
                   <PokerRoomPanel
@@ -7282,6 +7852,7 @@ function OnlineRoomsPanel({
                     onCheck={onCheckPoker}
                     onFold={onFoldPoker}
                     onForceClose={onForceClosePoker}
+                    onNextHand={onNextPokerHand}
                     onRaise={onRaisePoker}
                     onStart={onStartPoker}
                   />
@@ -7296,6 +7867,12 @@ function OnlineRoomsPanel({
                     onStart={onStartRussianRoulette}
                   />
                 )}
+                {room.type === "russian-roulette" &&
+                  currentUser &&
+                  room.status !== "waiting" &&
+                  !room.playerIds.includes(currentUser.uid) && (
+                    <RussianSideBetsPanel room={room} user={currentUser} balance={balance} />
+                  )}
               </article>
             );
           })
@@ -7474,23 +8051,15 @@ function DuelRoomPanel({
   busy,
   currentUserId,
   room,
-  onPlayRound,
   onStartDuel,
 }: {
   busy: boolean;
   currentUserId: string;
   room: OnlineRoomEntry;
-  onPlayRound: (room: OnlineRoomEntry, roundScore?: number) => void;
   onStartDuel: (room: OnlineRoomEntry) => void;
 }) {
   const currentPlayerScore = room.duelScores[currentUserId] ?? { rounds: [], total: 0 };
-  const duelGameKind = getDuelGameKind(room.game);
-  const [duelRouletteBet, setDuelRouletteBet] = useState<Bet>(25);
-  const [duelRouletteKind, setDuelRouletteKind] = useState<RouletteBetKind>("red");
-  const [duelRouletteNumber, setDuelRouletteNumber] = useState(17);
-  const [duelRoundPreview, setDuelRoundPreview] = useState("");
   const canStart = room.status === "waiting" && room.hostUid === currentUserId && room.players.length >= 2;
-  const canPlay = room.status === "playing" && room.players.some((player) => player.uid === currentUserId) && currentPlayerScore.rounds.length < 3;
   const opponent = room.players.find((player) => player.uid !== currentUserId);
   const opponentScore = opponent ? room.duelScores[opponent.uid] ?? { rounds: [], total: 0 } : null;
   const statusText =
@@ -7503,38 +8072,8 @@ function DuelRoomPanel({
           ? "Deux joueurs sont prets, tu peux lancer."
           : "En attente du lancement par l'hote."
       : room.status === "playing"
-        ? canPlay
-          ? "A toi de jouer."
-          : `Tu as joue ${currentPlayerScore.rounds.length}/3 manches.`
+        ? `Tu as joue ${currentPlayerScore.rounds.length}/3 manches.`
         : `Duel termine.`;
-  function playRealDuelRound() {
-    if (duelGameKind === "plinko") {
-      const launches = Array.from({ length: DUEL_PLINKO_BALLS_PER_ROUND }, () => {
-        const path = generatePlinkoPath(10);
-        const slot = getFinalSlot(path);
-        const multiplier = getPlinkoMultiplier(slot, 10);
-        return calculatePlinkoPayout(DUEL_PLINKO_BET_PER_BALL, multiplier).payout;
-      });
-      const score = Math.round(launches.reduce((sum, payout) => sum + payout, 0));
-      setDuelRoundPreview(`15 billes lancees : ${score.toLocaleString("fr-FR")} points.`);
-      onPlayRound(room, score);
-      return;
-    }
-
-    if (duelGameKind === "roulette") {
-      const outcome = playRoulette(
-        { kind: duelRouletteKind, number: duelRouletteKind === "straight" ? duelRouletteNumber : undefined },
-        duelRouletteBet,
-      );
-      const score = Math.round(outcome.payout);
-      setDuelRoundPreview(`${outcome.number} ${formatRouletteColor(outcome.color)} : ${score.toLocaleString("fr-FR")} points.`);
-      onPlayRound(room, score);
-      return;
-    }
-
-    setDuelRoundPreview("Manche rapide jouee.");
-    onPlayRound(room);
-  }
 
   return (
     <div className={styles.duelRoomPanel}>
@@ -7560,43 +8099,10 @@ function DuelRoomPanel({
       ) : (
         <div className={styles.socialActions}>
           {opponentScore && <small>L'adversaire a joue {opponentScore.rounds.length}/3 manches.</small>}
-          {room.status === "playing" && duelGameKind === "plinko" && (
-            <small>Duel Plinko : {DUEL_PLINKO_BALLS_PER_ROUND} billes par manche, {DUEL_PLINKO_BET_PER_BALL} credits par bille.</small>
-          )}
-          {room.status === "playing" && duelGameKind === "roulette" && (
-            <div className={styles.duelInlineControls}>
-              <label htmlFor={`duel-roulette-bet-${room.id}`}>Mise</label>
-              <BetAmountInput id={`duel-roulette-bet-${room.id}`} value={duelRouletteBet} onChange={setDuelRouletteBet} />
-              <label htmlFor={`duel-roulette-kind-${room.id}`}>Pari</label>
-              <select id={`duel-roulette-kind-${room.id}`} value={duelRouletteKind} onChange={(event) => setDuelRouletteKind(event.target.value as RouletteBetKind)}>
-                {rouletteBetOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {duelRouletteKind === "straight" && (
-                <>
-                  <label htmlFor={`duel-roulette-number-${room.id}`}>Numero</label>
-                  <input
-                    id={`duel-roulette-number-${room.id}`}
-                    type="number"
-                    min={0}
-                    max={36}
-                    value={duelRouletteNumber}
-                    onChange={(event) => setDuelRouletteNumber(Math.max(0, Math.min(36, Number(event.target.value))))}
-                  />
-                </>
-              )}
-            </div>
-          )}
-          {duelRoundPreview && <small>{duelRoundPreview}</small>}
           <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={busy || !canStart}>
             Lancer le duel
           </button>
-          <button className={styles.primaryButton} type="button" onClick={playRealDuelRound} disabled={busy || !canPlay}>
-            {duelGameKind === "plinko" ? "Lancer les 15 billes" : duelGameKind === "roulette" ? "Lancer la roulette" : "Jouer une manche"}
-          </button>
+          {room.status === "waiting" && <small>Au lancement, l'arene seedee s'ouvre : chacun joue ses 3 manches en direct.</small>}
         </div>
       )}
     </div>
@@ -7659,6 +8165,7 @@ function PokerRoomPanel({
   onCheck,
   onFold,
   onForceClose,
+  onNextHand,
   onRaise,
   onStart,
 }: {
@@ -7672,14 +8179,24 @@ function PokerRoomPanel({
   onCheck: (room: OnlineRoomEntry) => void;
   onFold: (room: OnlineRoomEntry) => void;
   onForceClose: (room: OnlineRoomEntry) => void;
+  onNextHand: (room: OnlineRoomEntry) => void;
   onRaise: (room: OnlineRoomEntry, targetBet: number) => void;
-  onStart: (room: OnlineRoomEntry) => void;
+  onStart: (room: OnlineRoomEntry, pokerMode: PokerMode) => void;
 }) {
   const currentHand = room.pokerHands[currentUserId] ?? [];
   const isHost = room.hostUid === currentUserId;
   const inRoom = room.players.some((player) => player.uid === currentUserId);
   const folded = room.foldedPlayerIds.includes(currentUserId);
-  const minimumRaiseTarget = Math.max(25, room.pokerCurrentBet + 1);
+  const extras = parsePokerRoomExtras(room.raw);
+  const isSitngo = extras.mode === "sitngo";
+  const started = room.status === "playing" || room.status === "finished";
+  const myStack = Math.max(0, extras.stacks[currentUserId] ?? 0);
+  const myFunds = isSitngo && started ? myStack : playerBalance;
+  const fundsLabel = isSitngo && started ? "jetons" : "credits";
+  const eliminated = extras.eliminatedUids.includes(currentUserId);
+  const tournamentOver = isSitngo && room.status === "finished" && Boolean(room.winnerUid);
+  const [modeChoice, setModeChoice] = useState<PokerMode>("cash");
+  const minimumRaiseTarget = room.pokerCurrentBet > 0 ? room.pokerCurrentBet + Math.max(1, extras.minRaise) : Math.max(25, extras.bigBlind);
   const [raiseInput, setRaiseInput] = useState(String(minimumRaiseTarget));
   const raiseTarget = Math.floor(Number(raiseInput));
 
@@ -7690,7 +8207,12 @@ function PokerRoomPanel({
     });
   }, [minimumRaiseTarget]);
 
-  const canStart = (room.status === "waiting" || room.status === "finished") && isHost && room.players.length >= 2;
+  const canStart =
+    isHost &&
+    room.players.length >= 2 &&
+    (room.status === "waiting" || (room.status === "finished" && !isSitngo));
+  const canNextHand =
+    isSitngo && inRoom && !tournamentOver && room.status === "finished" && room.pokerPhase === "showdown";
   const activePlayers = room.players.filter((player) => !room.foldedPlayerIds.includes(player.uid));
   const phaseDone =
     room.status === "playing" &&
@@ -7703,10 +8225,22 @@ function PokerRoomPanel({
   const amountToCall = Math.max(0, room.pokerCurrentBet - currentContribution);
   const canAdvance = room.status === "playing" && isHost && phaseDone;
   const canCheck = room.status === "playing" && inRoom && !folded && isTurn && amountToCall === 0;
-  const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0 && playerBalance >= amountToCall;
-  const canAllIn = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0 && playerBalance > 0 && playerBalance < amountToCall;
+  const canCall = room.status === "playing" && inRoom && !folded && isTurn && amountToCall > 0 && myFunds >= amountToCall;
+  const canAllIn =
+    room.status === "playing" &&
+    inRoom &&
+    !folded &&
+    isTurn &&
+    (isSitngo ? myStack > 0 : amountToCall > 0 && playerBalance > 0 && playerBalance < amountToCall);
   const canFold = room.status === "playing" && inRoom && !folded && isTurn;
-  const canRaise = room.status === "playing" && inRoom && !folded && isTurn && Number.isFinite(raiseTarget) && raiseTarget >= minimumRaiseTarget;
+  const canRaise =
+    room.status === "playing" &&
+    inRoom &&
+    !folded &&
+    isTurn &&
+    Number.isFinite(raiseTarget) &&
+    raiseTarget >= minimumRaiseTarget &&
+    (!isSitngo || raiseTarget - currentContribution <= myStack);
   const canRemoveTable = inRoom && (room.status === "playing" || room.status === "finished");
   const winnerNames = room.pokerWinnerNames.length ? room.pokerWinnerNames : room.pokerWinnerName ? [room.pokerWinnerName] : [];
   const winnerSummary = winnerNames.length > 1 ? `Egalite : ${winnerNames.join(", ")}` : `Gagnant : ${winnerNames[0] || "a determiner"}`;
@@ -7715,14 +8249,18 @@ function PokerRoomPanel({
       ? room.players.length < 2
         ? "En attente d'un joueur."
         : "Table prete a lancer."
+      : tournamentOver
+        ? `Tournoi termine : ${room.winnerName || "un joueur"} remporte tous les buy-ins.`
       : room.status === "finished"
         ? `${winnerSummary}${room.pokerWinnerHandLabel ? ` avec ${room.pokerWinnerHandLabel}` : ""}`
         : phaseDone
           ? `Phase ${room.pokerPhase} terminee.`
-          : isTurn && amountToCall > playerBalance && playerBalance > 0
-            ? `Tu n'as pas assez pour suivre ${amountToCall} credits : fais tapis avec ${playerBalance} credits ou couche-toi.`
+          : eliminated
+            ? "Tu es elimine du tournoi : tu peux suivre la fin en spectateur."
+          : isTurn && amountToCall > myFunds && myFunds > 0
+            ? `Tu n'as pas assez pour suivre ${amountToCall} ${fundsLabel} : fais tapis avec ${myFunds} ${fundsLabel} ou couche-toi.`
           : isTurn && amountToCall > 0
-            ? `A toi de jouer : tu dois suivre ${amountToCall} credits, relancer, ou te coucher.`
+            ? `A toi de jouer : tu dois suivre ${amountToCall} ${fundsLabel}, relancer, ou te coucher.`
           : `Tour de ${room.pokerTurnName || "joueur"}.`;
 
   return (
@@ -7730,10 +8268,25 @@ function PokerRoomPanel({
       <p className={styles.duelStatus}>{phaseLabel}</p>
       <div className={styles.pokerPotRow}>
         <span>Pot virtuel</span>
-        <strong>{room.pokerPot.toLocaleString("fr-FR")} credits</strong>
+        <strong>{room.pokerPot.toLocaleString("fr-FR")} {fundsLabel}</strong>
         <span>Mise actuelle</span>
-        <strong>{room.pokerCurrentBet.toLocaleString("fr-FR")} credits</strong>
+        <strong>{room.pokerCurrentBet.toLocaleString("fr-FR")} {fundsLabel}</strong>
       </div>
+      {started && (
+        <div className={styles.pokerBlindsRow}>
+          <span>
+            Blinds {extras.smallBlind.toLocaleString("fr-FR")}/{extras.bigBlind.toLocaleString("fr-FR")}
+          </span>
+          {isSitngo ? (
+            <>
+              <span>Niveau {extras.blindLevel + 1}</span>
+              <span>Buy-in {extras.buyIn.toLocaleString("fr-FR")} credits</span>
+            </>
+          ) : (
+            <span>Cash game</span>
+          )}
+        </div>
+      )}
       <div className={styles.pokerTableView}>
         <div className={styles.pokerTableCenter}>
           <span>Pot</span>
@@ -7741,9 +8294,9 @@ function PokerRoomPanel({
           <small>{room.pokerPhase}</small>
         </div>
         <div className={styles.pokerBalanceBadge}>
-          <span>Solde</span>
-          <strong>{playerBalance.toLocaleString("fr-FR")}</strong>
-          <small>credits</small>
+          <span>{isSitngo && started ? "Stack" : "Solde"}</span>
+          <strong>{myFunds.toLocaleString("fr-FR")}</strong>
+          <small>{fundsLabel}</small>
         </div>
         <div className={styles.pokerCommunity}>
           <strong>Tes cartes</strong>
@@ -7801,10 +8354,13 @@ function PokerRoomPanel({
         </div>
       )}
       <div className={styles.onlineRoomPlayers}>
-        {room.players.map((player) => {
+        {room.players.map((player, playerIndex) => {
+          const playerEliminated = extras.eliminatedUids.includes(player.uid);
           const action = room.pokerActions[player.uid];
-          const actionLabel = room.foldedPlayerIds.includes(player.uid)
-            ? "couche"
+          const actionLabel = playerEliminated
+            ? "elimine"
+            : room.foldedPlayerIds.includes(player.uid)
+              ? "couche"
             : action === "checked"
               ? "check"
               : action === "called"
@@ -7817,18 +8373,56 @@ function PokerRoomPanel({
                       ? "joue"
                       : "attend";
           const contribution = room.pokerContributions[player.uid] ?? 0;
+          const isDealer = started && playerIndex === extras.dealerIndex;
+          const stack = Math.max(0, extras.stacks[player.uid] ?? 0);
 
           return (
-            <span key={player.uid}>
+            <span key={player.uid} className={playerEliminated ? styles.pokerEliminatedSeat : undefined}>
+              {isDealer && (
+                <em className={styles.pokerDealerBadge} title="Dealer" aria-label="Dealer">
+                  D
+                </em>
+              )}
               {player.displayName} | {actionLabel} | {contribution.toLocaleString("fr-FR")}
+              {isSitngo && started ? ` | stack ${stack.toLocaleString("fr-FR")}` : ""}
             </span>
           );
         })}
       </div>
+      {canStart && room.status === "waiting" && (
+        <div className={styles.pokerModeChoice} role="group" aria-label="Mode de jeu de la table">
+          <button
+            className={modeChoice === "cash" ? styles.primaryButton : styles.secondaryButton}
+            type="button"
+            onClick={() => setModeChoice("cash")}
+          >
+            Cash game
+          </button>
+          <button
+            className={modeChoice === "sitngo" ? styles.primaryButton : styles.secondaryButton}
+            type="button"
+            onClick={() => setModeChoice("sitngo")}
+          >
+            Sit &amp; go · buy-in {POKER_DEFAULT_BUY_IN}
+          </button>
+        </div>
+      )}
       <div className={styles.socialActions}>
-        <button className={styles.primaryButton} type="button" onClick={() => onStart(room)} disabled={busy || !canStart}>
-          {room.status === "finished" ? "Nouvelle main" : "Lancer la partie"}
-        </button>
+        {!tournamentOver && (
+          <button
+            className={styles.primaryButton}
+            type="button"
+            onClick={() => onStart(room, room.status === "waiting" ? modeChoice : extras.mode)}
+            disabled={busy || !canStart}
+          >
+            {room.status === "finished" ? "Nouvelle main" : "Lancer la partie"}
+          </button>
+        )}
+        {isSitngo && (
+          <button className={styles.primaryButton} type="button" onClick={() => onNextHand(room)} disabled={busy || !canNextHand}>
+            Main suivante
+          </button>
+        )}
         <button className={styles.primaryButton} type="button" onClick={() => onCheck(room)} disabled={busy || !canCheck}>
           Check
         </button>
@@ -7836,7 +8430,7 @@ function PokerRoomPanel({
           Suivre{amountToCall > 0 ? ` ${amountToCall}` : ""}
         </button>
         <button className={styles.primaryButton} type="button" onClick={() => onAllIn(room)} disabled={busy || !canAllIn}>
-          Tapis{canAllIn ? ` ${playerBalance}` : ""}
+          Tapis{canAllIn ? ` ${myFunds}` : ""}
         </button>
         <label className={styles.visuallyHidden} htmlFor={`poker-raise-${room.id}`}>
           Montant de la mise
@@ -8094,6 +8688,9 @@ type MenuIconName =
   | "online"
   | "duel"
   | "poker"
+  | "crash"
+  | "rouletteTable"
+  | "coinflip"
   | "missions"
   | "cases"
   | "shop"
@@ -8199,6 +8796,30 @@ function MenuIcon({ name }: { name: MenuIconName }) {
             <path d="M8 23 23 8M9.5 8.5l14 14" />
             <path d="M6 20.5 11.5 26 8 26 6 24ZM20.5 6 26 11.5 26 8 24 6Z" />
             <path d="M6 11.5 11.5 6 8 6 6 8ZM20.5 26 26 20.5 26 24 24 26Z" />
+          </>
+        )}
+        {name === "crash" && (
+          <>
+            <path d="M6 6v20h20" />
+            <path d="M8 22c5-1 9-6 12-13" />
+            <path d="M20 9l3.5-2.5M20 9l1 4" />
+          </>
+        )}
+        {name === "rouletteTable" && (
+          <>
+            <circle cx="13" cy="13" r="7" />
+            <circle cx="13" cy="13" r="2.5" />
+            <path d="M13 6v14M6 13h14" />
+            <circle cx="23" cy="22" r="3" />
+            <circle cx="16.5" cy="24.5" r="3" />
+          </>
+        )}
+        {name === "coinflip" && (
+          <>
+            <circle cx="16" cy="16" r="8" />
+            <path d="M16 11v10M13.5 13h3.5a2 2 0 0 1 0 4h-2a2 2 0 0 0 0 4h3.5" />
+            <path d="M5 10c1-2.5 2.5-4 4.5-5.5M27 22c-1 2.5-2.5 4-4.5 5.5" />
+            <path d="M9.5 4.5 9 7.5 6 7M22.5 27.5l.5-3 3 .5" />
           </>
         )}
         {name === "missions" && (
