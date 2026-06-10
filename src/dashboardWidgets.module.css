@@ -1,0 +1,330 @@
+.widgetCard {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.widgetHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.widgetEmoji {
+  font-size: 1.2rem;
+}
+
+.widgetTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.widgetBadge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: rgba(255, 209, 102, 0.12);
+  color: #ffd166;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.widgetText {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(249, 247, 239, 0.82);
+}
+
+.netGain {
+  color: #7ddf8f;
+  font-weight: 800;
+}
+
+.netLoss {
+  color: #ff7b7b;
+  font-weight: 800;
+}
+
+.widgetAction {
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffd166;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.widgetAction:hover:not(:disabled) {
+  background: rgba(255, 209, 102, 0.28);
+}
+
+.widgetAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.widgetActionGhost {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f9f7ef;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.widgetActionGhost:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.missionList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missionItem {
+  display: grid;
+  gap: 4px;
+}
+
+.missionRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.missionLabel {
+  font-size: 0.8rem;
+  color: rgba(249, 247, 239, 0.9);
+}
+
+.missionReward {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ffd166;
+  white-space: nowrap;
+}
+
+.missionTrack,
+.xpTrack {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.missionFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffd166, #ff9f43);
+}
+
+.friendList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.friendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.friendAvatar,
+.friendAvatarFallback {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.friendAvatar {
+  object-fit: cover;
+}
+
+.friendAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.friendName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.friendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7ddf8f;
+  box-shadow: 0 0 6px rgba(125, 223, 143, 0.8);
+}
+
+.jackpotSlot {
+  display: grid;
+}
+
+.soupBlock {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.soupButton {
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(125, 223, 143, 0.5);
+  background: rgba(125, 223, 143, 0.12);
+  color: #7ddf8f;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.soupButton:hover:not(:disabled) {
+  background: rgba(125, 223, 143, 0.22);
+}
+
+.soupButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.soupHint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(249, 247, 239, 0.6);
+}
+
+.levelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.12);
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.levelChipCompact {
+  padding: 1px 6px;
+  font-size: 0.7rem;
+}
+
+.levelChipLevel {
+  color: #ffd166;
+}
+
+.levelChipTitle {
+  color: rgba(249, 247, 239, 0.85);
+  font-weight: 700;
+}
+
+.xpBar {
+  display: grid;
+  gap: 4px;
+}
+
+.xpBarHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.xpBarValues {
+  color: rgba(249, 247, 239, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+
+.xpFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7ddf8f, #4cc2ff);
+}
+
+.hallOfFame {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hallList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hallRecord {
+  display: grid;
+  gap: 6px;
+}
+
+.hallLabel {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #ffd166;
+}
+
+.hallTop {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hallEntry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.hallName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

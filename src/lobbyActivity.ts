@@ -172,7 +172,11 @@ export function buildLobbyActivityFeed({
     };
   };
 
+  const stableRoomKey = (room: LobbyRoomSummary) =>
+    room.id ?? `${room.type ?? "room"}-${room.hostUid ?? normalizeName(room.hostName)}-${normalizeName(room.game)}`;
+
   const roomItems = rooms.map((room, index): LobbyActivityCandidate => {
+    const roomKey = stableRoomKey(room);
     const playerCount = Math.max(room.players?.length ?? 0, room.playerIds?.length ?? 0);
     const latestRussianShot = room.russianShots?.at(-1);
     const winnerUid = room.winnerUid ?? room.pokerWinnerUid ?? room.pokerWinnerUids?.[0];
@@ -184,7 +188,7 @@ export function buildLobbyActivityFeed({
 
     if (room.type === "russian-roulette" && room.status === "playing" && latestRussianShot) {
       return {
-        id: `room-${room.id ?? index}-shot-${latestRussianShot.uid}-${latestRussianShot.round ?? index}`,
+        id: `room-${roomKey}-shot-${latestRussianShot.uid}-${latestRussianShot.round ?? room.russianShots?.length ?? 0}`,
         uid: shotPlayer.uid,
         photoURL: shotPlayer.photoURL,
         displayName: shotPlayer.displayName,
@@ -200,7 +204,7 @@ export function buildLobbyActivityFeed({
       const pot = room.type === "poker" ? room.pokerPot ?? 0 : room.type === "russian-roulette" ? room.russianPot ?? 0 : 0;
 
       return {
-        id: `room-${room.id ?? index}-winner-${finishedWinner.uid ?? normalizeName(finishedWinner.displayName)}`,
+        id: `room-${roomKey}-winner-${finishedWinner.uid ?? normalizeName(finishedWinner.displayName)}`,
         uid: finishedWinner.uid,
         photoURL: finishedWinner.photoURL,
         displayName: finishedWinner.displayName,
@@ -211,7 +215,7 @@ export function buildLobbyActivityFeed({
     }
 
     return {
-      id: `room-${room.id ?? index}`,
+      id: `room-${roomKey}`,
       uid: hostProfile.uid,
       photoURL: hostProfile.photoURL,
       displayName: hostProfile.displayName,

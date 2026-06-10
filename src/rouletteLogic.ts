@@ -68,6 +68,105 @@ export function updateRouletteBalance(balance: number, amount: number, outcome: 
   return balance - amount + outcome.payout;
 }
 
+export type PlacedRouletteBet = RouletteBet & {
+  amount: number;
+};
+
+export type RouletteBetResult = {
+  bet: PlacedRouletteBet;
+  multiplier: number;
+  payout: number;
+  net: number;
+  isWin: boolean;
+  label: string;
+};
+
+export type RouletteRoundOutcome = {
+  number: number;
+  color: "green" | "red" | "black";
+  totalStake: number;
+  totalPayout: number;
+  net: number;
+  results: RouletteBetResult[];
+};
+
+export const ROULETTE_RECENT_LIMIT = 12;
+
+export function evaluateRouletteBets(bets: PlacedRouletteBet[], number: number): RouletteRoundOutcome {
+  const results = bets.map((bet) => {
+    const outcome = evaluateRouletteBet(bet, bet.amount, number);
+
+    return {
+      bet,
+      multiplier: outcome.multiplier,
+      payout: outcome.payout,
+      net: outcome.net,
+      isWin: outcome.isWin,
+      label: outcome.label,
+    };
+  });
+
+  const totalStake = bets.reduce((sum, bet) => sum + bet.amount, 0);
+  const totalPayout = results.reduce((sum, result) => sum + result.payout, 0);
+
+  return {
+    number,
+    color: getRouletteColor(number),
+    totalStake,
+    totalPayout,
+    net: totalPayout - totalStake,
+    results,
+  };
+}
+
+export function playRouletteRound(bets: PlacedRouletteBet[], rng: () => number = Math.random): RouletteRoundOutcome {
+  return evaluateRouletteBets(bets, spinRouletteNumber(rng));
+}
+
+export function getRouletteHotNumbers(recent: readonly number[]): { number: number; count: number }[] {
+  const counts = new Map<number, number>();
+
+  for (const number of recent) {
+    counts.set(number, (counts.get(number) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((first, second) => second[1] - first[1] || first[0] - second[0])
+    .slice(0, 3)
+    .map(([number, count]) => ({ number, count }));
+}
+
+export function getRouletteColdNumbers(recent: readonly number[]): number[] {
+  const seen = new Set(recent);
+
+  return ROULETTE_NUMBERS.filter((number) => !seen.has(number)).slice(0, 3);
+}
+
+export function getRouletteColorStats(recent: readonly number[]): {
+  red: number;
+  black: number;
+  green: number;
+  even: number;
+  odd: number;
+} {
+  const stats = { red: 0, black: 0, green: 0, even: 0, odd: 0 };
+
+  for (const number of recent) {
+    stats[getRouletteColor(number)] += 1;
+
+    if (number !== 0) {
+      if (number % 2 === 0) {
+        stats.even += 1;
+      } else {
+        stats.odd += 1;
+      }
+    }
+  }
+
+  return stats;
+}
+
 function getRouletteMultiplier(bet: RouletteBet, number: number): number {
   if (bet.kind === "straight") {
     return bet.number === number ? 36 : 0;

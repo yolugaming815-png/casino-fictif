@@ -206,3 +206,109 @@ export function completeCommunityCards(deck: string[], communityCards: string[],
     communityCards: nextCommunityCards,
   };
 }
+
+export type PokerMode = "cash" | "sitngo";
+
+export const POKER_DEFAULT_BUY_IN = 500;
+export const POKER_SITNGO_STARTING_STACK = 1000;
+export const POKER_BASE_SMALL_BLIND = 25;
+export const POKER_DEFAULT_HANDS_PER_LEVEL = 4;
+
+export type PokerBlindPositions = {
+  smallBlindIndex: number;
+  bigBlindIndex: number;
+  firstToActIndex: number;
+};
+
+export function sitngoBlinds(level: number) {
+  const multiplier = 2 ** Math.max(0, Math.floor(level));
+  const smallBlind = POKER_BASE_SMALL_BLIND * multiplier;
+
+  return {
+    smallBlind,
+    bigBlind: smallBlind * 2,
+  };
+}
+
+export function sitngoBlindLevel(handId: number, handsPerLevel: number) {
+  return Math.floor(Math.max(0, Math.floor(handId)) / Math.max(1, Math.floor(handsPerLevel)));
+}
+
+export function pokerBlindPositions(playerCount: number, dealerIndex: number): PokerBlindPositions {
+  const count = Math.max(2, Math.floor(playerCount));
+  const dealer = ((Math.floor(dealerIndex) % count) + count) % count;
+
+  if (count === 2) {
+    return {
+      smallBlindIndex: dealer,
+      bigBlindIndex: (dealer + 1) % count,
+      firstToActIndex: dealer,
+    };
+  }
+
+  return {
+    smallBlindIndex: (dealer + 1) % count,
+    bigBlindIndex: (dealer + 2) % count,
+    firstToActIndex: (dealer + 3) % count,
+  };
+}
+
+export function splitPokerPot(pot: number, winnerUids: string[]) {
+  const shares: Record<string, number> = {};
+  const winners = winnerUids.filter((uid) => uid);
+
+  if (!winners.length || pot <= 0) {
+    return shares;
+  }
+
+  const baseShare = Math.floor(pot / winners.length);
+  const remainder = pot - baseShare * winners.length;
+
+  winners.forEach((uid, index) => {
+    shares[uid] = baseShare + (index === 0 ? remainder : 0);
+  });
+
+  return shares;
+}
+
+export type PokerRoomExtras = {
+  mode: PokerMode;
+  buyIn: number;
+  stacks: Record<string, number>;
+  smallBlind: number;
+  bigBlind: number;
+  dealerIndex: number;
+  minRaise: number;
+  blindLevel: number;
+  handsPerLevel: number;
+  eliminatedUids: string[];
+};
+
+function finiteNumberOr(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+export function parsePokerRoomExtras(raw: Record<string, unknown>): PokerRoomExtras {
+  const data = raw && typeof raw === "object" ? raw : {};
+  const rawStacks = data.pokerStacks && typeof data.pokerStacks === "object" ? (data.pokerStacks as Record<string, unknown>) : {};
+  const stacks = Object.fromEntries(
+    Object.entries(rawStacks).filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])),
+  );
+  const smallBlind = finiteNumberOr(data.pokerSmallBlind, POKER_BASE_SMALL_BLIND);
+  const bigBlind = finiteNumberOr(data.pokerBigBlind, smallBlind * 2);
+
+  return {
+    mode: data.pokerMode === "sitngo" ? "sitngo" : "cash",
+    buyIn: finiteNumberOr(data.pokerBuyIn, POKER_DEFAULT_BUY_IN),
+    stacks,
+    smallBlind,
+    bigBlind,
+    dealerIndex: finiteNumberOr(data.pokerDealerIndex, 0),
+    minRaise: finiteNumberOr(data.pokerMinRaise, bigBlind),
+    blindLevel: finiteNumberOr(data.pokerBlindLevel, 0),
+    handsPerLevel: finiteNumberOr(data.pokerHandsPerLevel, POKER_DEFAULT_HANDS_PER_LEVEL),
+    eliminatedUids: Array.isArray(data.pokerEliminatedUids)
+      ? data.pokerEliminatedUids.filter((uid): uid is string => typeof uid === "string")
+      : [],
+  };
+}

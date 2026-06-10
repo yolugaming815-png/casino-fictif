@@ -51,3 +51,43 @@ export function normalizeRocketTarget(target: number): RocketTarget {
   const clamped = Math.min(Math.max(target, ROCKET_MIN_TARGET), ROCKET_MAX_TARGET);
   return Math.round(clamped * 10) / 10;
 }
+
+export type RocketMode = "target" | "manual";
+
+export type RocketManualOutcome = {
+  mode: "manual";
+  crashMultiplier: number;
+  cashOutMultiplier: number | null;
+  success: boolean;
+  payout: number;
+  net: number;
+};
+
+export function getRocketMultiplierAtProgress(progress: number): number {
+  const clamped = Math.min(Math.max(progress, 0), 1);
+  const multiplier = 1 + 4 * clamped ** 2.2;
+  return Math.min(Math.max(Math.round(multiplier * 100) / 100, 1), 5);
+}
+
+export function getRocketProgressForMultiplier(multiplier: number): number {
+  const clamped = Math.min(Math.max(multiplier, 1), 5);
+  return ((clamped - 1) / 4) ** (1 / 2.2);
+}
+
+export function evaluateRocketCashOut(
+  bet: number,
+  cashOutMultiplier: number | null,
+  crashMultiplier: number,
+): RocketManualOutcome {
+  const success = cashOutMultiplier !== null && cashOutMultiplier < crashMultiplier;
+  const payout = success && cashOutMultiplier !== null ? Math.round(bet * cashOutMultiplier) : 0;
+
+  return {
+    mode: "manual",
+    crashMultiplier,
+    cashOutMultiplier,
+    success,
+    payout,
+    net: payout - bet,
+  };
+}

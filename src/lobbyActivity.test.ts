@@ -112,4 +112,53 @@ describe("lobby activity feed", () => {
     assert.equal(items[0]?.uid, "winner");
     assert.equal(items[0]?.photoURL, "casino-avatar:winner");
   });
+
+  it("builds stable deterministic ids that never depend on the array index", () => {
+    const rooms = [
+      {
+        id: "room-1",
+        type: "duel" as const,
+        game: "Duel Plinko",
+        status: "playing" as const,
+        hostUid: "u2",
+        hostName: "Yoann",
+        maxPlayers: 2,
+        updatedAt: 2000,
+      },
+      {
+        type: "poker" as const,
+        game: "Poker",
+        status: "waiting" as const,
+        hostUid: "u3",
+        hostName: "Lucas",
+        maxPlayers: 6,
+        updatedAt: 1000,
+      },
+      {
+        type: "russian-roulette" as const,
+        game: "Roulette russe",
+        status: "playing" as const,
+        hostUid: "u4",
+        hostName: "Marta",
+        maxPlayers: 6,
+        russianShots: [{ uid: "u4", displayName: "Marta", survived: true, amount: 50 }],
+        updatedAt: 3000,
+      },
+    ];
+    const buildIds = (orderedRooms: typeof rooms) =>
+      buildLobbyActivityFeed({
+        currentPlayerName: "Daniel",
+        leaderboard: [],
+        rooms: orderedRooms,
+        histories: [],
+      }).map((item) => item.id);
+
+    const ids = buildIds(rooms);
+    const reversedIds = buildIds([...rooms].reverse());
+
+    assert.deepEqual([...ids].sort(), [...reversedIds].sort());
+    assert.ok(ids.includes("room-room-1"));
+    assert.ok(ids.includes("room-poker-u3-poker"));
+    assert.ok(ids.includes("room-russian-roulette-u4-roulette russe-shot-u4-1"));
+  });
 });

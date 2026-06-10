@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { SYMBOLS } from "./gameLogic.ts";
+import { SYMBOLS, SYMBOLS_V2, WILD_SYMBOL } from "./gameLogic.ts";
 import { SLOT_RESULT_ASSETS, SLOT_SYMBOL_ASSETS } from "./slotAssets.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -16,6 +16,19 @@ describe("slot asset coverage", () => {
       assert.match(asset.image, /\.png$/);
       assert.equal(existsSync(`${root}/src/assets/slots/${asset.image.split("/").at(-1)}`), true, symbol);
     }
+  });
+
+  it("covers every V2 symbol including the joker wild", () => {
+    for (const symbol of SYMBOLS_V2) {
+      const asset = SLOT_SYMBOL_ASSETS[symbol];
+
+      assert.ok(asset.label.length > 0, symbol);
+      assert.ok(asset.image.length > 0, symbol);
+    }
+
+    assert.equal(SLOT_SYMBOL_ASSETS[WILD_SYMBOL].label, "Joker");
+    assert.match(SLOT_SYMBOL_ASSETS[WILD_SYMBOL].image, /^data:image\/svg\+xml,/);
+    assert.match(decodeURIComponent(SLOT_SYMBOL_ASSETS[WILD_SYMBOL].image), /🃏/);
   });
 
   it("has premium pngs for every payout result category", () => {

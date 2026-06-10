@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ROULETTE_RECENT_LIMIT,
   evaluateRouletteBet,
+  evaluateRouletteBets,
+  getRouletteColdNumbers,
   getRouletteColor,
+  getRouletteColorStats,
+  getRouletteHotNumbers,
   playRoulette,
+  playRouletteRound,
   spinRouletteNumber,
   updateRouletteBalance,
+  type PlacedRouletteBet,
 } from "./rouletteLogic.ts";
 
 test("genere un numero de roulette entre 0 et 36", () => {
@@ -43,4 +50,78 @@ test("joue un tour complet et met a jour le solde", () => {
 
   assert.equal(outcome.number, 33);
   assert.equal(updateRouletteBalance(1000, 100, outcome), 1100);
+});
+
+test("evalue des mises multiples comme la somme des evaluations unitaires", () => {
+  const bets = [
+    { kind: "red", amount: 50 },
+    { kind: "straight", number: 17, amount: 10 },
+    { kind: "dozen2", amount: 20 },
+  ] satisfies PlacedRouletteBet[];
+  const outcome = evaluateRouletteBets(bets, 17);
+  const expected = bets.map((bet) => evaluateRouletteBet(bet, bet.amount, 17));
+
+  assert.equal(outcome.number, 17);
+  assert.equal(outcome.color, "black");
+  assert.equal(outcome.totalStake, 80);
+  assert.deepEqual(
+    outcome.results.map((result) => result.payout),
+    expected.map((unit) => unit.payout),
+  );
+  assert.equal(outcome.totalPayout, 0 + 360 + 60);
+  assert.equal(outcome.net, 340);
+});
+
+test("seules les mises straight sur 0 paient quand le zero sort", () => {
+  const bets = [
+    { kind: "straight", number: 0, amount: 10 },
+    { kind: "red", amount: 50 },
+    { kind: "even", amount: 20 },
+    { kind: "low", amount: 30 },
+    { kind: "dozen1", amount: 40 },
+  ] satisfies PlacedRouletteBet[];
+  const outcome = evaluateRouletteBets(bets, 0);
+
+  assert.equal(outcome.color, "green");
+  assert.equal(outcome.totalPayout, 360);
+  assert.equal(outcome.net, 360 - 150);
+  assert.deepEqual(
+    outcome.results.map((result) => result.isWin),
+    [true, false, false, false, false],
+  );
+});
+
+test("joue un tour multi-mises avec un rng deterministe", () => {
+  const outcome = playRouletteRound([{ kind: "high", amount: 100 }], () => 0.9);
+
+  assert.equal(outcome.number, 33);
+  assert.equal(outcome.totalPayout, 200);
+  assert.equal(outcome.net, 100);
+});
+
+test("calcule les numeros chauds (top 3, compte >= 2)", () => {
+  const recent = [17, 5, 17, 5, 17, 8, 8, 8, 8, 3, 2, 1];
+
+  assert.deepEqual(getRouletteHotNumbers(recent), [
+    { number: 8, count: 4 },
+    { number: 17, count: 3 },
+    { number: 5, count: 2 },
+  ]);
+  assert.deepEqual(getRouletteHotNumbers([1, 2, 3]), []);
+});
+
+test("calcule les numeros froids absents des tirages recents", () => {
+  assert.deepEqual(getRouletteColdNumbers([0, 1, 2, 4]), [3, 5, 6]);
+  assert.deepEqual(getRouletteColdNumbers([]), [0, 1, 2]);
+});
+
+test("calcule les statistiques de couleurs et parites", () => {
+  const stats = getRouletteColorStats([0, 1, 2, 4, 17, 32]);
+
+  assert.deepEqual(stats, { red: 2, black: 3, green: 1, even: 3, odd: 2 });
+  assert.deepEqual(getRouletteColorStats([]), { red: 0, black: 0, green: 0, even: 0, odd: 0 });
+});
+
+test("respecte la limite d'historique recent", () => {
+  assert.equal(ROULETTE_RECENT_LIMIT, 12);
 });

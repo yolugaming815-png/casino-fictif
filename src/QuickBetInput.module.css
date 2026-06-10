@@ -1,0 +1,59 @@
+.quickBet {
+  display: grid;
+  gap: 8px;
+}
+
+.betField {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f9f7ef;
+  font: inherit;
+  font-weight: 700;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.betField:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chipButton {
+  min-height: 36px;
+  min-width: 52px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  background: rgba(255, 209, 102, 0.12);
+  color: #ffd166;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.chipButton:hover:not(:disabled) {
+  background: rgba(255, 209, 102, 0.24);
+}
+
+.chipButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.modifierRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.modifierButton {
+  min-width: 0;
+}

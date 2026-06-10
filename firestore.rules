@@ -170,7 +170,7 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && request.resource.data.hostUid == request.auth.uid
-        && request.resource.data.type in ["duel", "poker", "russian-roulette"]
+        && request.resource.data.type in ["duel", "poker", "russian-roulette", "crash", "roulette-table", "coinflip"]
         && request.resource.data.status == "waiting"
         && request.resource.data.players is list
         && request.resource.data.playerIds is list
@@ -239,6 +239,47 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(["russianShots"]) || request.resource.data.russianShots is list)
         && (!request.resource.data.keys().hasAny(["russianTurnUid"]) || request.resource.data.russianTurnUid is string)
         && (!request.resource.data.keys().hasAny(["russianTurnName"]) || request.resource.data.russianTurnName is string)
+        && (!request.resource.data.keys().hasAny(["russianSideBets"]) || request.resource.data.russianSideBets is map)
+        && (!request.resource.data.keys().hasAny(["crashPhase"]) || request.resource.data.crashPhase is string)
+        && (!request.resource.data.keys().hasAny(["crashRoundId"]) || request.resource.data.crashRoundId is number)
+        && (!request.resource.data.keys().hasAny(["crashBets"]) || request.resource.data.crashBets is map)
+        && (!request.resource.data.keys().hasAny(["crashHash"]) || request.resource.data.crashHash is string)
+        && (!request.resource.data.keys().hasAny(["crashPoint"]) || request.resource.data.crashPoint is number)
+        && (!request.resource.data.keys().hasAny(["crashSalt"]) || request.resource.data.crashSalt is string)
+        && (!request.resource.data.keys().hasAny(["crashVoided"]) || request.resource.data.crashVoided is bool)
+        && (!request.resource.data.keys().hasAny(["crashResolverUid"]) || request.resource.data.crashResolverUid is string)
+        && (!request.resource.data.keys().hasAny(["crashHistory"]) || request.resource.data.crashHistory is list)
+        && (!request.resource.data.keys().hasAny(["crashStartAt"]) || request.resource.data.crashStartAt is timestamp)
+        && (!request.resource.data.keys().hasAny(["crashBettingStartedAt"]) || request.resource.data.crashBettingStartedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(["crashHostHeartbeatAt"]) || request.resource.data.crashHostHeartbeatAt is timestamp)
+        && (!request.resource.data.keys().hasAny(["rtPhase"]) || request.resource.data.rtPhase is string)
+        && (!request.resource.data.keys().hasAny(["rtRoundId"]) || request.resource.data.rtRoundId is number)
+        && (!request.resource.data.keys().hasAny(["rtBets"]) || request.resource.data.rtBets is map)
+        && (!request.resource.data.keys().hasAny(["rtResultNumber"]) || request.resource.data.rtResultNumber is number)
+        && (!request.resource.data.keys().hasAny(["rtSpunByUid"]) || request.resource.data.rtSpunByUid is string)
+        && (!request.resource.data.keys().hasAny(["rtHistory"]) || request.resource.data.rtHistory is list)
+        && (!request.resource.data.keys().hasAny(["rtBettingStartedAt"]) || request.resource.data.rtBettingStartedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(["coinflipBet"]) || request.resource.data.coinflipBet is number)
+        && (!request.resource.data.keys().hasAny(["coinflipResult"]) || request.resource.data.coinflipResult is string)
+        && (!request.resource.data.keys().hasAny(["pokerMode"]) || request.resource.data.pokerMode is string)
+        && (!request.resource.data.keys().hasAny(["pokerBuyIn"]) || request.resource.data.pokerBuyIn is number)
+        && (!request.resource.data.keys().hasAny(["pokerStacks"]) || request.resource.data.pokerStacks is map)
+        && (!request.resource.data.keys().hasAny(["pokerSmallBlind"]) || request.resource.data.pokerSmallBlind is number)
+        && (!request.resource.data.keys().hasAny(["pokerBigBlind"]) || request.resource.data.pokerBigBlind is number)
+        && (!request.resource.data.keys().hasAny(["pokerDealerIndex"]) || request.resource.data.pokerDealerIndex is number)
+        && (!request.resource.data.keys().hasAny(["pokerMinRaise"]) || request.resource.data.pokerMinRaise is number)
+        && (!request.resource.data.keys().hasAny(["pokerBlindLevel"]) || request.resource.data.pokerBlindLevel is number)
+        && (!request.resource.data.keys().hasAny(["pokerHandsPerLevel"]) || request.resource.data.pokerHandsPerLevel is number)
+        && (!request.resource.data.keys().hasAny(["pokerEliminatedUids"]) || request.resource.data.pokerEliminatedUids is list)
+        && (!request.resource.data.keys().hasAny(["duelSeed"]) || request.resource.data.duelSeed is number)
+        && (!request.resource.data.keys().hasAny(["duelStake"]) || request.resource.data.duelStake is number)
+          )
+          || (
+            (resource.data.type == "russian-roulette" || resource.data.onlineMode == "russian-roulette")
+            && resource.data.status == "playing"
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["russianSideBets", "updatedAt"])
+            && request.resource.data.russianSideBets is map
+            && request.resource.data.russianSideBets.diff(resource.data.get("russianSideBets", {})).affectedKeys().hasOnly([request.auth.uid])
           )
         );
       allow delete: if request.auth != null
@@ -264,7 +305,169 @@ service cloud.firestore {
             && request.auth.uid in resource.data.playerIds
             && request.time > resource.data.updatedAt + duration.value(1, "m")
           )
+          || (
+            resource.data.type in ["crash", "roulette-table"]
+            && resource.data.status == "playing"
+            && request.auth.uid in resource.data.playerIds
+            && request.time > resource.data.updatedAt + duration.value(30, "m")
+          )
+          || (
+            resource.data.type == "coinflip"
+            && resource.data.status == "finished"
+            && request.auth.uid in resource.data.playerIds
+            && request.time > resource.data.updatedAt + duration.value(1, "m")
+          )
         ));
+    }
+
+    match /gifts/{giftId} {
+      allow read: if request.auth != null
+        && (isAdmin() || resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if request.auth != null
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.amount is int
+        && request.resource.data.amount >= 1
+        && request.resource.data.amount <= 10000
+        && request.resource.data.kind in ["gift", "rain"]
+        && request.resource.data.status == "pending"
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 140
+        && request.resource.data.dayKey is string;
+      allow update: if request.auth != null
+        && resource.data.toUid == request.auth.uid
+        && resource.data.status == "pending"
+        && request.resource.data.status == "claimed"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "claimedAt"]);
+    }
+
+    match /friendBets/{betId} {
+      allow read: if request.auth != null
+        && (isAdmin() || request.auth.uid in resource.data.participants);
+      allow create: if request.auth != null
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.opponentUid is string
+        && request.resource.data.opponentUid != request.auth.uid
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && request.resource.data.creatorUid in request.resource.data.participants
+        && request.resource.data.opponentUid in request.resource.data.participants
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.stake is int
+        && request.resource.data.stake >= 25
+        && request.resource.data.stake <= 100000
+        && request.resource.data.status == "proposed";
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.creatorUid == resource.data.creatorUid
+        && request.resource.data.opponentUid == resource.data.opponentUid
+        && request.resource.data.stake == resource.data.stake
+        && request.resource.data.title == resource.data.title
+        && request.resource.data.status in ["proposed", "declined", "active", "resolved", "canceled"]
+        && (
+          !request.resource.data.keys().hasAny(["winnerUid"])
+          || request.resource.data.winnerUid == ""
+          || request.resource.data.winnerUid in resource.data.participants
+        )
+        && (
+          (
+            resource.data.opponentUid == request.auth.uid
+            && resource.data.status == "proposed"
+            && request.resource.data.status in ["active", "declined"]
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "acceptedAt", "updatedAt"])
+          )
+          || (
+            resource.data.creatorUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "creatorEscrowed",
+              "creatorDeclaredUid",
+              "creatorCancelVote",
+              "creatorRefunded",
+              "status",
+              "winnerUid",
+              "resolvedAt",
+              "updatedAt"
+            ])
+          )
+          || (
+            resource.data.opponentUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "opponentEscrowed",
+              "opponentDeclaredUid",
+              "opponentCancelVote",
+              "opponentRefunded",
+              "payoutClaimed",
+              "status",
+              "winnerUid",
+              "resolvedAt",
+              "updatedAt"
+            ])
+          )
+        );
+    }
+
+    match /feedReactions/{reactionId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.data.reactions is map
+        && request.resource.data.reactions.keys().hasOnly(["clap", "laugh", "fire"]);
+    }
+
+    match /globalState/{stateId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && (
+          isAdmin()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pot", "updatedAt"])
+            && request.resource.data.pot is number
+            && request.resource.data.pot > resource.data.pot
+            && request.resource.data.pot <= resource.data.pot + 1000
+          )
+          || (
+            request.resource.data.pot == 2000
+            && resource.data.pot > 0
+            && request.resource.data.lastWinnerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pot", "lastWinnerUid", "lastWinnerName", "lastWonAt", "updatedAt"])
+          )
+        );
+    }
+
+    match /activityEvents/{eventId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ["big-win", "jackpot", "legendary-drop", "bankrupt", "soup", "level-up", "season-champion", "weekly-champion"]
+        && request.resource.data.displayName is string
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 200;
+      allow update: if false;
+      allow delete: if request.auth != null
+        && (
+          isAdmin()
+          || resource.data.uid == request.auth.uid
+          || request.time > resource.data.createdAt + duration.value(3, 'd')
+        );
+    }
+
+    match /seasons/{seasonId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.top is list
+        && request.resource.data.top.size() <= 3;
+      allow update, delete: if isAdmin();
+    }
+
+    match /weeks/{weekId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.top is list
+        && request.resource.data.top.size() <= 3;
+      allow update, delete: if isAdmin();
     }
   }
 }
