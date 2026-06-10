@@ -87,23 +87,33 @@ test("parseCoinflipRoom : valeurs par defaut sur raw invalide", () => {
   assert.equal(view.winnerUid, "");
 });
 
-test("computeCoinflipSettlements : debit pour les deux joueurs, credit 2x pour le gagnant", () => {
+test("computeCoinflipSettlements : reglement NET unique au finished (+mise gagnant, -mise perdant)", () => {
   const room = makeCoinflipRoom();
 
   const winnerSettlements = computeCoinflipSettlements(room, "host-1");
-  assert.equal(winnerSettlements.length, 2);
-  assert.deepEqual(
-    winnerSettlements.map((settlement) => [settlement.key, settlement.delta]),
-    [
-      ["room-1:cf-bet:host-1", -100],
-      ["room-1:cf-win", 200],
-    ],
-  );
+  assert.equal(winnerSettlements.length, 1);
+  assert.equal(winnerSettlements[0].key, "room-1:cf-net:host-1");
+  assert.equal(winnerSettlements[0].delta, 100);
 
   const loserSettlements = computeCoinflipSettlements(room, "guest-1");
   assert.equal(loserSettlements.length, 1);
-  assert.equal(loserSettlements[0].key, "room-1:cf-bet:guest-1");
+  assert.equal(loserSettlements[0].key, "room-1:cf-net:guest-1");
   assert.equal(loserSettlements[0].delta, -100);
+});
+
+test("computeCoinflipSettlements : aucun debit anticipe en waiting (host d'une room jamais rejointe)", () => {
+  const waitingRoom = makeCoinflipRoom(
+    {
+      status: "waiting",
+      players: [{ uid: "host-1", displayName: "Hote" }],
+      playerIds: ["host-1"],
+      winnerUid: undefined,
+      winnerName: undefined,
+    },
+    { coinflipResult: "" },
+  );
+
+  assert.deepEqual(computeCoinflipSettlements(waitingRoom, "host-1"), []);
 });
 
 test("computeCoinflipSettlements : rien pour un non-joueur, une room non finie ou sans resultat", () => {

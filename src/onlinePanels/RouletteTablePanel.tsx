@@ -32,6 +32,9 @@ export type RouletteTablePanelProps = {
   onLeave: (room: OnlineRoomEntry) => void;
 };
 
+// Duree minimale d'affichage des resultats avant de pouvoir relancer un tour.
+const NEXT_ROUND_LOCK_MS = 8_000;
+
 const BET_KIND_OPTIONS: Array<{ kind: RouletteBetKind; label: string }> = [
   { kind: "red", label: "Rouge (x2)" },
   { kind: "black", label: "Noir (x2)" },
@@ -67,19 +70,27 @@ export function RouletteTablePanel({ room, user, balance, onLeave }: RouletteTab
   const totalBets = countRouletteTableBets(view);
   const myBets = view.bets[user.uid];
 
+  // Horloge partagee : countdown des mises en phase "betting" ET verrou "Nouveau tour"
+  // en phase "results" (il faut laisser les resultats visibles pour les reglements).
   useEffect(() => {
-    if (view.phase !== "betting") {
-      return;
-    }
-
     const timer = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(timer);
-  }, [view.phase]);
+  }, []);
+
+  // Moment ou CE client a vu la phase "results" : le bouton "Nouveau tour" reste
+  // verrouille 8 s pour eviter d'ecraser les resultats avant que chacun les observe.
+  const [resultsSeenAt, setResultsSeenAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    setResultsSeenAt(view.phase === "results" ? Date.now() : null);
+  }, [view.phase, view.roundId]);
 
   const bettingStartedAt = onlineTimestampToMillis(view.bettingStartedAt);
   const remainingMs = bettingStartedAt === null ? ROULETTE_TABLE_BETTING_MS : Math.max(0, ROULETTE_TABLE_BETTING_MS - (now - bettingStartedAt));
   const countdownDone = remainingMs <= 0;
   const canSpin = isSeated && view.phase === "betting" && (isHost || (countdownDone && totalBets >= 1));
+  const nextRoundLockMs = resultsSeenAt === null ? 0 : Math.max(0, resultsSeenAt + NEXT_ROUND_LOCK_MS - now);
+  const nextRoundLockSec = Math.ceil(nextRoundLockMs / 1000);
 
   const maxBet = Math.max(ROULETTE_TABLE_BET_MIN, Math.min(ROULETTE_TABLE_BET_MAX, Math.floor(balance)));
 
@@ -215,9 +226,9 @@ export function RouletteTablePanel({ room, user, balance, onLeave }: RouletteTab
               className={appStyles.primaryButton}
               type="button"
               onClick={() => void runAction(() => startNextRouletteTableRound(room, user))}
-              disabled={busy || !isSeated}
+              disabled={busy || !isSeated || nextRoundLockMs > 0}
             >
-              Nouveau tour
+              {nextRoundLockMs > 0 ? `Nouveau tour (${nextRoundLockSec} s)` : "Nouveau tour"}
             </button>
           </div>
         </div>

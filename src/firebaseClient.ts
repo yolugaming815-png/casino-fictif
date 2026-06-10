@@ -236,6 +236,12 @@ const STALE_WAITING_ROOM_MS = 30 * 60 * 1000;
 const INACTIVE_POKER_ROOM_MS = 30 * 60 * 1000;
 const FINISHED_RUSSIAN_ROOM_VISIBLE_MS = 20 * 1000;
 const FINISHED_RUSSIAN_ROOM_CLEANUP_MS = 60 * 1000;
+// Retention prolongee avant SUPPRESSION pour les rooms finished dont le reglement
+// (debit du perdant / credit du gagnant, cote client) peut concerner un joueur
+// hors-ligne au moment du resultat : coinflip (l'hote peut etre absent au flip)
+// et roulette russe avec paris spectateurs. La VISIBILITE UI reste courte (20 s),
+// seule la suppression est retardee pour laisser les settlements se rejouer.
+const FINISHED_ROOM_SETTLEMENT_RETENTION_MS = 30 * 60 * 1000;
 const POKER_MAX_PLAYERS = 10;
 const RUSSIAN_ROULETTE_MAX_PLAYERS = 6;
 const CRASH_MAX_PLAYERS = 8;
@@ -791,6 +797,13 @@ export function isInactivePokerRoom(room: OnlineRoomEntry, now = Date.now()) {
   return isLegacyPokerHand || (room.type === "poker" && room.status === "playing" && lastActivityAt !== null && now - lastActivityAt > INACTIVE_POKER_ROOM_MS);
 }
 
+// Table sit & go abandonnee (inactive > 30 min) : les buy-ins ont ete debites au lancement
+// et aucun payout n'arrivera jamais. App doit rembourser parsePokerRoomExtras(room.raw).buyIn
+// a chaque joueur de room.players AVANT d'appeler deleteInactivePokerRoom.
+export function isInactiveSitngoRoom(room: OnlineRoomEntry, now = Date.now()) {
+  return isInactivePokerRoom(room, now) && parsePokerRoomExtras(room.raw).mode === "sitngo" && !room.winnerUid;
+}
+
 export function parseOnlineRoom(id: string, data: Record<string, unknown>): OnlineRoomEntry {
   const type: OnlineRoomType =
     data.type === "poker" || data.type === "crash" || data.type === "roulette-table" || data.type === "coinflip"
@@ -1053,12 +1066,29 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
   });
   const staleFinishedRussianRooms = parsedRooms.filter((room) => {
     const updatedAt = timestampToMillis(room.updatedAt);
-    return (
-      (room.type === "russian-roulette" || room.type === "coinflip") &&
-      room.status === "finished" &&
-      updatedAt !== null &&
-      now - updatedAt > FINISHED_RUSSIAN_ROOM_CLEANUP_MS
-    );
+
+    if (room.status !== "finished" || updatedAt === null) {
+      return false;
+    }
+
+    // Coinflip : le reglement de l'hote (debit s'il perd, credit s'il gagne) est fait
+    // par SON client a la lecture de la room finished — il peut etre hors-ligne au flip.
+    if (room.type === "coinflip") {
+      return now - updatedAt > FINISHED_ROOM_SETTLEMENT_RETENTION_MS;
+    }
+
+    if (room.type === "russian-roulette") {
+      const rawSideBets =
+        room.raw.russianSideBets && typeof room.raw.russianSideBets === "object"
+          ? (room.raw.russianSideBets as Record<string, unknown>)
+          : {};
+
+      // Paris spectateurs en attente de payout : on retarde la suppression a 30 min
+      // pour que le spectateur hors-ligne puisse encore lire la room finished.
+      return now - updatedAt > (Object.keys(rawSideBets).length > 0 ? FINISHED_ROOM_SETTLEMENT_RETENTION_MS : FINISHED_RUSSIAN_ROOM_CLEANUP_MS);
+    }
+
+    return false;
   });
   const stalePlayingTableRooms = parsedRooms.filter((room) => {
     const updatedAt = timestampToMillis(room.updatedAt);
@@ -1075,10 +1105,23 @@ export async function loadOnlineRooms(): Promise<OnlineRoomEntry[]> {
 
   return parsedRooms
     .filter((room) => !staleRooms.some((staleRoom) => staleRoom.id === room.id))
-    .filter((room) => room.hostUid && room.players.length > 0 && isVisibleOnlineRoom(room, now));
+    .filter(isSettleableOnlineRoom);
 }
 
-function isVisibleOnlineRoom(room: OnlineRoomEntry, now = Date.now()) {
+// Filtre minimal applique a la liste transmise a App : les rooms "finished" restent
+// DANS la liste (les effets de reglement — coinflip, paris spectateurs, pot russe,
+// duels — lisent ce snapshot pour debiter/crediter les soldes). Le masquage UI des
+// rooms finies est fait au point d'affichage via isVisibleOnlineRoom/filterVisibleOnlineRooms.
+function isSettleableOnlineRoom(room: OnlineRoomEntry) {
+  return Boolean(room.hostUid) && room.players.length > 0;
+}
+
+export function isVisibleOnlineRoom(room: OnlineRoomEntry, now = Date.now()) {
+  if (room.status === "waiting") {
+    const createdAt = timestampToMillis(room.createdAt);
+    return createdAt === null || now - createdAt <= STALE_WAITING_ROOM_MS;
+  }
+
   if (room.status !== "finished") {
     return true;
   }
@@ -1095,15 +1138,10 @@ function isVisibleOnlineRoom(room: OnlineRoomEntry, now = Date.now()) {
   return updatedAt === null || now - updatedAt <= FINISHED_RUSSIAN_ROOM_VISIBLE_MS;
 }
 
-function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[]) {
-  const now = Date.now();
-
-  return rooms
-    .filter((room) => {
-      const createdAt = timestampToMillis(room.createdAt);
-      return !(room.status === "waiting" && createdAt !== null && now - createdAt > STALE_WAITING_ROOM_MS);
-    })
-    .filter((room) => room.hostUid && room.players.length > 0 && isVisibleOnlineRoom(room, now));
+// Filtre d'AFFICHAGE uniquement : a appliquer dans les composants/sections UI,
+// jamais sur la liste utilisee par les effets de reglement.
+export function filterVisibleOnlineRooms(rooms: OnlineRoomEntry[], now = Date.now()) {
+  return rooms.filter((room) => isSettleableOnlineRoom(room) && isVisibleOnlineRoom(room, now));
 }
 
 export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => void, onError?: () => void) {
@@ -1118,7 +1156,7 @@ export function subscribeOnlineRooms(onChange: (rooms: OnlineRoomEntry[]) => voi
   return onSnapshot(
     roomsQuery,
     (snapshot) => {
-      onChange(filterVisibleOnlineRooms(snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data()))));
+      onChange(snapshot.docs.map((room) => parseOnlineRoom(room.id, room.data())).filter(isSettleableOnlineRoom));
     },
     () => {
       onError?.();
@@ -1573,6 +1611,35 @@ function buildPokerHandSetup(
     pokerHands[player.uid] = [deck.shift() ?? "", deck.shift() ?? ""].filter(Boolean);
   });
 
+  // Mode cash : comportement historique (pre-blinds) — ante forfaitaire de 25 par joueur
+  // (debitee localement par App.tsx), pot = 25 x joueurs, aucune blind postee,
+  // pokerCurrentBet = 0 et premier joueur de la liste au tour. Les blinds sont
+  // reservees au sit & go (jetons de tournoi, solde non touche par main).
+  if (mode === "cash") {
+    return {
+      pokerDeck: deck,
+      pokerHands,
+      communityCards: [],
+      foldedPlayerIds: [...eliminatedUids],
+      pokerActions: foldedPokerActions(eliminatedUids),
+      pokerPot: survivors.length * 25,
+      pokerCurrentBet: 0,
+      pokerMinRaise: bigBlind,
+      pokerContributions: Object.fromEntries(survivors.map((player) => [player.uid, 0])),
+      pokerPaidByPlayer: Object.fromEntries(players.map((player) => [player.uid, 25])),
+      pokerStacks: { ...stacks },
+      pokerTurnUid: survivors[0]?.uid ?? "",
+      pokerTurnName: survivors[0]?.displayName ?? "",
+      pokerWinnerUid: "",
+      pokerWinnerName: "",
+      pokerWinnerUids: [],
+      pokerWinnerNames: [],
+      pokerWinnerHandLabel: "",
+      pokerWinnerHandCards: [],
+      pokerShowdownResults: [],
+    };
+  }
+
   const positions = pokerBlindPositions(survivors.length, dealerIndex);
   const nextStacks = { ...stacks };
   const postedBlinds: Record<string, number> = {};
@@ -1582,12 +1649,9 @@ function buildPokerHandSetup(
     }
 
     const stack = Math.max(0, nextStacks[player.uid] ?? 0);
-    const posted = mode === "sitngo" ? Math.min(stack, blind) : blind;
+    const posted = Math.min(stack, blind);
 
-    if (mode === "sitngo") {
-      nextStacks[player.uid] = stack - posted;
-    }
-
+    nextStacks[player.uid] = stack - posted;
     postedBlinds[player.uid] = (postedBlinds[player.uid] ?? 0) + posted;
     return posted;
   };
@@ -1605,7 +1669,7 @@ function buildPokerHandSetup(
     pokerCurrentBet: bigBlind,
     pokerMinRaise: bigBlind,
     pokerContributions: Object.fromEntries(survivors.map((player) => [player.uid, postedBlinds[player.uid] ?? 0])),
-    pokerPaidByPlayer: Object.fromEntries(players.map((player) => [player.uid, mode === "cash" ? postedBlinds[player.uid] ?? 0 : 0])),
+    pokerPaidByPlayer: Object.fromEntries(players.map((player) => [player.uid, 0])),
     pokerStacks: nextStacks,
     pokerTurnUid: turnPlayer?.uid ?? "",
     pokerTurnName: turnPlayer?.displayName ?? "",
@@ -2169,7 +2233,12 @@ export async function foldPokerPlayer(room: OnlineRoomEntry, user: CasinoUser) {
   });
 }
 
-export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser, scoreOverride?: number) {
+export async function playDuelRound(
+  room: OnlineRoomEntry,
+  user: CasinoUser,
+  scoreOverride?: number,
+  expectedRoundIndex?: number,
+) {
   const app = getFirebaseApp();
   if (!app) {
     return;
@@ -2196,8 +2265,17 @@ export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser, sco
     }
 
     const currentScore = freshRoom.duelScores[user.uid] ?? { rounds: [], total: 0 };
+
+    // No-op (pas d'erreur) : double clic ou snapshot perime, la manche est deja enregistree.
     if (currentScore.rounds.length >= 3) {
-      throw new Error("Tu as deja joue tes 3 manches.");
+      return;
+    }
+
+    // Le score fourni est calcule par le client pour UN index de manche precis (seed + index).
+    // Si l'index lu DANS la transaction ne correspond pas, le score appartient a une manche
+    // deja jouee (clic duplique pendant la latence Firestore) : on ignore sans rien ecrire.
+    if (typeof expectedRoundIndex === "number" && expectedRoundIndex !== currentScore.rounds.length) {
+      return;
     }
 
     const nextScores = {
@@ -2208,9 +2286,19 @@ export async function playDuelRound(room: OnlineRoomEntry, user: CasinoUser, sco
       },
     };
     const finished = freshRoom.players.every((player) => (nextScores[player.uid]?.rounds.length ?? 0) >= 3);
-    const winner = finished
-      ? [...freshRoom.players].sort((left, right) => (nextScores[right.uid]?.total ?? 0) - (nextScores[left.uid]?.total ?? 0))[0]
-      : undefined;
+    let winner: OnlineRoomPlayer | undefined;
+
+    if (finished) {
+      const ranked = [...freshRoom.players].sort(
+        (left, right) => (nextScores[right.uid]?.total ?? 0) - (nextScores[left.uid]?.total ?? 0),
+      );
+      const topTotal = nextScores[ranked[0]?.uid ?? ""]?.total ?? 0;
+      const runnerUpTotal = ranked.length > 1 ? nextScores[ranked[1]?.uid ?? ""]?.total ?? 0 : Number.NEGATIVE_INFINITY;
+
+      // Egalite parfaite des totaux : aucun gagnant (winnerUid vide), le reglement
+      // seeded-v2 cote App rembourse les deux mises dans ce cas.
+      winner = topTotal === runnerUpTotal ? undefined : ranked[0];
+    }
 
     transaction.update(roomRef, {
       duelScores: nextScores,

@@ -7,8 +7,11 @@ import {
   CRASH_MAX_POINT,
   crashCommitment,
   crashMultiplierAt,
+  crashPointToCents,
   crashTimeForMultiplier,
   drawCrashPoint,
+  formatCrashPoint,
+  normalizeCrashPoint,
   randomCrashSalt,
   verifyCrashCommitment,
 } from "./crashMath.ts";
@@ -88,6 +91,39 @@ test("verifyCrashCommitment valide le couple point/sel et rejette le reste", asy
   assert.equal(await verifyCrashCommitment(7.42, salt, hash), false);
   assert.equal(await verifyCrashCommitment(7.41, randomCrashSalt(), hash), false);
   assert.equal(await verifyCrashCommitment(7.41, salt, "deadbeef"), false);
+});
+
+test("normalizeCrashPoint est sans perte sur les valeurs k/100 (pas de re-floor flottant)", () => {
+  // Valeurs historiquement cassees par Math.floor(x * 100) / 100 (1.13 * 100 === 112.999...).
+  for (const point of [1.13, 1.14, 1.15, 1.16, 2.01, 2.03, 2.05, 2.07]) {
+    assert.equal(normalizeCrashPoint(point), point, `re-floor casse ${point}`);
+    assert.equal(formatCrashPoint(point), point.toFixed(2));
+  }
+
+  // Exhaustif : tous les tirages possibles de drawCrashPoint (100 a 25000 centiemes).
+  for (let cents = 100; cents <= CRASH_MAX_POINT * 100; cents += 1) {
+    const point = cents / 100;
+    assert.equal(crashPointToCents(point), cents, `centiemes alteres pour ${point}`);
+    assert.equal(normalizeCrashPoint(point), point, `normalisation alteree pour ${point}`);
+  }
+
+  // Bornes et entrees invalides.
+  assert.equal(normalizeCrashPoint(0.5), 1);
+  assert.equal(normalizeCrashPoint(9999), CRASH_MAX_POINT);
+  assert.equal(normalizeCrashPoint(Number.NaN), 1);
+  assert.equal(formatCrashPoint(1), "1.00");
+  assert.equal(formatCrashPoint(CRASH_MAX_POINT), "250.00");
+});
+
+test("le commitment survit au round-trip de normalisation (valeurs problematiques)", async () => {
+  const salt = "abcdef0123456789abcdef0123456789";
+
+  for (const point of [1.13, 1.14, 1.15, 1.16, 2.01, 2.03, 2.05, 2.07, 1.94, 9.7]) {
+    const committed = await crashCommitment(point, salt);
+    const revealed = await crashCommitment(normalizeCrashPoint(point), salt);
+    assert.equal(revealed, committed, `hash divergent apres normalisation pour ${point}`);
+    assert.equal(await verifyCrashCommitment(normalizeCrashPoint(point), salt, committed), true);
+  }
 });
 
 test("randomCrashSalt retourne 16 octets hex uniques", () => {

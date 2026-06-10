@@ -117,6 +117,11 @@ export async function joinAndFlipCoinflip(room: OnlineRoomEntry, user: CasinoUse
   });
 }
 
+/**
+ * Reglement NET-AT-RESULT : un SEUL reglement net par joueur, emis uniquement au
+ * statut "finished" (gagnant +mise, perdant -mise). Aucun debit en "waiting" :
+ * une room jamais rejointe (puis supprimee) ne coute donc rien a l'hote.
+ */
 export function computeCoinflipSettlements(room: OnlineRoomEntry, uid: string): Settlement[] {
   if (room.type !== "coinflip" || room.status !== "finished" || !room.playerIds.includes(uid)) {
     return [];
@@ -127,21 +132,14 @@ export function computeCoinflipSettlements(room: OnlineRoomEntry, uid: string): 
     return [];
   }
 
-  const settlements: Settlement[] = [
+  const won = view.winnerUid === uid;
+  return [
     {
-      key: `${room.id}:cf-bet:${uid}`,
-      delta: -view.bet,
-      message: `Pile ou face : mise de ${view.bet} engagee.`,
+      key: `${room.id}:cf-net:${uid}`,
+      delta: won ? view.bet : -view.bet,
+      message: won
+        ? `Pile ou face : tu gagnes ${view.bet} jetons !`
+        : `Pile ou face : tu perds ta mise de ${view.bet} jetons.`,
     },
   ];
-
-  if (view.winnerUid === uid) {
-    settlements.push({
-      key: `${room.id}:cf-win`,
-      delta: view.bet * 2,
-      message: `Pile ou face : tu remportes ${view.bet * 2} !`,
-    });
-  }
-
-  return settlements;
 }

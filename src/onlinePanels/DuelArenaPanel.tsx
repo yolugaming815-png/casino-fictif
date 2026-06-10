@@ -64,7 +64,24 @@ export function DuelArenaPanel({ room, user, onPlayRound }: DuelArenaPanelProps)
   const [phase, setPhase] = useState<ArenaPhase>("idle");
   const [result, setResult] = useState<RoundResult | null>(null);
   const [rocketTarget, setRocketTarget] = useState(2);
+  const [pending, setPending] = useState(false);
   const timerRef = useRef<number | null>(null);
+  // Room du DERNIER render : handlePlayRound et le timeout de revelation lisent ici
+  // plutot que dans une closure perimee, pour calculer l'index de manche reel.
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  // Plus grand index de manche deja soumis a onPlayRound pour CE duel : tant que le
+  // snapshot Firestore n'a pas reflete la manche soumise, roundsPlayed reste <= cet
+  // index et le bouton reste verrouille (fenetre de latence anti-double-jeu).
+  const submittedRoundRef = useRef(-1);
+
+  useEffect(() => {
+    // Nouveau duel : on repart de zero (verrous compris).
+    submittedRoundRef.current = -1;
+    setPhase("idle");
+    setResult(null);
+    setPending(false);
+  }, [room.id]);
 
   useEffect(() => {
     return () => {
@@ -74,21 +91,37 @@ export function DuelArenaPanel({ room, user, onPlayRound }: DuelArenaPanelProps)
     };
   }, []);
 
-  const canPlay = isPlayer && room.status === "playing" && !allRoundsPlayed && phase !== "animating";
+  const canPlay =
+    isPlayer &&
+    room.status === "playing" &&
+    !allRoundsPlayed &&
+    phase !== "animating" &&
+    !pending &&
+    roundsPlayed > submittedRoundRef.current;
+
+  function currentRoundsPlayed(): number {
+    const latest = roomRef.current.duelScores[uid] ?? { rounds: [], total: 0 };
+    return latest.rounds.length;
+  }
 
   function handlePlayRound() {
     if (!canPlay) {
       return;
     }
 
-    const round = Math.min(roundsPlayed, 2) as DuelRoundIndex;
+    // Index recalcule depuis la room du dernier render au moment du clic.
+    const latestRounds = currentRoundsPlayed();
+    if (latestRounds > 2 || latestRounds <= submittedRoundRef.current) {
+      return;
+    }
+    const round = latestRounds as DuelRoundIndex;
     let roundResult: RoundResult;
 
     if (gameKey === "slots") {
-      const { outcome, score } = playSeededSlotsDuelRound(duelSeed, round);
+      const { outcome, score } = playSeededSlotsDuelRound(duelSeed, round, uid);
       roundResult = { kind: "slots", reels: outcome.reels, label: outcome.label, score };
     } else if (gameKey === "plinko") {
-      const { outcome, score } = playSeededPlinkoDuelRound(duelSeed, round);
+      const { outcome, score } = playSeededPlinkoDuelRound(duelSeed, round, uid);
       roundResult = { kind: "plinko", slot: outcome.slot, multiplier: outcome.multiplier, score };
     } else {
       const target = Math.round(Math.min(Math.max(rocketTarget, ROCKET_MIN), ROCKET_MAX) * 10) / 10;
@@ -99,10 +132,26 @@ export function DuelArenaPanel({ room, user, onPlayRound }: DuelArenaPanelProps)
 
     setResult(roundResult);
     setPhase("animating");
+    setPending(true);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
       setPhase("revealed");
-      void onPlayRound(room, roundResult.score);
+      // Si la room indique deja >= round+1 manches jouees (autre onglet, snapshot
+      // arrive entre-temps), cette manche est deja enregistree : on ne rejoue pas.
+      if (currentRoundsPlayed() > round) {
+        setPending(false);
+        return;
+      }
+      submittedRoundRef.current = round;
+      Promise.resolve(onPlayRound(roomRef.current, roundResult.score))
+        .catch(() => {
+          // Echec d'ecriture : on relache le verrou d'index pour permettre de rejouer
+          // cette manche (elle n'a pas ete enregistree cote serveur).
+          submittedRoundRef.current = round - 1;
+        })
+        .finally(() => {
+          setPending(false);
+        });
     }, REVEAL_DELAY_MS);
   }
 

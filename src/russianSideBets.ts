@@ -101,8 +101,13 @@ export async function placeRussianSideBet(room: OnlineRoomEntry, user: CasinoUse
   });
 }
 
+/**
+ * Reglement NET-AT-RESULT : aucun debit au placement du pari. Un SEUL reglement
+ * net par spectateur, emis uniquement quand la partie est "finished" avec un
+ * vainqueur : gagnant +(odds - 1) x mise, perdant -mise.
+ */
 export function computeRussianSideBetSettlements(room: OnlineRoomEntry, uid: string): Settlement[] {
-  if (room.type !== "russian-roulette") {
+  if (room.type !== "russian-roulette" || room.status !== "finished" || !room.winnerUid) {
     return [];
   }
 
@@ -113,22 +118,20 @@ export function computeRussianSideBetSettlements(room: OnlineRoomEntry, uid: str
   }
 
   const targetLabel = bet.targetName || "un joueur";
-  const settlements: Settlement[] = [
-    {
-      key: `${room.id}:sidebet:${uid}`,
-      delta: -bet.amount,
-      message: `Pari spectateur place : ${bet.amount.toLocaleString("fr-FR")} credits sur ${targetLabel}.`,
-    },
-  ];
+  const won = bet.targetUid === room.winnerUid;
+  const delta = won ? bet.amount * (bet.odds - 1) : -bet.amount;
 
-  if (room.status === "finished" && room.winnerUid && bet.targetUid === room.winnerUid) {
-    const payout = bet.amount * bet.odds;
-    settlements.push({
-      key: `${room.id}:sidebet-result:${uid}`,
-      delta: payout,
-      message: `Pari spectateur gagne : ${targetLabel} survit, tu remportes ${payout.toLocaleString("fr-FR")} credits (x${bet.odds}).`,
-    });
+  if (delta === 0) {
+    return [];
   }
 
-  return settlements;
+  return [
+    {
+      key: `${room.id}:sidebet-net:${uid}`,
+      delta,
+      message: won
+        ? `Pari spectateur gagne : ${targetLabel} survit, +${delta.toLocaleString("fr-FR")} credits nets (x${bet.odds}).`
+        : `Pari spectateur perdu : ${bet.amount.toLocaleString("fr-FR")} credits sur ${targetLabel}.`,
+    },
+  ];
 }

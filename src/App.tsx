@@ -168,6 +168,7 @@ import {
   foldPokerPlayer,
   isFirebaseConfigured,
   isInactivePokerRoom,
+  isVisibleOnlineRoom,
   joinOnlineRoom,
   leaveOnlineRoom,
   loadAdminPlayers,
@@ -216,7 +217,7 @@ import {
   type PrivateMessageEntry,
   type SkinTradeEntry,
 } from "./firebaseClient";
-import { loadSettledKeys, rememberSettledKey, type Settlement } from "./onlineSettlement";
+import { loadSettledKeys, type Settlement } from "./onlineSettlement";
 import { computeCrashSettlements, createCrashRoom } from "./crashRooms";
 import { computeRouletteTableSettlements, createRouletteTableRoom } from "./rouletteTableRooms";
 import { computeRussianSideBetSettlements } from "./russianSideBets";
@@ -328,13 +329,44 @@ const REFUNDED_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-refunded-inactive-pok
 const HIDDEN_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-hidden-inactive-poker";
 const FORCE_CLOSED_POKER_STORAGE_KEY = "casino-fictif-force-closed-poker";
 const RUSSIAN_ROULETTE_REWARDS_KEY = "casino-fictif-russian-roulette-rewards-v1";
-const CRASH_SETTLEMENTS_KEY = "casino-crash-settlements-v1";
-const ROULETTE_TABLE_SETTLEMENTS_KEY = "casino-rt-settlements-v1";
-const SIDE_BET_SETTLEMENTS_KEY = "casino-sidebet-settlements-v1";
-const COINFLIP_SETTLEMENTS_KEY = "casino-coinflip-settlements-v1";
-const FRIEND_BET_SETTLEMENTS_KEY = "casino-friendbet-settlements-v1";
-const SEEDED_DUEL_SETTLEMENTS_KEY = "casino-seeded-duel-settlements-v1";
-const POKER_SITNGO_SETTLEMENTS_KEY = "casino-poker-sitngo-settlements-v1";
+// Anciennes cles localStorage des reglements en ligne : conservees UNIQUEMENT pour la
+// migration vers settledOnlineKeys (dedup synchronisee dans la sauvegarde cloud).
+const LEGACY_SETTLEMENT_STORAGE_KEYS = [
+  "casino-crash-settlements-v1",
+  "casino-rt-settlements-v1",
+  "casino-sidebet-settlements-v1",
+  "casino-coinflip-settlements-v1",
+  "casino-friendbet-settlements-v1",
+  "casino-seeded-duel-settlements-v1",
+  "casino-poker-sitngo-settlements-v1",
+] as const;
+const ONLINE_SETTLED_KEYS_CAP = 2000;
+
+// Union ordonnee (les plus recents a la fin) plafonnee a ONLINE_SETTLED_KEYS_CAP.
+function mergeSettledOnlineKeys(base: string[], additions: Iterable<string>): string[] {
+  const merged = [...base];
+  const seen = new Set(base);
+
+  for (const key of additions) {
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(key);
+    }
+  }
+
+  return merged.slice(-ONLINE_SETTLED_KEYS_CAP);
+}
+
+// Migration : recupere les cles deja reglees stockees par les anciennes versions (localStorage pur).
+function loadLegacySettledOnlineKeys(): string[] {
+  const keys: string[] = [];
+
+  LEGACY_SETTLEMENT_STORAGE_KEYS.forEach((storageKey) => {
+    loadSettledKeys(storageKey).forEach((key) => keys.push(key));
+  });
+
+  return keys;
+}
 
 type SlotHistoryItem = Omit<SpinOutcome, "reels"> & {
   id: number;
@@ -497,6 +529,8 @@ type SavedGameState = {
   dailyStreak: DailyStreakState;
   soup: SoupState;
   periodNet: PeriodNetState;
+  // Cles de reglements en ligne deja appliquees (dedup anti-rejeu synchronisee cloud).
+  settledOnlineKeys: string[];
 };
 
 type LastPlayedGame = { kind: "solo"; id: CasinoGame } | { kind: "online"; id: OnlineRoomType };
@@ -1301,11 +1335,13 @@ function normalizeMissionState(value: unknown): HourlyMissionState | null {
 }
 
 const slotRules: Array<{ label: string; reward: string; probability: string; assetId: SlotResultAssetId }> = [
-  { label: "3x 7", reward: "x50", probability: "1 / 512 = 0,20 %", assetId: "jackpotSeven" },
-  { label: "3x etoile", reward: "x20", probability: "1 / 512 = 0,20 %", assetId: "tripleStar" },
-  { label: "3 symboles identiques", reward: "x10", probability: "6 / 512 = 1,17 %", assetId: "threeMatch" },
-  { label: "2 symboles identiques", reward: "x2", probability: "168 / 512 = 32,81 %", assetId: "pair" },
-  { label: "Aucune paire", reward: "perte", probability: "336 / 512 = 65,63 %", assetId: "noPair" },
+  { label: "3x 7", reward: "x50 (reduit de moitie si joker)", probability: "≈ 0,18 %", assetId: "jackpotSeven" },
+  { label: "3x etoile", reward: "x20 + 3 tours gratuits", probability: "≈ 0,18 %", assetId: "tripleStar" },
+  { label: "3x diamant (joker inclus)", reward: "Jackpot progressif commun", probability: "≈ 0,35 % (~1 / 290)", assetId: "threeMatch" },
+  { label: "3 symboles identiques", reward: "x10 (x20 pour 3 jokers)", probability: "≈ 1,4 % — le joker 🃏 (1/33 par rouleau) complete les triples", assetId: "threeMatch" },
+  { label: "2 symboles identiques (hors etoiles)", reward: "x2", probability: "≈ 26 %", assetId: "pair" },
+  { label: "Paire d'etoiles", reward: "3 tours gratuits (mise perdue)", probability: "≈ 4 % de spins avec tours gratuits", assetId: "pair" },
+  { label: "Aucune combinaison", reward: "perte", probability: "≈ 66 %", assetId: "noPair" },
 ];
 
 const blackjackRules = [
@@ -1698,6 +1734,9 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     dailyStreak: normalizeDailyStreak(parsed.dailyStreak),
     soup: normalizeSoup(parsed.soup),
     periodNet: normalizePeriodNet(parsed.periodNet, new Date()),
+    settledOnlineKeys: readArray<unknown>(parsed.settledOnlineKeys)
+      .filter((key): key is string => typeof key === "string")
+      .slice(-ONLINE_SETTLED_KEYS_CAP),
   };
 }
 
@@ -2109,6 +2148,13 @@ function App() {
   const forceClosedPokerRoomsRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(FORCE_CLOSED_POKER_STORAGE_KEY) ?? "[]") as string[]));
   const settledDuelRewardsRef = useRef(readStoredSet(DUEL_REWARDS_KEY));
   const settledRussianRouletteRewardsRef = useRef(readStoredSet(RUSSIAN_ROULETTE_REWARDS_KEY));
+  // Dedup des reglements en ligne : etat synchronise dans la sauvegarde (locale + cloud).
+  // Migration : fusionne au premier chargement les cles des anciens localStorage dedies.
+  const [settledOnlineKeys, setSettledOnlineKeys] = useState<string[]>(() =>
+    mergeSettledOnlineKeys(savedGame?.settledOnlineKeys ?? [], loadLegacySettledOnlineKeys()),
+  );
+  // Miroir synchrone de settledOnlineKeys (les effets de reglement tournent dans le meme tick).
+  const settledOnlineKeysRef = useRef<Set<string>>(new Set(settledOnlineKeys));
   const appliedTradeKeysRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(APPLIED_TRADE_KEYS_STORAGE_KEY) ?? "[]") as string[]));
   const lastPrivateMessageSentAtRef = useRef(0);
   const [now, setNow] = useState(Date.now());
@@ -2408,8 +2454,17 @@ function App() {
     }),
     [equippedSkins],
   );
+  // Filtre d'AFFICHAGE uniquement : les effets de reglement lisent onlineRooms (non filtre)
+  // pour pouvoir solder les rooms finies conservees 30 min cote Firestore.
   const visibleOnlineRooms = useMemo(
-    () => onlineRooms.filter((room) => !forceClosedPokerRoomsRef.current.has(room.id) && !hiddenInactivePokerRoomsRef.current.has(room.id) && !isInactivePokerRoom(room, now)),
+    () =>
+      onlineRooms.filter(
+        (room) =>
+          isVisibleOnlineRoom(room, now) &&
+          !forceClosedPokerRoomsRef.current.has(room.id) &&
+          !hiddenInactivePokerRoomsRef.current.has(room.id) &&
+          !isInactivePokerRoom(room, now),
+      ),
     [onlineRooms, now],
   );
   const lobbyActivityRooms = useMemo(() => {
@@ -2664,6 +2719,7 @@ function App() {
   useEffect(() => {
     saveGame({
       version: 1,
+      settledOnlineKeys,
       balance,
       ownedSkinIds,
       equippedSkins,
@@ -2714,6 +2770,7 @@ function App() {
     dailyStreak,
     soup,
     periodNet,
+    settledOnlineKeys,
   ]);
 
   useEffect(() => {
@@ -2844,6 +2901,7 @@ function App() {
     dailyStreak,
     soup,
     periodNet,
+    settledOnlineKeys,
   ]);
 
   useEffect(() => {
@@ -3101,24 +3159,30 @@ function App() {
     });
   }, [accountUser, onlineRooms]);
 
-  function applyOnlineSettlements(storageKey: string, settlements: Settlement[], onApplied?: (settlement: Settlement) => void) {
+  // Dedup anti-rejeu via settledOnlineKeys (persiste dans la sauvegarde locale ET cloud) :
+  // un reglement applique sur un appareil ne sera jamais rejoue sur un autre.
+  function applyOnlineSettlements(settlements: Settlement[], onApplied?: (settlement: Settlement) => void) {
     if (settlements.length === 0) {
       return;
     }
 
-    const settledKeys = loadSettledKeys(storageKey);
+    const appliedKeys: string[] = [];
 
     settlements.forEach((settlement) => {
-      if (settledKeys.has(settlement.key)) {
+      if (settledOnlineKeysRef.current.has(settlement.key)) {
         return;
       }
 
-      rememberSettledKey(storageKey, settlement.key);
-      settledKeys.add(settlement.key);
+      settledOnlineKeysRef.current.add(settlement.key);
+      appliedKeys.push(settlement.key);
       setBalance((current) => Math.max(0, current + settlement.delta));
       setOnlineMessage(settlement.message);
       onApplied?.(settlement);
     });
+
+    if (appliedKeys.length > 0) {
+      setSettledOnlineKeys((current) => mergeSettledOnlineKeys(current, appliedKeys));
+    }
   }
 
   useEffect(() => {
@@ -3131,7 +3195,7 @@ function App() {
         return;
       }
 
-      applyOnlineSettlements(CRASH_SETTLEMENTS_KEY, computeCrashSettlements(room, accountUser.uid));
+      applyOnlineSettlements(computeCrashSettlements(room, accountUser.uid));
     });
   }, [accountUser, onlineRooms]);
 
@@ -3145,7 +3209,7 @@ function App() {
         return;
       }
 
-      applyOnlineSettlements(ROULETTE_TABLE_SETTLEMENTS_KEY, computeRouletteTableSettlements(room, accountUser.uid));
+      applyOnlineSettlements(computeRouletteTableSettlements(room, accountUser.uid));
     });
   }, [accountUser, onlineRooms]);
 
@@ -3159,7 +3223,7 @@ function App() {
         return;
       }
 
-      applyOnlineSettlements(SIDE_BET_SETTLEMENTS_KEY, computeRussianSideBetSettlements(room, accountUser.uid));
+      applyOnlineSettlements(computeRussianSideBetSettlements(room, accountUser.uid));
     });
   }, [accountUser, onlineRooms]);
 
@@ -3173,7 +3237,7 @@ function App() {
         return;
       }
 
-      applyOnlineSettlements(COINFLIP_SETTLEMENTS_KEY, computeCoinflipSettlements(room, accountUser.uid));
+      applyOnlineSettlements(computeCoinflipSettlements(room, accountUser.uid));
     });
   }, [accountUser, onlineRooms]);
 
@@ -3182,10 +3246,10 @@ function App() {
       return;
     }
 
-    const settlements = computeFriendBetSettlements(friendBetsList, accountUser.uid);
+    const settlements = computeFriendBetSettlements(friendBetsList, accountUser.uid, settledOnlineKeysRef.current);
     const betsById = new Map(friendBetsList.map((bet) => [bet.id, bet]));
 
-    applyOnlineSettlements(FRIEND_BET_SETTLEMENTS_KEY, settlements, (settlement) => {
+    applyOnlineSettlements(settlements, (settlement) => {
       const [betId, kind] = settlement.key.split(":");
       const bet = betsById.get(betId);
 
@@ -3250,7 +3314,7 @@ function App() {
         }
       }
 
-      applyOnlineSettlements(SEEDED_DUEL_SETTLEMENTS_KEY, settlements);
+      applyOnlineSettlements(settlements);
     });
   }, [accountUser, onlineRooms, duelHistory]);
 
@@ -3293,7 +3357,7 @@ function App() {
         });
       }
 
-      applyOnlineSettlements(POKER_SITNGO_SETTLEMENTS_KEY, settlements);
+      applyOnlineSettlements(settlements);
     });
   }, [accountUser, onlineRooms]);
 
@@ -3315,6 +3379,32 @@ function App() {
     return subscribeFriendBets(accountUser.uid, setFriendBetsList, () => setFriendBetsList([]));
   }, [accountUser]);
 
+  // Sit & go abandonne (table inactive ou retiree sans vainqueur) : rembourse le buy-in,
+  // mais uniquement si CE compte l'a effectivement debite (cle buyin presente dans la dedup).
+  function applySitngoAbandonRefund(room: OnlineRoomEntry) {
+    if (!accountUser || room.type !== "poker" || room.winnerUid) {
+      return;
+    }
+
+    const extras = parsePokerRoomExtras(room.raw);
+
+    if (extras.mode !== "sitngo" || extras.buyIn <= 0 || !room.players.some((player) => player.uid === accountUser.uid)) {
+      return;
+    }
+
+    if (!settledOnlineKeysRef.current.has(`${room.id}:buyin:${accountUser.uid}`)) {
+      return;
+    }
+
+    applyOnlineSettlements([
+      {
+        key: `${room.id}:sitngo-refund:${accountUser.uid}`,
+        delta: extras.buyIn,
+        message: `Sit & go abandonne : buy-in de ${extras.buyIn.toLocaleString("fr-FR")} credits rembourse.`,
+      },
+    ]);
+  }
+
   useEffect(() => {
     if (!accountUser || !cloudSaveReadyRef.current) {
       return;
@@ -3325,6 +3415,7 @@ function App() {
         return;
       }
 
+      applySitngoAbandonRefund(room);
       rememberHiddenInactivePokerRoom(room.id);
       const refundKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
 
@@ -3531,11 +3622,9 @@ function App() {
       }
 
       if (accountUser) {
-        await Promise.allSettled(
-          inactivePokerRooms
-            .filter((room) => room.players.some((player) => player.uid === accountUser.uid))
-            .map((room) => deleteInactivePokerRoom(room, accountUser)),
-        );
+        const myInactiveRooms = inactivePokerRooms.filter((room) => room.players.some((player) => player.uid === accountUser.uid));
+        myInactiveRooms.forEach((room) => applySitngoAbandonRefund(room));
+        await Promise.allSettled(myInactiveRooms.map((room) => deleteInactivePokerRoom(room, accountUser)));
       }
     } catch {
       setOnlineMessage("Impossible de charger les salons en ligne pour le moment.");
@@ -3840,9 +3929,13 @@ function App() {
       return;
     }
 
+    // Arene seedee : le score est calcule pour l'index de manche de la room affichee.
+    // playDuelRound ignore l'ecriture si l'index lu en transaction ne correspond plus (anti-rejeu).
+    const expectedRoundIndex = typeof roundScore === "number" ? room.duelScores[accountUser.uid]?.rounds.length ?? 0 : undefined;
+
     try {
       setOnlineActionRoomId(room.id);
-      await playDuelRound(room, accountUser, roundScore);
+      await playDuelRound(room, accountUser, roundScore, expectedRoundIndex);
       setOnlineMessage("Manche jouee et score sauvegarde.");
       await refreshOnlineRooms();
       await refreshDuelHistory(accountUser.uid);
@@ -4197,6 +4290,7 @@ function App() {
       return;
     }
 
+    applySitngoAbandonRefund(room);
     const refundKey = `${room.id}:${room.pokerHandId}:${accountUser.uid}`;
 
     if (!refundedInactivePokerRoomsRef.current.has(refundKey)) {
@@ -4367,10 +4461,15 @@ function App() {
       dailyStreak,
       soup,
       periodNet,
+      settledOnlineKeys,
     };
   }
 
   function applyCloudSave(importedSave: SavedGameState) {
+    // UNION des cles reglees cloud + locales (jamais un remplacement) : les reglements
+    // appliques sur un autre appareil ne doivent pas etre rejoues ici, et inversement.
+    importedSave.settledOnlineKeys.forEach((key) => settledOnlineKeysRef.current.add(key));
+    setSettledOnlineKeys((current) => mergeSettledOnlineKeys(importedSave.settledOnlineKeys, current));
     setBalance(importedSave.balance);
     setOwnedSkinIds(importedSave.ownedSkinIds);
     setEquippedSkins(importedSave.equippedSkins);
@@ -4921,6 +5020,12 @@ function App() {
     const chest = getSpecialChestDefinition(chestId);
     const chestPrice = priceTools.chest(chest);
 
+    // Le gate Prestige s'applique a l'ACHAT uniquement : un coffre deja possede reste ouvrable.
+    if (chestId === PRESTIGE_CHEST_ID && !playerPerks.prestigeChestUnlocked) {
+      setShopMessage("Coffre Prestige : niveau 10 requis pour l'acheter.");
+      return;
+    }
+
     if (balance < chestPrice) {
       setShopMessage("Solde insuffisant pour acheter ce coffre special.");
       return;
@@ -5033,11 +5138,6 @@ function App() {
     const chest = getSpecialChestDefinition(chestId);
 
     if (caseOpening) {
-      return;
-    }
-
-    if (chestId === PRESTIGE_CHEST_ID && !playerPerks.prestigeChestUnlocked) {
-      setCaseMessage("Coffre Prestige : niveau 10 requis pour l'ouvrir.");
       return;
     }
 
@@ -5809,6 +5909,7 @@ function App() {
             equippedSkins={equippedSkins}
             message={shopMessage}
             ownedSkinIds={ownedSkinIds}
+            prestigeChestUnlocked={playerPerks.prestigeChestUnlocked}
             priceOverrides={adminPriceOverrides}
             specialInventory={specialInventory}
             onAction={handleShopAction}
@@ -8134,7 +8235,7 @@ function OnlineRoomsPanel({
                   {busy ? "..." : !joinable ? "Partie lancee" : alreadyJoined ? "Quitter" : full ? "Complet" : "Rejoindre"}
                 </button>
                 {room.type === "duel" && !seededDuel && (
-                  <DuelRoomPanel busy={busy} currentUserId={currentUserId} room={room} onStartDuel={onStartDuel} />
+                  <DuelRoomPanel busy={busy} currentUserId={currentUserId} room={room} onStartDuel={onStartDuel} onPlayRound={onPlayDuelRound} />
                 )}
                 {seededDuel && (
                   <DuelArenaPanel room={room} user={currentUser} onPlayRound={(duelRoom, score) => onPlayDuelRound(duelRoom, score)} />
@@ -8351,14 +8452,21 @@ function DuelRoomPanel({
   currentUserId,
   room,
   onStartDuel,
+  onPlayRound,
 }: {
   busy: boolean;
   currentUserId: string;
   room: OnlineRoomEntry;
   onStartDuel: (room: OnlineRoomEntry) => void;
+  onPlayRound: (room: OnlineRoomEntry, roundScore?: number) => void;
 }) {
   const currentPlayerScore = room.duelScores[currentUserId] ?? { rounds: [], total: 0 };
   const canStart = room.status === "waiting" && room.hostUid === currentUserId && room.players.length >= 2;
+  // Duels legacy (gameplay-v1 ou anterieurs) encore en cours : le score est tire cote
+  // serveur (fallback createDuelRoundScore), on garde un bouton pour pouvoir les finir.
+  const isLegacyPlaying = room.status === "playing" && room.duelRewardMode !== "seeded-v2";
+  const isPlayer = room.players.some((player) => player.uid === currentUserId);
+  const canPlayLegacyRound = isLegacyPlaying && isPlayer && currentPlayerScore.rounds.length < 3;
   const opponent = room.players.find((player) => player.uid !== currentUserId);
   const opponentScore = opponent ? room.duelScores[opponent.uid] ?? { rounds: [], total: 0 } : null;
   const statusText =
@@ -8398,9 +8506,15 @@ function DuelRoomPanel({
       ) : (
         <div className={styles.socialActions}>
           {opponentScore && <small>L'adversaire a joue {opponentScore.rounds.length}/3 manches.</small>}
-          <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={busy || !canStart}>
-            Lancer le duel
-          </button>
+          {isLegacyPlaying ? (
+            <button className={styles.primaryButton} type="button" onClick={() => onPlayRound(room)} disabled={busy || !canPlayLegacyRound}>
+              {currentPlayerScore.rounds.length >= 3 ? "Manches jouees" : "Jouer une manche"}
+            </button>
+          ) : (
+            <button className={styles.primaryButton} type="button" onClick={() => onStartDuel(room)} disabled={busy || !canStart}>
+              Lancer le duel
+            </button>
+          )}
           {room.status === "waiting" && <small>Au lancement, l'arene seedee s'ouvre : chacun joue ses 3 manches en direct.</small>}
         </div>
       )}
@@ -10573,7 +10687,8 @@ function CaseOpeningGame({
             const canMerge = ownedFragments >= KEY_FRAGMENTS_REQUIRED;
             const isPrestigeChest = chest.id === PRESTIGE_CHEST_ID;
             const prestigeLocked = isPrestigeChest && !prestigeChestUnlocked;
-            const canOpenSpecial = ownedChests > 0 && ownedKeys > 0 && !opening && !prestigeLocked;
+            // Le verrou Prestige ne concerne que l'achat en boutique : un coffre possede s'ouvre librement.
+            const canOpenSpecial = ownedChests > 0 && ownedKeys > 0 && !opening;
 
             return (
               <article className={styles.shopItem} key={chest.id}>
@@ -10585,7 +10700,7 @@ function CaseOpeningGame({
                     {isPrestigeChest ? (
                       <span
                         className={styles.prestigeBadge}
-                        title={prestigeLocked ? "Niveau 10 requis" : "Coffre Prestige debloque"}
+                        title={prestigeLocked ? "Achat en boutique au niveau 10 (ouverture libre si possede)" : "Coffre Prestige debloque"}
                       >
                         {prestigeLocked ? "🔒" : "✨"} Prestige
                       </span>
@@ -10606,9 +10721,8 @@ function CaseOpeningGame({
                     type="button"
                     onClick={() => onOpenSpecialChest(chest.id)}
                     disabled={!canOpenSpecial}
-                    title={prestigeLocked ? "Niveau 10 requis" : undefined}
                   >
-                    {prestigeLocked ? "🔒 Niveau 10" : "Ouvrir"}
+                    Ouvrir
                   </button>
                 </div>
               </article>
@@ -12014,6 +12128,7 @@ function ShopGame({
   equippedSkins,
   message,
   ownedSkinIds,
+  prestigeChestUnlocked,
   priceOverrides,
   specialInventory,
   onAction,
@@ -12023,6 +12138,7 @@ function ShopGame({
   equippedSkins: EquippedSkins;
   message: string;
   ownedSkinIds: string[];
+  prestigeChestUnlocked: boolean;
   priceOverrides: AdminPriceOverrides;
   specialInventory: SpecialInventory;
   onAction: (item: ShopItem) => void;
@@ -12109,26 +12225,37 @@ function ShopGame({
           </div>
         </div>
         <div className={styles.shopGrid}>
-          {SPECIAL_CHESTS.map((chest) => (
-            <article className={styles.shopItem} key={chest.id}>
-              <SpecialChestPreview chest={chest} />
-              <SpecialChestRewards chest={chest} />
-              <div>
-                <h3>{chest.title}</h3>
-                <p>{chest.subtitle}</p>
-                <small>
-                  Possedes : {specialInventory.chests[chest.id]} | Cle : {specialInventory.keys[chest.id]} | Fragments :{" "}
-                  {specialInventory.fragments[chest.id]}
-                </small>
-              </div>
-              <footer className={styles.shopFooter}>
-                <strong>{priceOverrides.chests[chest.id] ?? chest.price} credits</strong>
-                <button className={styles.primaryButton} type="button" onClick={() => onBuySpecialChest(chest.id)} disabled={balance < (priceOverrides.chests[chest.id] ?? chest.price)}>
-                  Acheter coffre
-                </button>
-              </footer>
-            </article>
-          ))}
+          {SPECIAL_CHESTS.map((chest) => {
+            // Verrou Prestige : il bloque uniquement l'achat du coffre Orbital, jamais son ouverture.
+            const prestigeLocked = chest.id === PRESTIGE_CHEST_ID && !prestigeChestUnlocked;
+
+            return (
+              <article className={styles.shopItem} key={chest.id}>
+                <SpecialChestPreview chest={chest} />
+                <SpecialChestRewards chest={chest} />
+                <div>
+                  <h3>{chest.title}</h3>
+                  <p>{chest.subtitle}</p>
+                  <small>
+                    Possedes : {specialInventory.chests[chest.id]} | Cle : {specialInventory.keys[chest.id]} | Fragments :{" "}
+                    {specialInventory.fragments[chest.id]}
+                  </small>
+                </div>
+                <footer className={styles.shopFooter}>
+                  <strong>{priceOverrides.chests[chest.id] ?? chest.price} credits</strong>
+                  <button
+                    className={styles.primaryButton}
+                    type="button"
+                    onClick={() => onBuySpecialChest(chest.id)}
+                    disabled={prestigeLocked || balance < (priceOverrides.chests[chest.id] ?? chest.price)}
+                    title={prestigeLocked ? "Niveau 10 requis pour acheter ce coffre" : undefined}
+                  >
+                    {prestigeLocked ? "🔒 Niveau 10" : "Acheter coffre"}
+                  </button>
+                </footer>
+              </article>
+            );
+          })}
         </div>
       </section>
       <section className={styles.panel}>

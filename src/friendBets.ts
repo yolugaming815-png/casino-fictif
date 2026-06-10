@@ -336,7 +336,27 @@ export function subscribeFriendBets(
   };
 }
 
-export function computeFriendBetSettlements(bets: FriendBetEntry[], uid: string): Settlement[] {
+/**
+ * Calcule les reglements de paris entre amis pour `uid`.
+ *
+ * Contrat anti-rejeu a deux niveaux :
+ * 1. Dedup locale : App garde en localStorage les cles deja appliquees sur CET appareil
+ *    (applyOnlineSettlements) et peut les passer via `settledKeys`.
+ * 2. Garde serveur (secondaire) : les flags Firestore (creatorEscrowed/opponentEscrowed,
+ *    payoutClaimed, creatorRefunded/opponentRefunded) sont poses par le client qui vient
+ *    d'APPLIQUER le reglement (App.tsx, callback onApplied). Regle d'emission :
+ *    - flag false                          -> emettre (premiere application, ou re-emission
+ *      inoffensive dedupee localement) ;
+ *    - flag true ET cle locale presente    -> emettre quand meme : c'est CE client qui a
+ *      applique puis pose le flag, la dedup locale neutralise la re-application ;
+ *    - flag true ET cle locale absente     -> NE PAS emettre : un AUTRE appareil a deja
+ *      regle cette entree (nouveau navigateur / localStorage vide), on evite le rejeu.
+ */
+export function computeFriendBetSettlements(
+  bets: FriendBetEntry[],
+  uid: string,
+  settledKeys: ReadonlySet<string> = new Set<string>(),
+): Settlement[] {
   const settlements: Settlement[] = [];
 
   bets.forEach((bet) => {
@@ -346,26 +366,30 @@ export function computeFriendBetSettlements(bets: FriendBetEntry[], uid: string)
     }
 
     const escrowed = role === "creator" ? bet.creatorEscrowed : bet.opponentEscrowed;
+    const refunded = role === "creator" ? bet.creatorRefunded : bet.opponentRefunded;
 
-    if (bet.status === "active" || bet.status === "resolved") {
+    const escrowKey = `${bet.id}:escrow:${uid}`;
+    if ((bet.status === "active" || bet.status === "resolved") && (!escrowed || settledKeys.has(escrowKey))) {
       settlements.push({
-        key: `${bet.id}:escrow:${uid}`,
+        key: escrowKey,
         delta: -bet.stake,
         message: `Pari entre amis « ${bet.title} » : ${bet.stake} jetons mis sous sequestre.`,
       });
     }
 
-    if (bet.status === "resolved" && bet.winnerUid === uid) {
+    const payoutKey = `${bet.id}:payout`;
+    if (bet.status === "resolved" && bet.winnerUid === uid && (!bet.payoutClaimed || settledKeys.has(payoutKey))) {
       settlements.push({
-        key: `${bet.id}:payout`,
+        key: payoutKey,
         delta: bet.stake * 2,
         message: `Pari entre amis « ${bet.title} » gagne : +${bet.stake * 2} jetons !`,
       });
     }
 
-    if ((bet.status === "canceled" || bet.status === "declined") && escrowed) {
+    const refundKey = `${bet.id}:refund:${uid}`;
+    if ((bet.status === "canceled" || bet.status === "declined") && escrowed && (!refunded || settledKeys.has(refundKey))) {
       settlements.push({
-        key: `${bet.id}:refund:${uid}`,
+        key: refundKey,
         delta: bet.stake,
         message: `Pari entre amis « ${bet.title} » annule : ${bet.stake} jetons rembourses.`,
       });

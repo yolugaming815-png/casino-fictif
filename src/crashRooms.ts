@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteField, doc, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
 import {
   buildBaseRoomDoc,
   getCasinoDb,
@@ -8,7 +8,7 @@ import {
   type CasinoUser,
   type OnlineRoomEntry,
 } from "./firebaseClient";
-import { CRASH_MAX_POINT, crashCommitment, crashMultiplierAt, drawCrashPoint, randomCrashSalt } from "./crashMath";
+import { CRASH_MAX_POINT, crashCommitment, crashMultiplierAt, drawCrashPoint, normalizeCrashPoint, randomCrashSalt } from "./crashMath";
 import type { Settlement } from "./onlineSettlement";
 
 export type CrashPhase = "betting" | "flying" | "revealed";
@@ -30,6 +30,23 @@ export type CrashHistoryEntry = {
   crashPoint: number;
 };
 
+export type CrashRoundOutcome = {
+  amount: number;
+  payout: number;
+  win: boolean;
+};
+
+/**
+ * Resultat durable de la DERNIERE manche resolue (revelee ou annulee).
+ * Ecrit dans le doc room par revealCrashRound/voidCrashRound, il survit au
+ * round suivant (jusqu'au prochain reveal) pour qu'un client qui a manque le
+ * snapshot "revealed" puisse quand meme appliquer son reglement net.
+ */
+export type CrashLastResults = {
+  roundId: number;
+  outcomes: Record<string, CrashRoundOutcome>;
+};
+
 export type CrashRoomView = {
   phase: CrashPhase;
   roundId: number;
@@ -43,6 +60,7 @@ export type CrashRoomView = {
   hostHeartbeatAtMs: number | null;
   bets: Record<string, CrashBetView>;
   history: CrashHistoryEntry[];
+  lastResults: CrashLastResults | null;
 };
 
 export type CrashSecret = {
@@ -149,6 +167,39 @@ function parseCrashBets(value: unknown): Record<string, CrashBetView> {
   );
 }
 
+function parseCrashLastResults(value: unknown): CrashLastResults | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const roundId = typeof raw.roundId === "number" && Number.isFinite(raw.roundId) ? Math.floor(raw.roundId) : 0;
+  if (roundId < 1) {
+    return null;
+  }
+
+  const rawOutcomes = raw.outcomes && typeof raw.outcomes === "object" ? (raw.outcomes as Record<string, unknown>) : {};
+  const outcomes: Record<string, CrashRoundOutcome> = {};
+
+  for (const [uid, rawOutcome] of Object.entries(rawOutcomes)) {
+    if (!uid || !rawOutcome || typeof rawOutcome !== "object") {
+      continue;
+    }
+
+    const outcome = rawOutcome as Record<string, unknown>;
+    const amount = typeof outcome.amount === "number" && Number.isFinite(outcome.amount) ? Math.floor(outcome.amount) : 0;
+    const payout = typeof outcome.payout === "number" && Number.isFinite(outcome.payout) ? Math.floor(outcome.payout) : 0;
+
+    if (amount <= 0 || payout < 0) {
+      continue;
+    }
+
+    outcomes[uid] = { amount, payout, win: outcome.win === true };
+  }
+
+  return { roundId, outcomes };
+}
+
 export function parseCrashRoom(room: OnlineRoomEntry): CrashRoomView {
   const data = room.raw;
   const phase: CrashPhase = data.crashPhase === "flying" || data.crashPhase === "revealed" ? data.crashPhase : "betting";
@@ -178,6 +229,7 @@ export function parseCrashRoom(room: OnlineRoomEntry): CrashRoomView {
     hostHeartbeatAtMs: onlineTimestampToMillis(data.crashHostHeartbeatAt),
     bets: parseCrashBets(data.crashBets),
     history,
+    lastResults: parseCrashLastResults(data.crashLastResults),
   };
 }
 
@@ -187,13 +239,15 @@ export async function createCrashRoom(user: CasinoUser): Promise<string | null> 
     return null;
   }
 
+  // Les rules imposent status "waiting" a la creation : on cree le squelette conforme
+  // puis on passe la table en "playing" via une update immediate (pattern roulette-table).
+  // crashStartAt est volontairement OMIS : on n'ecrit jamais null dans un champ crash*
+  // (les rules valident `crashStartAt is timestamp` des que la cle existe).
   const room = await addDoc(collection(db, "onlineRooms"), {
     ...buildBaseRoomDoc(user, "crash", "Crash", CRASH_MAX_PLAYERS),
-    status: "playing",
     crashPhase: "betting",
     crashRoundId: 1,
     crashBettingStartedAt: serverTimestamp(),
-    crashStartAt: null,
     crashHash: "",
     crashPoint: 0,
     crashSalt: "",
@@ -202,6 +256,11 @@ export async function createCrashRoom(user: CasinoUser): Promise<string | null> 
     crashHostHeartbeatAt: serverTimestamp(),
     crashBets: {},
     crashHistory: [],
+  });
+
+  await updateDoc(doc(db, "onlineRooms", room.id), {
+    status: "playing",
+    updatedAt: serverTimestamp(),
   });
 
   return room.id;
@@ -371,10 +430,12 @@ export async function revealCrashRound(room: OnlineRoomEntry, user: CasinoUser, 
     return;
   }
 
-  const normalizedPoint = Math.min(CRASH_MAX_POINT, Math.max(1, Math.floor(Number(crashPoint) * 100) / 100));
-  if (!Number.isFinite(normalizedPoint)) {
+  // Normalisation canonique en centiemes (Math.round, JAMAIS Math.floor) : un point deja
+  // arrondi du type 1.13 (112.999... * 100 en flottant) reste 1.13 et le hash correspond.
+  if (!Number.isFinite(Number(crashPoint))) {
     throw new Error("Point de crash invalide.");
   }
+  const normalizedPoint = normalizeCrashPoint(crashPoint);
 
   const expectedHash = await crashCommitment(normalizedPoint, salt);
 
@@ -406,6 +467,7 @@ export async function revealCrashRound(room: OnlineRoomEntry, user: CasinoUser, 
     }
 
     const betUpdates: Record<string, number | boolean> = {};
+    const outcomes: Record<string, CrashRoundOutcome> = {};
     for (const [uid, bet] of Object.entries(view.bets)) {
       const manualMultiplier = bet.cashedOutAtMs !== null ? crashMultiplierAt(bet.cashedOutAtMs - view.startAtMs) : null;
       const manualValid = manualMultiplier !== null && manualMultiplier < normalizedPoint;
@@ -421,9 +483,11 @@ export async function revealCrashRound(room: OnlineRoomEntry, user: CasinoUser, 
       }
 
       const win = finalMultiplier > 0;
+      const payout = win ? Math.floor(bet.amount * finalMultiplier) : 0;
       betUpdates[`crashBets.${uid}.finalMultiplier`] = finalMultiplier;
-      betUpdates[`crashBets.${uid}.payout`] = win ? Math.floor(bet.amount * finalMultiplier) : 0;
+      betUpdates[`crashBets.${uid}.payout`] = payout;
       betUpdates[`crashBets.${uid}.win`] = win;
+      outcomes[uid] = { amount: bet.amount, payout, win };
     }
 
     transaction.update(roomRef, {
@@ -432,6 +496,8 @@ export async function revealCrashRound(room: OnlineRoomEntry, user: CasinoUser, 
       crashPoint: normalizedPoint,
       crashSalt: salt,
       crashVoided: false,
+      // Resultat durable : survit au round suivant pour les clients qui manquent le snapshot.
+      crashLastResults: { roundId: view.roundId, outcomes },
       crashHistory: [...view.history, { roundId: view.roundId, crashPoint: normalizedPoint }].slice(-CRASH_HISTORY_LIMIT),
       updatedAt: serverTimestamp(),
     });
@@ -467,7 +533,8 @@ export async function startNextCrashBettingPhase(room: OnlineRoomEntry, user: Ca
       crashPhase: "betting",
       crashRoundId: view.roundId + 1,
       crashBettingStartedAt: serverTimestamp(),
-      crashStartAt: null,
+      // Jamais null dans un champ crash* : on supprime la cle, les rules valident l'absence.
+      crashStartAt: deleteField(),
       crashHash: "",
       crashPoint: 0,
       crashSalt: "",
@@ -511,11 +578,18 @@ export async function voidCrashRound(room: OnlineRoomEntry, user: CasinoUser): P
       throw new Error("Le resolveur est encore actif : impossible d'annuler la manche.");
     }
 
+    // Manche annulee : payout = amount (net 0). Comme plus aucun debit n'est anticipe,
+    // aucun reglement ne sera emis pour ce round — le doc garde quand meme la trace.
+    const outcomes: Record<string, CrashRoundOutcome> = Object.fromEntries(
+      Object.entries(view.bets).map(([uid, bet]) => [uid, { amount: bet.amount, payout: bet.amount, win: false }]),
+    );
+
     transaction.update(roomRef, {
       crashPhase: "revealed",
       crashVoided: true,
       crashPoint: 0,
       crashSalt: "",
+      crashLastResults: { roundId: view.roundId, outcomes },
       updatedAt: serverTimestamp(),
     });
   });
@@ -566,39 +640,48 @@ export async function takeOverCrashResolver(room: OnlineRoomEntry, user: CasinoU
   });
 }
 
+/**
+ * Reglement NET-AT-RESULT : aucun debit a la pose de la mise. Un SEUL reglement
+ * net par manche et par joueur (delta = payout - mise, eventuellement negatif),
+ * emis quand le resultat est durablement observable : phase "revealed" du round
+ * courant OU crashLastResults (qui survit au round suivant). Une manche annulee
+ * a payout = mise (net 0) et n'emet donc rien.
+ */
 export function computeCrashSettlements(room: OnlineRoomEntry, uid: string): Settlement[] {
   if (room.type !== "crash") {
     return [];
   }
 
   const view = parseCrashRoom(room);
+  const outcomes = new Map<string, CrashRoundOutcome>();
+
   const bet = view.bets[uid];
-  if (!bet) {
-    return [];
+  if (view.phase === "revealed" && bet) {
+    const payout = view.voided ? bet.amount : bet.payout;
+    outcomes.set(`${room.id}:${view.roundId}:net:${uid}`, { amount: bet.amount, payout, win: !view.voided && bet.win });
   }
 
-  const settlements: Settlement[] = [
-    {
-      key: `${room.id}:${view.roundId}:bet:${uid}`,
-      delta: -bet.amount,
-      message: `Mise crash de ${bet.amount} jetons engagee.`,
-    },
-  ];
+  const lastOutcome = view.lastResults?.outcomes[uid];
+  if (view.lastResults && lastOutcome) {
+    // Meme round : meme cle, meme contenu — le Map dedoublonne naturellement.
+    outcomes.set(`${room.id}:${view.lastResults.roundId}:net:${uid}`, lastOutcome);
+  }
 
-  if (view.phase === "revealed") {
-    if (view.voided) {
-      settlements.push({
-        key: `${room.id}:${view.roundId}:result:${uid}`,
-        delta: bet.amount,
-        message: `Manche crash annulee : ${bet.amount} jetons rembourses.`,
-      });
-    } else if (bet.win && bet.payout > 0) {
-      settlements.push({
-        key: `${room.id}:${view.roundId}:result:${uid}`,
-        delta: bet.payout,
-        message: `Cash-out a x${bet.finalMultiplier.toFixed(2)} : +${bet.payout} jetons.`,
-      });
+  const settlements: Settlement[] = [];
+  for (const [key, outcome] of outcomes) {
+    const delta = outcome.payout - outcome.amount;
+    if (delta === 0) {
+      continue;
     }
+
+    settlements.push({
+      key,
+      delta,
+      message:
+        delta > 0
+          ? `Crash : cash-out gagnant, +${delta} jetons nets (mise de ${outcome.amount}).`
+          : `Crash : mise de ${outcome.amount} jetons perdue.`,
+    });
   }
 
   return settlements;

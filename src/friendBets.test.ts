@@ -106,3 +106,46 @@ test("mise nulle ou pari corrompu : aucun reglement", () => {
   const bets = [buildBet({ stake: 0, status: "resolved", winnerUid: "uid-creator" })];
   assert.deepEqual(computeFriendBetSettlements(bets, "uid-creator"), []);
 });
+
+test("garde serveur : flag escrowed pose par un AUTRE appareil => pas de re-debit", () => {
+  // Nouveau navigateur (settledKeys vide) : le flag Firestore atteste que l'escrow
+  // a deja ete applique ailleurs, on ne re-debite pas.
+  const bets = [buildBet({ creatorEscrowed: true })];
+  assert.deepEqual(computeFriendBetSettlements(bets, "uid-creator"), []);
+
+  // L'adversaire n'a pas encore son flag : son escrow reste emis.
+  const opponentSettlements = computeFriendBetSettlements(bets, "uid-opponent");
+  assert.equal(opponentSettlements.length, 1);
+  assert.equal(opponentSettlements[0].key, "bet-1:escrow:uid-opponent");
+});
+
+test("garde serveur : flag payoutClaimed => pas de re-credit sur un autre appareil", () => {
+  const bets = [buildBet({ status: "resolved", winnerUid: "uid-opponent", payoutClaimed: true, opponentEscrowed: true })];
+  assert.deepEqual(computeFriendBetSettlements(bets, "uid-opponent"), []);
+});
+
+test("garde serveur : flags refunded => pas de re-remboursement", () => {
+  const bets = [buildBet({ status: "canceled", creatorEscrowed: true, creatorRefunded: true })];
+  assert.deepEqual(computeFriendBetSettlements(bets, "uid-creator"), []);
+});
+
+test("cle locale presente : le flag pose par CE client ne bloque pas l'emission (dedup locale)", () => {
+  // Ce client vient d'appliquer escrow+payout puis a pose les flags : avec ses cles
+  // locales, les entrees restent emises (et seront dedupees par applyOnlineSettlements).
+  const bets = [buildBet({ status: "resolved", winnerUid: "uid-creator", creatorEscrowed: true, payoutClaimed: true })];
+  const settledKeys = new Set(["bet-1:escrow:uid-creator", "bet-1:payout"]);
+
+  const settlements = computeFriendBetSettlements(bets, "uid-creator", settledKeys);
+  assert.deepEqual(
+    settlements.map((settlement) => [settlement.key, settlement.delta]),
+    [
+      ["bet-1:escrow:uid-creator", -500],
+      ["bet-1:payout", 1000],
+    ],
+  );
+
+  const refundBets = [buildBet({ status: "canceled", creatorEscrowed: true, creatorRefunded: true })];
+  const refunds = computeFriendBetSettlements(refundBets, "uid-creator", new Set(["bet-1:refund:uid-creator"]));
+  assert.equal(refunds.length, 1);
+  assert.equal(refunds[0].key, "bet-1:refund:uid-creator");
+});

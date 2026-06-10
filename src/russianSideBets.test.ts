@@ -109,7 +109,7 @@ test("parseRussianSideBets sans champ russianSideBets", () => {
   assert.deepEqual(parseRussianSideBets(makeRussianRoom({ raw: { russianSideBets: "oops" } })), []);
 });
 
-test("computeRussianSideBetSettlements debite le pari pendant la partie", () => {
+test("computeRussianSideBetSettlements n'emet RIEN pendant la partie (net-at-result)", () => {
   const room = makeRussianRoom({
     raw: {
       russianSideBets: {
@@ -118,13 +118,10 @@ test("computeRussianSideBetSettlements debite le pari pendant la partie", () => 
     },
   });
 
-  const settlements = computeRussianSideBetSettlements(room, "spec-1");
-  assert.equal(settlements.length, 1);
-  assert.equal(settlements[0].key, "room-russe:sidebet:spec-1");
-  assert.equal(settlements[0].delta, -200);
+  assert.deepEqual(computeRussianSideBetSettlements(room, "spec-1"), []);
 });
 
-test("computeRussianSideBetSettlements credite amount x odds quand la cible gagne", () => {
+test("computeRussianSideBetSettlements regle en net au finished : +(odds-1) x mise ou -mise", () => {
   const room = makeRussianRoom({
     status: "finished",
     winnerUid: "host-1",
@@ -138,18 +135,13 @@ test("computeRussianSideBetSettlements credite amount x odds quand la cible gagn
   });
 
   const winning = computeRussianSideBetSettlements(room, "spec-1");
-  assert.equal(winning.length, 2);
-  assert.deepEqual(
-    winning.map((settlement) => [settlement.key, settlement.delta]),
-    [
-      ["room-russe:sidebet:spec-1", -200],
-      ["room-russe:sidebet-result:spec-1", 800],
-    ],
-  );
+  assert.equal(winning.length, 1);
+  assert.equal(winning[0].key, "room-russe:sidebet-net:spec-1");
+  assert.equal(winning[0].delta, 600);
 
   const losing = computeRussianSideBetSettlements(room, "spec-2");
   assert.equal(losing.length, 1);
-  assert.equal(losing[0].key, "room-russe:sidebet:spec-2");
+  assert.equal(losing[0].key, "room-russe:sidebet-net:spec-2");
   assert.equal(losing[0].delta, -100);
 });
 
@@ -163,7 +155,19 @@ test("computeRussianSideBetSettlements ignore les autres cas", () => {
   assert.deepEqual(computeRussianSideBetSettlements(makeRussianRoom({ raw: betRaw }), "inconnu"), []);
   assert.deepEqual(computeRussianSideBetSettlements(makeRussianRoom({ type: "poker", raw: betRaw }), "spec-1"), []);
 
-  const finishedNoWinner = computeRussianSideBetSettlements(makeRussianRoom({ status: "finished", raw: betRaw }), "spec-1");
-  assert.equal(finishedNoWinner.length, 1);
-  assert.equal(finishedNoWinner[0].delta, -200);
+  // Finished sans winnerUid : resultat pas encore observable, on n'emet rien
+  // (le debit viendra avec le reglement net quand le vainqueur sera ecrit).
+  assert.deepEqual(computeRussianSideBetSettlements(makeRussianRoom({ status: "finished", raw: betRaw }), "spec-1"), []);
+
+  // Gagnant a odds 1 : net nul, aucune entree.
+  const evenOdds = makeRussianRoom({
+    status: "finished",
+    winnerUid: "host-1",
+    raw: {
+      russianSideBets: {
+        "spec-1": { displayName: "Specta", targetUid: "host-1", targetName: "Hote", amount: 200, odds: 1, round: 1 },
+      },
+    },
+  });
+  assert.deepEqual(computeRussianSideBetSettlements(evenOdds, "spec-1"), []);
 });

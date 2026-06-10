@@ -142,7 +142,7 @@ test("parseRouletteTableRoom lit les mises valides et filtre le bruit", () => {
   assert.equal(countRouletteTableBets(view), 2);
 });
 
-test("computeRouletteTableSettlements debite chaque mise pendant la phase betting", () => {
+test("computeRouletteTableSettlements n'emet RIEN pendant la phase betting (net-at-result)", () => {
   const room = makeRouletteTableRoom({
     raw: {
       rtPhase: "betting",
@@ -162,16 +162,10 @@ test("computeRouletteTableSettlements debite chaque mise pendant la phase bettin
     },
   });
 
-  const settlements = computeRouletteTableSettlements(room, "host-1");
-
-  assert.equal(settlements.length, 2);
-  assert.equal(settlements[0].key, "room-table:4:bet:0");
-  assert.equal(settlements[0].delta, -100);
-  assert.equal(settlements[1].key, "room-table:4:bet:1");
-  assert.equal(settlements[1].delta, -50);
+  assert.deepEqual(computeRouletteTableSettlements(room, "host-1"), []);
 });
 
-test("computeRouletteTableSettlements credite la somme des payouts en phase results", () => {
+test("computeRouletteTableSettlements emet un seul reglement net en phase results", () => {
   const room = makeRouletteTableRoom({
     raw: {
       rtPhase: "results",
@@ -194,16 +188,13 @@ test("computeRouletteTableSettlements credite la somme des payouts en phase resu
 
   const settlements = computeRouletteTableSettlements(room, "host-1");
 
-  assert.equal(settlements.length, 3);
-  assert.deepEqual(
-    settlements.map((settlement) => settlement.key),
-    ["room-table:4:bet:0", "room-table:4:bet:1", "room-table:4:result"],
-  );
-  // Plein 7 : 100 x 36 = 3600 ; rouge (7 est rouge) : 50 x 2 = 100.
-  assert.equal(settlements[2].delta, 3700);
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].key, "room-table:4:net:host-1");
+  // Plein 7 : 100 x 36 = 3600 ; rouge (7 est rouge) : 50 x 2 = 100 ; net = 3700 - 150.
+  assert.equal(settlements[0].delta, 3550);
 });
 
-test("computeRouletteTableSettlements n'emet pas de credit quand tout est perdu", () => {
+test("computeRouletteTableSettlements emet un net negatif quand tout est perdu", () => {
   const room = makeRouletteTableRoom({
     raw: {
       rtPhase: "results",
@@ -225,11 +216,61 @@ test("computeRouletteTableSettlements n'emet pas de credit quand tout est perdu"
 
   const settlements = computeRouletteTableSettlements(room, "host-1");
 
-  assert.equal(settlements.length, 2);
-  assert.ok(settlements.every((settlement) => settlement.delta < 0));
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].key, "room-table:5:net:host-1");
+  assert.equal(settlements[0].delta, -150);
 });
 
-test("computeRouletteTableSettlements ignore les autres joueurs et les autres types de room", () => {
+test("computeRouletteTableSettlements lit rtLastResults quand la phase results a ete manquee", () => {
+  // Le round suivant a deja demarre : rtBets est vide, mais rtLastResults conserve
+  // le resultat du tour precedent jusqu'au prochain spin.
+  const room = makeRouletteTableRoom({
+    raw: {
+      rtPhase: "betting",
+      rtRoundId: 5,
+      rtBets: {},
+      rtResultNumber: -1,
+      rtLastResults: {
+        roundId: 4,
+        outcomes: {
+          "host-1": { stake: 150, payout: 3700 },
+          "player-2": { stake: 200, payout: 0 },
+        },
+      },
+    },
+  });
+
+  const winner = computeRouletteTableSettlements(room, "host-1");
+  assert.equal(winner.length, 1);
+  assert.equal(winner[0].key, "room-table:4:net:host-1");
+  assert.equal(winner[0].delta, 3550);
+
+  const loser = computeRouletteTableSettlements(room, "player-2");
+  assert.equal(loser.length, 1);
+  assert.equal(loser[0].key, "room-table:4:net:player-2");
+  assert.equal(loser[0].delta, -200);
+});
+
+test("computeRouletteTableSettlements ne duplique pas le tour courant present dans rtLastResults", () => {
+  const room = makeRouletteTableRoom({
+    raw: {
+      rtPhase: "results",
+      rtRoundId: 4,
+      rtBets: {
+        "host-1": { displayName: "Hote", photoURL: "", total: 50, bets: [{ kind: "red", number: -1, amount: 50 }] },
+      },
+      rtResultNumber: 7,
+      rtLastResults: { roundId: 4, outcomes: { "host-1": { stake: 50, payout: 100 } } },
+    },
+  });
+
+  const settlements = computeRouletteTableSettlements(room, "host-1");
+  assert.equal(settlements.length, 1);
+  assert.equal(settlements[0].key, "room-table:4:net:host-1");
+  assert.equal(settlements[0].delta, 50);
+});
+
+test("computeRouletteTableSettlements ignore les autres joueurs, les nets nuls et les autres types", () => {
   const raw = {
     rtPhase: "results",
     rtRoundId: 2,
@@ -241,4 +282,16 @@ test("computeRouletteTableSettlements ignore les autres joueurs et les autres ty
 
   assert.deepEqual(computeRouletteTableSettlements(makeRouletteTableRoom({ raw }), "player-2"), []);
   assert.deepEqual(computeRouletteTableSettlements(makeRouletteTableRoom({ type: "duel", raw }), "host-1"), []);
+
+  // Net nul (payout == stake) : aucun mouvement, aucune entree.
+  const neutral = makeRouletteTableRoom({
+    raw: { rtPhase: "betting", rtRoundId: 3, rtBets: {}, rtLastResults: { roundId: 2, outcomes: { "host-1": { stake: 100, payout: 100 } } } },
+  });
+  assert.deepEqual(computeRouletteTableSettlements(neutral, "host-1"), []);
+
+  // rtLastResults corrompu : ignore.
+  const corrupted = makeRouletteTableRoom({
+    raw: { rtPhase: "betting", rtRoundId: 3, rtLastResults: { roundId: 0, outcomes: { "host-1": { stake: 100, payout: 300 } } } },
+  });
+  assert.deepEqual(computeRouletteTableSettlements(corrupted, "host-1"), []);
 });

@@ -44,6 +44,22 @@ export type RouletteTablePlayerBets = {
   bets: RouletteTablePlacedBet[];
 };
 
+export type RouletteTableRoundOutcome = {
+  stake: number;
+  payout: number;
+};
+
+/**
+ * Resultat durable du DERNIER tour tire : ecrit par spinRouletteTable dans la
+ * meme transaction que le tirage, il survit au "Nouveau tour" (jusqu'au prochain
+ * spin) pour qu'un client qui a manque la phase "results" applique quand meme
+ * son reglement net.
+ */
+export type RouletteTableLastResults = {
+  roundId: number;
+  outcomes: Record<string, RouletteTableRoundOutcome>;
+};
+
 export type RouletteTableRoomView = {
   phase: RouletteTablePhase;
   roundId: number;
@@ -52,6 +68,7 @@ export type RouletteTableRoomView = {
   resultNumber: number;
   spunByUid: string;
   history: number[];
+  lastResults: RouletteTableLastResults | null;
 };
 
 function isRouletteNumber(value: unknown): value is number {
@@ -112,7 +129,41 @@ export function parseRouletteTableRoom(room: OnlineRoomEntry): RouletteTableRoom
     resultNumber: isRouletteNumber(data.rtResultNumber) ? data.rtResultNumber : -1,
     spunByUid: typeof data.rtSpunByUid === "string" ? data.rtSpunByUid : "",
     history: Array.isArray(data.rtHistory) ? data.rtHistory.filter(isRouletteNumber).slice(-ROULETTE_TABLE_HISTORY_LIMIT) : [],
+    lastResults: parseRouletteTableLastResults(data.rtLastResults),
   };
+}
+
+function parseRouletteTableLastResults(value: unknown): RouletteTableLastResults | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const roundId = typeof raw.roundId === "number" && Number.isFinite(raw.roundId) ? Math.floor(raw.roundId) : 0;
+  if (roundId < 1) {
+    return null;
+  }
+
+  const rawOutcomes = raw.outcomes && typeof raw.outcomes === "object" ? (raw.outcomes as Record<string, unknown>) : {};
+  const outcomes: Record<string, RouletteTableRoundOutcome> = {};
+
+  for (const [uid, rawOutcome] of Object.entries(rawOutcomes)) {
+    if (!uid || !rawOutcome || typeof rawOutcome !== "object") {
+      continue;
+    }
+
+    const outcome = rawOutcome as Record<string, unknown>;
+    const stake = typeof outcome.stake === "number" && Number.isFinite(outcome.stake) ? Math.floor(outcome.stake) : 0;
+    const payout = typeof outcome.payout === "number" && Number.isFinite(outcome.payout) ? Math.floor(outcome.payout) : 0;
+
+    if (stake <= 0 || payout < 0) {
+      continue;
+    }
+
+    outcomes[uid] = { stake, payout };
+  }
+
+  return { roundId, outcomes };
 }
 
 export function countRouletteTableBets(view: RouletteTableRoomView): number {
@@ -271,10 +322,21 @@ export async function spinRouletteTable(room: OnlineRoomEntry, user: CasinoUser)
 
     const number = spinRouletteNumber();
 
+    // Payouts calcules DANS la transaction et persistes dans rtLastResults : le reglement
+    // net reste applicable meme si un client manque la phase "results".
+    const outcomes: Record<string, RouletteTableRoundOutcome> = {};
+    for (const [uid, playerBets] of Object.entries(view.bets)) {
+      outcomes[uid] = {
+        stake: playerBets.total,
+        payout: playerBets.bets.reduce((sum, bet) => sum + evaluateRouletteBet(toRouletteBet(bet), bet.amount, number).payout, 0),
+      };
+    }
+
     transaction.update(roomRef, {
       rtPhase: "results",
       rtResultNumber: number,
       rtSpunByUid: user.uid,
+      rtLastResults: { roundId: view.roundId, outcomes },
       rtHistory: [...view.history, number].slice(-ROULETTE_TABLE_HISTORY_LIMIT),
       updatedAt: serverTimestamp(),
     });
@@ -332,42 +394,49 @@ function toRouletteBet(bet: RouletteTablePlacedBet): RouletteBet {
   return { kind: bet.kind, number: bet.number >= 0 ? bet.number : undefined };
 }
 
-function rouletteTableBetLabel(bet: RouletteTablePlacedBet): string {
-  // evaluateRouletteBet est pur : on l'appelle avec une mise nulle juste pour recuperer le libelle.
-  return evaluateRouletteBet(toRouletteBet(bet), 0, 0).label;
-}
-
+/**
+ * Reglement NET-AT-RESULT : aucun debit a la pose des mises. Un SEUL reglement
+ * net par tour et par joueur (delta = payout - total mise, eventuellement
+ * negatif), emis depuis la phase "results" du tour courant OU depuis
+ * rtLastResults (qui survit au "Nouveau tour" jusqu'au prochain spin).
+ */
 export function computeRouletteTableSettlements(room: OnlineRoomEntry, uid: string): Settlement[] {
   if (room.type !== "roulette-table") {
     return [];
   }
 
   const view = parseRouletteTableRoom(room);
-  const playerBets = view.bets[uid];
+  const outcomes = new Map<string, RouletteTableRoundOutcome>();
 
-  if (!playerBets) {
-    return [];
+  const playerBets = view.bets[uid];
+  if (view.phase === "results" && view.resultNumber >= 0 && playerBets) {
+    outcomes.set(`${room.id}:${view.roundId}:net:${uid}`, {
+      stake: playerBets.total,
+      payout: playerBets.bets.reduce((sum, bet) => sum + evaluateRouletteBet(toRouletteBet(bet), bet.amount, view.resultNumber).payout, 0),
+    });
   }
 
-  const settlements: Settlement[] = playerBets.bets.map((bet, index) => ({
-    key: `${room.id}:${view.roundId}:bet:${index}`,
-    delta: -bet.amount,
-    message: `Mise roulette placee : ${bet.amount.toLocaleString("fr-FR")} credits sur ${rouletteTableBetLabel(bet)}.`,
-  }));
+  const lastOutcome = view.lastResults?.outcomes[uid];
+  if (view.lastResults && lastOutcome) {
+    // Meme tour : meme cle, meme contenu — le Map dedoublonne naturellement.
+    outcomes.set(`${room.id}:${view.lastResults.roundId}:net:${uid}`, lastOutcome);
+  }
 
-  if (view.phase === "results" && view.resultNumber >= 0) {
-    const totalPayout = playerBets.bets.reduce(
-      (sum, bet) => sum + evaluateRouletteBet(toRouletteBet(bet), bet.amount, view.resultNumber).payout,
-      0,
-    );
-
-    if (totalPayout > 0) {
-      settlements.push({
-        key: `${room.id}:${view.roundId}:result`,
-        delta: totalPayout,
-        message: `Roulette : le ${view.resultNumber} sort, tu encaisses ${totalPayout.toLocaleString("fr-FR")} credits.`,
-      });
+  const settlements: Settlement[] = [];
+  for (const [key, outcome] of outcomes) {
+    const delta = outcome.payout - outcome.stake;
+    if (delta === 0) {
+      continue;
     }
+
+    settlements.push({
+      key,
+      delta,
+      message:
+        delta > 0
+          ? `Roulette : tu encaisses ${delta.toLocaleString("fr-FR")} credits nets (mise de ${outcome.stake.toLocaleString("fr-FR")}).`
+          : `Roulette : ${(-delta).toLocaleString("fr-FR")} credits perdus sur ce tour.`,
+    });
   }
 
   return settlements;

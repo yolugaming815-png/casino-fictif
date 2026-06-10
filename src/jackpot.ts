@@ -131,7 +131,15 @@ export async function claimJackpot(user: CasinoUser): Promise<number> {
     const snapshot = await transaction.get(jackpotRef);
     const data = snapshot.exists() ? snapshot.data() : {};
     const pot = typeof data.pot === "number" && Number.isFinite(data.pot) ? data.pot : JACKPOT_SEED;
-    const payout = Math.max(pot, JACKPOT_SEED);
+
+    // Garde anti-rejeu : un claim legitime suppose au moins une contribution au-dessus
+    // du seed (contributeToJackpot part au debut du spin). pot == seed => claim deja
+    // consomme (ou concurrent) : on ne credite rien et on n'ecrit pas le doc.
+    if (pot <= JACKPOT_SEED) {
+      return 0;
+    }
+
+    const payout = pot;
 
     transaction.set(
       jackpotRef,
