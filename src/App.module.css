@@ -10028,3 +10028,153 @@
 .pokerModeChoice button {
   flex: 0 0 auto;
 }
+
+/* === Vague 3c : progression, social, layout === */
+
+.headerBalance {
+  align-self: center;
+  font-weight: 800;
+  color: #ffd166;
+}
+
+.levelUpFlash {
+  border-color: rgba(255, 209, 102, 0.65);
+  background: linear-gradient(120deg, rgba(255, 209, 102, 0.18), rgba(124, 60, 255, 0.18));
+  color: #ffe9ad;
+  font-weight: 700;
+}
+
+.dashboardWidgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.dashboardJackpot {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.14), rgba(20, 16, 38, 0.85));
+}
+
+.dashboardJackpot span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(249, 247, 239, 0.7);
+}
+
+.dashboardJackpot strong {
+  font-size: 1.4rem;
+  color: #ffd166;
+}
+
+.dashboardJackpot small {
+  color: rgba(249, 247, 239, 0.6);
+}
+
+.lobbyBoardTabs {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.lobbyBoardTabs button {
+  border: 1px solid rgba(249, 247, 239, 0.18);
+  background: transparent;
+  color: rgba(249, 247, 239, 0.7);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.lobbyBoardTabs button.lobbyBoardTabActive {
+  border-color: rgba(255, 209, 102, 0.6);
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffd166;
+  font-weight: 700;
+}
+
+.hallOfFameToggle {
+  margin-top: 8px;
+  border: 1px solid rgba(249, 247, 239, 0.18);
+  background: transparent;
+  color: rgba(249, 247, 239, 0.75);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.hallOfFameToggle:hover {
+  border-color: rgba(255, 209, 102, 0.5);
+  color: #ffd166;
+}
+
+.conversationHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(249, 247, 239, 0.12);
+  margin-bottom: 6px;
+}
+
+.prestigeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.55);
+  background: rgba(255, 209, 102, 0.12);
+  color: #ffd166;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.profileGameStats {
+  display: grid;
+  gap: 8px;
+}
+
+.profileGameStats h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.activityFeedList {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.activityFeedItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(249, 247, 239, 0.1);
+  background: rgba(20, 16, 38, 0.6);
+}
+
+.activityFeedItem[data-feed-tone="gain"] {
+  border-color: rgba(125, 223, 143, 0.35);
+}
+
+.activityFeedItem[data-feed-tone="loss"] {
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.activityFeedItem p {
+  margin: 0 0 6px;
+}

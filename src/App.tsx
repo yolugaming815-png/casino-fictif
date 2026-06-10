@@ -212,6 +212,7 @@ import {
   type OnlineRoomEntry,
   type OnlineRoomPlayer,
   type OnlineRoomType,
+  type LeaderboardPublicExtras,
   type PrivateMessageEntry,
   type SkinTradeEntry,
 } from "./firebaseClient";
@@ -229,6 +230,89 @@ import {
   type FriendBetEntry,
 } from "./friendBets";
 import { POKER_DEFAULT_BUY_IN, parsePokerRoomExtras, type PokerMode } from "./pokerLogic";
+import { AnimatedBalance } from "./AnimatedBalance";
+import { SidebarNav } from "./SidebarNav";
+import {
+  DailyStreakCard,
+  FriendsOnlineCard,
+  HallOfFamePanel,
+  JackpotSlot,
+  LevelChip,
+  MissionsPreviewCard,
+  ResumeLastGameCard,
+  SoupButton,
+  WeeklyTournamentCard,
+  XpBar,
+  type HallOfFameRecord,
+  type MissionPreviewItem,
+} from "./dashboardWidgets";
+import {
+  addXp,
+  levelFromXp,
+  levelPerks,
+  levelTitle,
+  normalizeProgression,
+  xpForWager,
+  xpProgress,
+  type ProgressionState,
+} from "./progressionLogic";
+import {
+  buildPublicStats,
+  emptyGameStatsState,
+  normalizeGameStatsState,
+  recordGameResult,
+  type GameStatsKey,
+  type GameStatsState,
+} from "./statsLogic";
+import {
+  SOUP_AMOUNT,
+  SOUP_THRESHOLD,
+  canClaimSoup,
+  claimDailyStreak,
+  getStreakStatus,
+  isSoupTitleActive,
+  normalizeDailyStreak,
+  normalizeSoup,
+  type DailyStreakState,
+  type SoupState,
+} from "./streakLogic";
+import {
+  applyNetToPeriods,
+  getSeasonKey,
+  getWeekKey,
+  normalizePeriodNet,
+  previousSeasonKey,
+  previousWeekKey,
+  rollPeriodNet,
+  seasonLabel,
+  weekLabel,
+  type PeriodNetState,
+} from "./seasonLogic";
+import {
+  activityEventToFeedItem,
+  buildBankruptEvent,
+  buildBigWinEvent,
+  buildJackpotEvent,
+  buildLegendaryDropEvent,
+  buildLevelUpEvent,
+  buildSoupEvent,
+  shouldEmitBigWin,
+  type ActivityEvent,
+  type ActivityEventActor,
+} from "./activityEvents";
+import {
+  archiveSeasonIfNeeded,
+  archiveWeekIfNeeded,
+  cleanupActivityEvents,
+  loadSeasonHallOfFame,
+  loadWeekRecord,
+  publishActivityEvent,
+  subscribeActivityEvents,
+  type SeasonRecord,
+} from "./activityFeedClient";
+import { listOnlineFriends } from "./presenceLogic";
+import { subscribeFeedReactions, type FeedReactionState } from "./feedReactions";
+import { ReactionBar } from "./onlinePanels/ReactionBar";
 import { CrashPanel } from "./onlinePanels/CrashPanel";
 import { RouletteTablePanel } from "./onlinePanels/RouletteTablePanel";
 import { RussianSideBetsPanel } from "./onlinePanels/RussianSideBetsPanel";
@@ -408,7 +492,66 @@ type SavedGameState = {
   rouletteRecentNumbers: number[];
   dailyWheel: DailyWheelState | null;
   slotFreeSpins: SlotFreeSpinsState | null;
+  progression: ProgressionState;
+  gameStats: GameStatsState;
+  dailyStreak: DailyStreakState;
+  soup: SoupState;
+  periodNet: PeriodNetState;
 };
+
+type LastPlayedGame = { kind: "solo"; id: CasinoGame } | { kind: "online"; id: OnlineRoomType };
+
+const SOLO_GAME_META: Record<CasinoGame, { label: string; emoji: string }> = {
+  slots: { label: "Machine a sous", emoji: "🎰" },
+  blackjack: { label: "Blackjack", emoji: "🃏" },
+  plinko: { label: "Plinko", emoji: "🎯" },
+  roulette: { label: "Roulette", emoji: "🛞" },
+  rocket: { label: "Rocket Games", emoji: "🚀" },
+  claw: { label: "Machine a pince", emoji: "🦾" },
+  mines: { label: "Mines", emoji: "💣" },
+  hilo: { label: "Hi-Lo", emoji: "🂠" },
+};
+
+const ONLINE_GAME_META: Record<OnlineRoomType, { label: string; emoji: string }> = {
+  duel: { label: "Duel", emoji: "⚔️" },
+  poker: { label: "Poker", emoji: "♠️" },
+  "russian-roulette": { label: "Roulette russe", emoji: "🎲" },
+  crash: { label: "Crash", emoji: "📈" },
+  "roulette-table": { label: "Roulette live", emoji: "🛞" },
+  coinflip: { label: "Pile ou face", emoji: "🪙" },
+};
+
+const GAME_STATS_LABELS: Record<GameStatsKey, string> = {
+  slots: "Machine a sous",
+  blackjack: "Blackjack",
+  plinko: "Plinko",
+  roulette: "Roulette",
+  rocket: "Rocket",
+  claw: "Pince",
+  cases: "Caisses",
+  mines: "Mines",
+  hilo: "Hi-Lo",
+};
+
+function readLastPlayedGame(): LastPlayedGame | null {
+  try {
+    const raw = window.localStorage.getItem(LAST_GAME_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as { kind?: unknown; id?: unknown };
+    if (parsed.kind === "solo" && typeof parsed.id === "string" && parsed.id in SOLO_GAME_META) {
+      return { kind: "solo", id: parsed.id as CasinoGame };
+    }
+    if (parsed.kind === "online" && typeof parsed.id === "string" && parsed.id in ONLINE_GAME_META) {
+      return { kind: "online", id: parsed.id as OnlineRoomType };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 type ActivityItem = {
   id: string;
@@ -501,6 +644,11 @@ const CLAW_COST = 75;
 const KEY_FRAGMENTS_REQUIRED = 9;
 const REWARDED_AD_CREDITS = 250;
 const DAILY_REWARDED_AD_LIMIT = 5;
+// Plafond absolu : limite de base + 3 pubs bonus possibles (perks niveaux 5/10/15).
+const DAILY_REWARDED_AD_HARD_CAP = DAILY_REWARDED_AD_LIMIT + 3;
+const LAST_GAME_KEY = "casino-last-game-v1";
+// Coffre Prestige : le coffre special le plus cher (Orbital) est marque Prestige et gate au niveau 10.
+const PRESTIGE_CHEST_ID: SpecialChestId = "orbital";
 const REWARDED_AD_WATCH_MS = 6500;
 const PLINKO_MAX_BET = 1000;
 const DUEL_REWARDS_KEY = "casino-fictif-duel-rewards-v1";
@@ -937,7 +1085,7 @@ function normalizeRewardedAds(value: unknown): RewardedAdState {
 
   return {
     date,
-    watched: Math.max(0, Math.min(DAILY_REWARDED_AD_LIMIT, Math.floor(Number.isFinite(watched) ? watched : 0))),
+    watched: Math.max(0, Math.min(DAILY_REWARDED_AD_HARD_CAP, Math.floor(Number.isFinite(watched) ? watched : 0))),
   };
 }
 
@@ -1545,6 +1693,11 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     rouletteRecentNumbers: sanitizeRouletteRecentNumbers(parsed.rouletteRecentNumbers),
     dailyWheel: normalizeDailyWheel(parsed.dailyWheel),
     slotFreeSpins: normalizeSlotFreeSpins(parsed.slotFreeSpins),
+    progression: normalizeProgression(parsed.progression),
+    gameStats: normalizeGameStatsState(parsed.gameStats),
+    dailyStreak: normalizeDailyStreak(parsed.dailyStreak),
+    soup: normalizeSoup(parsed.soup),
+    periodNet: normalizePeriodNet(parsed.periodNet, new Date()),
   };
 }
 
@@ -1959,6 +2112,17 @@ function App() {
   const appliedTradeKeysRef = useRef(new Set<string>(JSON.parse(localStorage.getItem(APPLIED_TRADE_KEYS_STORAGE_KEY) ?? "[]") as string[]));
   const lastPrivateMessageSentAtRef = useRef(0);
   const [now, setNow] = useState(Date.now());
+  const [progression, setProgression] = useState<ProgressionState>(savedGame?.progression ?? normalizeProgression(null));
+  const [gameStats, setGameStats] = useState<GameStatsState>(savedGame?.gameStats ?? emptyGameStatsState());
+  const [dailyStreak, setDailyStreak] = useState<DailyStreakState>(savedGame?.dailyStreak ?? normalizeDailyStreak(null));
+  const [soup, setSoup] = useState<SoupState>(savedGame?.soup ?? normalizeSoup(null));
+  const [periodNet, setPeriodNet] = useState<PeriodNetState>(savedGame?.periodNet ?? normalizePeriodNet(null, new Date()));
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [seasonHallOfFame, setSeasonHallOfFame] = useState<SeasonRecord[]>([]);
+  const [lastWeekChampion, setLastWeekChampion] = useState<SeasonRecord | null>(null);
+  const [lastPlayedGame, setLastPlayedGame] = useState<LastPlayedGame | null>(readLastPlayedGame);
+  const [levelUpFlash, setLevelUpFlash] = useState<string | null>(null);
+  const activityCleanupRef = useRef(false);
 
   const spinId = useRef(getNextHistoryId(savedGame?.slotHistory));
   const slotIntervalId = useRef<number | null>(null);
@@ -1997,6 +2161,133 @@ function App() {
           ? current.soloGames + amount
           : current.soloGames,
     }));
+  }
+
+  function activityActor(user: CasinoUser): ActivityEventActor {
+    return {
+      uid: user.uid,
+      displayName: user.displayName || "Joueur",
+      photoURL: publicProfilePhotoURL(user.photoURL) || undefined,
+    };
+  }
+
+  function publishCasinoEvent(event: ActivityEvent) {
+    void publishActivityEvent(event).then(() => {
+      if (activityCleanupRef.current) {
+        return;
+      }
+      activityCleanupRef.current = true;
+      void cleanupActivityEvents(100);
+    });
+  }
+
+  // Hub central progression : XP, stats par jeu, net saison/semaine et evenements sociaux (gros gain, ruine).
+  function recordWager(game: GameStatsKey, bet: number, net: number, historyId: number, gameLabel: string, balanceAfter?: number) {
+    setProgression((previous) => addXp(previous, xpForWager(bet)));
+    setGameStats((previous) => recordGameResult(previous, game, net));
+    setPeriodNet((previous) => applyNetToPeriods(previous, net, new Date()));
+
+    if (!accountUser) {
+      return;
+    }
+
+    const actor = activityActor(accountUser);
+    if (shouldEmitBigWin(net, bet)) {
+      publishCasinoEvent(buildBigWinEvent(actor, gameLabel, net, historyId));
+    }
+    if (typeof balanceAfter === "number" && balanceAfter <= 0) {
+      publishCasinoEvent(buildBankruptEvent(actor, historyId));
+    }
+  }
+
+  function buildLeaderboardExtras(save: SavedGameState): LeaderboardPublicExtras {
+    const level = levelFromXp(save.progression.xp);
+    const rolled = rollPeriodNet(save.periodNet, new Date());
+
+    return {
+      level,
+      title: levelTitle(level),
+      seasonKey: rolled.seasonKey,
+      seasonNet: rolled.seasonNet,
+      weeklyKey: rolled.weeklyKey,
+      weeklyNet: rolled.weeklyNet,
+      soupAt: save.soup.lastSoupAt || undefined,
+      publicStats: buildPublicStats(save.gameStats),
+    };
+  }
+
+  function handleClaimDailyStreak() {
+    const claim = claimDailyStreak(dailyStreak, todayRewardDateKey());
+    if (claim.reward <= 0) {
+      return;
+    }
+
+    setDailyStreak(claim.state);
+    setBalance((current) => current + claim.reward);
+  }
+
+  function handleClaimSoup() {
+    const nowMs = Date.now();
+    if (!canClaimSoup(balance, soup, nowMs)) {
+      return;
+    }
+
+    setBalance((current) => current + SOUP_AMOUNT);
+    setSoup({ lastSoupAt: nowMs });
+    if (accountUser) {
+      publishCasinoEvent(buildSoupEvent(activityActor(accountUser), SOUP_AMOUNT, todayRewardDateKey()));
+    }
+  }
+
+  function rememberLastPlayedGame(game: LastPlayedGame) {
+    setLastPlayedGame(game);
+    try {
+      window.localStorage.setItem(LAST_GAME_KEY, JSON.stringify(game));
+    } catch {
+      // Stockage local indisponible : la carte « Reprendre » repartira du state en memoire.
+    }
+  }
+
+  function handleResumeLastGame() {
+    if (!lastPlayedGame) {
+      return;
+    }
+
+    if (lastPlayedGame.kind === "solo") {
+      selectGame(lastPlayedGame.id);
+    } else {
+      selectOnlineGame(lastPlayedGame.id);
+    }
+  }
+
+  function lastNetForGame(game: LastPlayedGame): number | undefined {
+    if (game.kind !== "solo") {
+      return undefined;
+    }
+
+    switch (game.id) {
+      case "slots":
+        return slotHistory[0]?.net;
+      case "blackjack":
+        return blackjackHistory[0]?.net;
+      case "plinko":
+        return plinkoHistory[0]?.net;
+      case "roulette":
+        return rouletteHistory[0]?.net;
+      case "rocket":
+        return rocketHistory[0]?.net;
+      case "mines":
+        return minesHistory[0]?.net;
+      case "hilo":
+        return hiLoHistory[0]?.net;
+      case "claw": {
+        const lastClaw = clawHistory[0];
+        if (!lastClaw) {
+          return undefined;
+        }
+        return (lastClaw.rewardType === "credits" ? lastClaw.amount : 0) - CLAW_COST;
+      }
+    }
   }
 
   function rememberAppliedTrade(tradeApplyKey: string) {
@@ -2189,6 +2480,58 @@ function App() {
           claimedMissionIds: [],
         };
 
+  const playerLevel = levelFromXp(progression.xp);
+  const playerPerks = levelPerks(playerLevel);
+  const dailyAdLimit = DAILY_REWARDED_AD_LIMIT + playerPerks.extraDailyAds;
+  const streakStatus = getStreakStatus(dailyStreak, todayRewardDateKey());
+  const currentSeasonKey = getSeasonKey(new Date(now));
+  const currentWeekKey = getWeekKey(new Date(now));
+  const rolledPeriodNet = rollPeriodNet(periodNet, new Date(now));
+  const championUids = useMemo(
+    () => new Set(seasonHallOfFame.map((record) => record.top[0]?.uid).filter((uid): uid is string => Boolean(uid))),
+    [seasonHallOfFame],
+  );
+  const hallOfFameRecords = useMemo<HallOfFameRecord[]>(
+    () => seasonHallOfFame.map((record) => ({ key: record.seasonKey, label: seasonLabel(record.seasonKey), top: record.top })),
+    [seasonHallOfFame],
+  );
+  const mergedFeedItems = useMemo(
+    () => [...activityEvents.map(activityEventToFeedItem), ...lobbyActivityFeed].slice(0, 20),
+    [activityEvents, lobbyActivityFeed],
+  );
+  const onlineFriends = useMemo(() => {
+    const friendUids = acceptedFriends.map((friend) => friend.uid);
+    return listOnlineFriends(leaderboard, friendUids, now).map((entry) => ({
+      uid: entry.uid,
+      displayName: entry.displayName,
+      photoURL: entry.photoURL,
+    }));
+  }, [acceptedFriends, leaderboard, now]);
+  const missionPreviewItems = useMemo<MissionPreviewItem[]>(
+    () =>
+      activeMissions
+        .filter((mission) => !activeMissionState.claimedMissionIds.includes(mission.id))
+        .map((mission) => ({
+          id: mission.id,
+          label: mission.title,
+          progress: Math.max(0, missionStats[mission.metric] - (activeMissionState.baselines[mission.metric] ?? 0)),
+          target: mission.goal,
+          reward: mission.reward,
+        }))
+        .slice(0, 3),
+    [activeMissions, activeMissionState, missionStats],
+  );
+  const weeklyEntries = useMemo(
+    () =>
+      leaderboard
+        .filter((entry) => entry.weeklyKey === currentWeekKey && typeof entry.weeklyNet === "number")
+        .sort((left, right) => (right.weeklyNet ?? 0) - (left.weeklyNet ?? 0)),
+    [leaderboard, currentWeekKey],
+  );
+  const weeklyRank = accountUser ? weeklyEntries.findIndex((entry) => entry.uid === accountUser.uid) + 1 : 0;
+  const weeklyLeader = weeklyEntries[0] ?? null;
+  const lastWeekChampionEntry = lastWeekChampion?.top[0] ?? null;
+
   useEffect(() => {
     try {
       window.localStorage.setItem(HOME_MUSIC_MUTED_KEY, String(homeMusicMuted));
@@ -2340,6 +2683,11 @@ function App() {
       rouletteRecentNumbers,
       dailyWheel,
       slotFreeSpins,
+      progression,
+      gameStats,
+      dailyStreak,
+      soup,
+      periodNet,
     });
   }, [
     balance,
@@ -2361,6 +2709,11 @@ function App() {
     rouletteRecentNumbers,
     dailyWheel,
     slotFreeSpins,
+    progression,
+    gameStats,
+    dailyStreak,
+    soup,
+    periodNet,
   ]);
 
   useEffect(() => {
@@ -2400,6 +2753,7 @@ function App() {
             buildPublicInventory(cloudSave.ownedSkinIds),
             cloudSave.equippedSkins,
             buildPublicSpecialInventory(cloudSave.specialInventory),
+            buildLeaderboardExtras(cloudSave),
           );
           setAccountMessage("Sauvegarde Google chargee.");
         } else {
@@ -2411,11 +2765,15 @@ function App() {
             buildPublicInventory(currentSave.ownedSkinIds),
             currentSave.equippedSkins,
             buildPublicSpecialInventory(currentSave.specialInventory),
+            buildLeaderboardExtras(currentSave),
           );
           setAccountMessage("Compte Google cree avec ta partie actuelle.");
         }
 
         await refreshLeaderboard();
+        const archiveDate = new Date();
+        void archiveSeasonIfNeeded(previousSeasonKey(getSeasonKey(archiveDate)));
+        void archiveWeekIfNeeded(previousWeekKey(archiveDate));
         await refreshFriendRequests(user.uid);
         await refreshPrivateMessages(user.uid);
         await refreshSkinTrades(user.uid);
@@ -2451,6 +2809,7 @@ function App() {
           buildPublicInventory(currentSave.ownedSkinIds),
           currentSave.equippedSkins,
           buildPublicSpecialInventory(currentSave.specialInventory),
+          buildLeaderboardExtras(currentSave),
         ),
       ])
         .then(() => {
@@ -2480,6 +2839,11 @@ function App() {
     rouletteRecentNumbers,
     dailyWheel,
     slotFreeSpins,
+    progression,
+    gameStats,
+    dailyStreak,
+    soup,
+    periodNet,
   ]);
 
   useEffect(() => {
@@ -2487,6 +2851,45 @@ function App() {
   }, []);
 
   useEffect(() => subscribeJackpot(setSlotJackpot), []);
+
+  useEffect(() => subscribeActivityEvents(setActivityEvents), []);
+
+  useEffect(() => {
+    void loadSeasonHallOfFame().then(setSeasonHallOfFame);
+    void loadWeekRecord(previousWeekKey(new Date())).then(setLastWeekChampion);
+  }, []);
+
+  // Reset lazy des compteurs saison/semaine : un tic par minute suffit a franchir minuit/lundi/1er du mois.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setPeriodNet((previous) => rollPeriodNet(previous, new Date())), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  // Level-up : message + evenement social idempotent (id = level-up_uid_level), puis memorisation du niveau vu.
+  useEffect(() => {
+    const level = levelFromXp(progression.xp);
+    if (level <= progression.lastLevelSeen) {
+      return;
+    }
+
+    setProgression((previous) => {
+      const reachedLevel = levelFromXp(previous.xp);
+      return reachedLevel > previous.lastLevelSeen ? { ...previous, lastLevelSeen: reachedLevel } : previous;
+    });
+    setLevelUpFlash(`Niveau ${level} atteint : ${levelTitle(level)} !`);
+    if (accountUser) {
+      publishCasinoEvent(buildLevelUpEvent(activityActor(accountUser), level));
+    }
+  }, [progression, accountUser]);
+
+  useEffect(() => {
+    if (!levelUpFlash) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setLevelUpFlash(null), 6000);
+    return () => window.clearTimeout(timeoutId);
+  }, [levelUpFlash]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
@@ -3234,7 +3637,14 @@ function App() {
       const updatedUser = await updateCasinoUserProfile(displayName, photoURL);
       const nextUser = updatedUser ?? { ...accountUser, displayName: displayName.trim(), photoURL: photoURL.trim() };
       setAccountUser(nextUser);
-      await saveLeaderboardEntry(nextUser, balance, buildPublicInventory(ownedSkinIds), equippedSkins, buildPublicSpecialInventory(specialInventory));
+      await saveLeaderboardEntry(
+        nextUser,
+        balance,
+        buildPublicInventory(ownedSkinIds),
+        equippedSkins,
+        buildPublicSpecialInventory(specialInventory),
+        buildLeaderboardExtras(getCurrentSaveState()),
+      );
       await refreshLeaderboard();
       setSelectedProfile((profile) =>
         profile
@@ -3952,6 +4362,11 @@ function App() {
       rouletteRecentNumbers,
       dailyWheel,
       slotFreeSpins,
+      progression,
+      gameStats,
+      dailyStreak,
+      soup,
+      periodNet,
     };
   }
 
@@ -3976,6 +4391,11 @@ function App() {
     setRouletteRecentNumbers(importedSave.rouletteRecentNumbers);
     setDailyWheel(importedSave.dailyWheel);
     setSlotFreeSpins(importedSave.slotFreeSpins);
+    setProgression(importedSave.progression);
+    setGameStats(importedSave.gameStats);
+    setDailyStreak(importedSave.dailyStreak);
+    setSoup(importedSave.soup);
+    setPeriodNet(rollPeriodNet(importedSave.periodNet, new Date()));
     setActivePlinkoLaunches([]);
     setPlinkoAutoRemaining(0);
     setRouletteBets([]);
@@ -4085,17 +4505,19 @@ function App() {
       }
       setSlotMessage(messageParts.join(" "));
 
+      const slotHistoryId = spinId.current++;
       setSlotHistory((items) => [
         {
           ...outcome,
           net: displayedNet,
-          id: spinId.current++,
+          id: slotHistoryId,
           bet,
           balanceAfter: nextBalance,
         },
         ...items,
       ].slice(0, 10));
       addMissionProgress("slotSpins");
+      recordWager("slots", bet, displayedNet, slotHistoryId, "Machine a sous", nextBalance);
       setSlotSpinning(false);
       slotTimeoutId.current = null;
 
@@ -4106,6 +4528,7 @@ function App() {
               if (amount > 0) {
                 setBalance((current) => current + amount);
                 setSlotMessage(`JACKPOT +${amount.toLocaleString("fr-FR")} credits virtuels !`);
+                publishCasinoEvent(buildJackpotEvent(activityActor(accountUser), "Machine a sous", amount, slotHistoryId));
               }
             })
             .catch(() => {
@@ -4233,10 +4656,11 @@ function App() {
           ? "Egalite : mise virtuelle remboursee."
           : `${payout.label} : ${payout.net} credits virtuels.`,
     );
+    const blackjackHistoryId = handId.current++;
     setBlackjackHistory((items) => [
       {
         ...payout,
-        id: handId.current++,
+        id: blackjackHistoryId,
         bet: finalBet,
         playerValue: handValue(finalPlayerHand),
         dealerValue: handValue(finalDealerHand),
@@ -4247,6 +4671,7 @@ function App() {
       ...items,
     ].slice(0, 10));
     addMissionProgress("blackjackHands");
+    recordWager("blackjack", finalBet, payout.net, blackjackHistoryId, "Blackjack", nextBalance);
   }
 
   function startPlinkoLaunch() {
@@ -4333,6 +4758,7 @@ function App() {
       ...items,
     ].slice(0, 10));
     addMissionProgress("plinkoDrops");
+    recordWager("plinko", launch.bet, outcome.net, launch.id, "Plinko", nextBalance);
     setActivePlinkoLaunches((items) => items.filter((item) => item.id !== launch.id));
   }
 
@@ -4443,9 +4869,10 @@ function App() {
           ? `${outcome.number} ${formatRouletteColor(outcome.color)} : +${outcome.net} credits virtuels sur ${outcome.results.filter((result) => result.isWin).length} mise${outcome.results.filter((result) => result.isWin).length > 1 ? "s" : ""} gagnante${outcome.results.filter((result) => result.isWin).length > 1 ? "s" : ""}.`
           : `${outcome.number} ${formatRouletteColor(outcome.color)} : ${outcome.net} credits virtuels.`,
       );
+      const rouletteHistoryId = rouletteId.current++;
       setRouletteHistory((items) => [
         {
-          id: rouletteId.current++,
+          id: rouletteHistoryId,
           number: outcome.number,
           color: outcome.color,
           bets: outcome.results.map((result) => ({
@@ -4461,6 +4888,7 @@ function App() {
       ].slice(0, 10));
       setRouletteRecentNumbers((numbers) => [outcome.number, ...numbers].slice(0, ROULETTE_RECENT_LIMIT));
       addMissionProgress("rouletteSpins");
+      recordWager("roulette", stake, outcome.net, rouletteHistoryId, "Roulette", nextBalance);
       setRouletteSpinning(false);
     }, ROULETTE_SPIN_DURATION_MS);
   }
@@ -4560,6 +4988,11 @@ function App() {
       setLastCaseDrop(historyItem);
       setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
       addMissionProgress("casesOpened");
+      // Caisse : net = remboursement doublon eventuel - cout (l'essentiel est l'XP et le compteur de parties).
+      recordWager("cases", caseCost, outcome.refund - caseCost, historyItem.id, definition.title, outcome.balance);
+      if (outcome.item.rarity === "legendary" && accountUser) {
+        publishCasinoEvent(buildLegendaryDropEvent(activityActor(accountUser), outcome.item.name, historyItem.id));
+      }
 
       if (!outcome.duplicate) {
         setEquippedSkins((current) => equipSkin(current, outcome.item));
@@ -4600,6 +5033,11 @@ function App() {
     const chest = getSpecialChestDefinition(chestId);
 
     if (caseOpening) {
+      return;
+    }
+
+    if (chestId === PRESTIGE_CHEST_ID && !playerPerks.prestigeChestUnlocked) {
+      setCaseMessage("Coffre Prestige : niveau 10 requis pour l'ouvrir.");
       return;
     }
 
@@ -4651,6 +5089,11 @@ function App() {
       setLastCaseDrop(historyItem);
       setCaseHistory((items) => [historyItem, ...items].slice(0, 10));
       addMissionProgress("casesOpened");
+      // Coffre special : deja paye a l'achat (cle + coffre), net 0 — seuls l'XP et le compteur comptent ici.
+      recordWager("cases", 0, 0, historyItem.id, chest.title, balance);
+      if (outcome.item.rarity === "legendary" && accountUser) {
+        publishCasinoEvent(buildLegendaryDropEvent(activityActor(accountUser), outcome.item.name, historyItem.id));
+      }
       if (!outcome.duplicate) {
         setEquippedSkins((current) => equipSkin(current, outcome.item));
       }
@@ -4724,6 +5167,7 @@ function App() {
     }
     setClawHistory((items) => [outcome, ...items].slice(0, 10));
     addMissionProgress("clawAttempts");
+    recordWager("claw", CLAW_COST, (rewardType === "credits" ? amount : 0) - CLAW_COST, outcome.id, "Machine a pince", nextBalance);
     setClawMessage(`${label} dans la boule.`);
     return outcome;
   }
@@ -4734,7 +5178,7 @@ function App() {
     }
 
     const current = normalizeRewardedAds(rewardedAds);
-    if (current.watched >= DAILY_REWARDED_AD_LIMIT) {
+    if (current.watched >= dailyAdLimit) {
       setRewardedAds(current);
       setRewardedAdMessage("Limite atteinte pour aujourd'hui. Reviens demain pour d'autres bonus.");
       return;
@@ -4749,7 +5193,7 @@ function App() {
         const normalized = normalizeRewardedAds(latest);
         return {
           date: normalized.date,
-          watched: Math.min(DAILY_REWARDED_AD_LIMIT, normalized.watched + 1),
+          watched: Math.min(dailyAdLimit, normalized.watched + 1),
         };
       });
       addMissionProgress("rewardedAdsWatched");
@@ -4804,6 +5248,7 @@ function App() {
         ? `CASH OUT a ${formatMultiplier(outcome.cashOutMultiplier)} avant le crash ${formatMultiplier(outcome.crashMultiplier)} : +${formatCredits(outcome.net)} credits virtuels.`
         : `Crash a ${formatMultiplier(outcome.crashMultiplier)} avant le cash out : perte de la mise virtuelle.`,
     );
+    const rocketHistoryId = rocketId.current++;
     setRocketHistory((items) => [
       {
         target: outcome.cashOutMultiplier ?? outcome.crashMultiplier,
@@ -4811,7 +5256,7 @@ function App() {
         success: outcome.success,
         payout: outcome.payout,
         net: outcome.net,
-        id: rocketId.current++,
+        id: rocketHistoryId,
         bet,
         balanceAfter: nextBalance,
         mode: "manual" as const,
@@ -4820,6 +5265,7 @@ function App() {
       ...items,
     ].slice(0, 10));
     addMissionProgress("rocketLaunches");
+    recordWager("rocket", bet, outcome.net, rocketHistoryId, "Rocket", nextBalance);
     setRocketAnimating(false);
   }
 
@@ -4911,16 +5357,18 @@ function App() {
           ? `Cible ${formatMultiplier(outcome.target)} atteinte avant ${formatMultiplier(outcome.crashMultiplier)} : +${formatCredits(outcome.net)} credits virtuels.`
           : `Retombee a ${formatMultiplier(outcome.crashMultiplier)} avant ${formatMultiplier(outcome.target)} : perte de la mise virtuelle.`,
       );
+      const rocketHistoryId = rocketId.current++;
       setRocketHistory((items) => [
         {
           ...outcome,
-          id: rocketId.current++,
+          id: rocketHistoryId,
           bet: rocketBet,
           balanceAfter: nextBalance,
         },
         ...items,
       ].slice(0, 10));
       addMissionProgress("rocketLaunches");
+      recordWager("rocket", rocketBet, outcome.net, rocketHistoryId, "Rocket", nextBalance);
       setRocketAnimating(false);
     }, ROCKET_FLIGHT_DURATION_MS);
   }
@@ -4937,11 +5385,12 @@ function App() {
 
   function handleMinesRoundEnd(result: MinesRoundResult) {
     const nextBalance = balance + result.payout;
+    const minesHistoryId = minesId.current++;
 
     setBalance((current) => current + result.payout);
     setMinesHistory((items) => [
       {
-        id: minesId.current++,
+        id: minesHistoryId,
         bet: result.bet,
         mines: result.mines,
         revealed: result.revealed,
@@ -4953,6 +5402,7 @@ function App() {
       },
       ...items,
     ].slice(0, 10));
+    recordWager("mines", result.bet, result.net, minesHistoryId, "Mines", nextBalance);
   }
 
   function handleHiLoRoundStart(bet: number): boolean {
@@ -4967,11 +5417,12 @@ function App() {
 
   function handleHiLoRoundEnd(result: HiLoRoundResult) {
     const nextBalance = balance + result.payout;
+    const hiLoHistoryId = hiLoId.current++;
 
     setBalance((current) => current + result.payout);
     setHiLoHistory((items) => [
       {
-        id: hiLoId.current++,
+        id: hiLoHistoryId,
         bet: result.bet,
         steps: result.steps,
         finalMultiplier: result.finalMultiplier,
@@ -4982,6 +5433,7 @@ function App() {
       },
       ...items,
     ].slice(0, 10));
+    recordWager("hilo", result.bet, result.net, hiLoHistoryId, "Hi-Lo", nextBalance);
   }
 
   function handleDailyWheelSpin() {
@@ -5025,12 +5477,14 @@ function App() {
     setActiveGame(game);
     setActiveSection("games");
     setMobileMenuOpen(false);
+    rememberLastPlayedGame({ kind: "solo", id: game });
   }
 
   function selectOnlineGame(game: OnlineRoomType) {
     setActiveOnlineGame(game);
     setActiveSection("online");
     setMobileMenuOpen(false);
+    rememberLastPlayedGame({ kind: "online", id: game });
   }
 
   function takeNextHomeMusicTrackId() {
@@ -5159,6 +5613,7 @@ function App() {
           </div>
 
           <div className={styles.accountTools}>
+            <AnimatedBalance className={styles.headerBalance} value={balance} />
             <HomeMusicControl
               onNextTrack={playNextHomeMusicTrack}
               playlistOpen={homeMusicPlaylistOpen}
@@ -5186,326 +5641,46 @@ function App() {
             isLeaderboardLeader={leaderboard[0]?.uid === selectedProfile.uid}
             isPlayerAdmin={selectedProfile.isAdmin === true || (selectedProfile.uid === accountUser?.uid && isAdmin)}
             player={selectedProfile}
+            ownProgression={selectedProfile.uid === accountUser?.uid ? xpProgress(progression.xp) : null}
+            isChampion={championUids.has(selectedProfile.uid)}
             onClose={() => setSelectedProfile(null)}
             onSaveProfile={handleSaveOwnProfile}
             onSendFriendRequest={() => handleSendFriendRequest(selectedProfile)}
           />
         )}
 
-        {!mobileMenuOpen && (
-          <button className={styles.mobileMenuButton} type="button" onClick={() => setMobileMenuOpen(true)}>
-            Menu
-          </button>
-        )}
-        {mobileMenuOpen ? <button className={styles.mobileMenuBackdrop} type="button" aria-label="Fermer le menu" onClick={() => setMobileMenuOpen(false)} /> : null}
+        <SidebarNav
+          activeSection={activeSection}
+          activeGame={activeGame}
+          activeOnlineGame={activeOnlineGame}
+          mobileMenuOpen={mobileMenuOpen}
+          isAdmin={isAdmin}
+          accountUser={accountUser}
+          accountLoading={accountLoading}
+          balance={balance}
+          isLeaderboardLeader={currentUserIsLeaderboardLeader}
+          firebaseReady={isFirebaseConfigured()}
+          levelBadge={{ level: playerLevel, title: levelTitle(playerLevel), soupActive: isSoupTitleActive(soup.lastSoupAt, now) }}
+          badges={{
+            friends: pendingFriendRequestsCount + pendingGiftsCount,
+            trades: pendingTradeOffersCount + pendingFriendBetsCount,
+            messages: unreadMessagesCount,
+            activity: activityBadgeCount,
+          }}
+          onSelectSection={selectMainSection}
+          onSelectGame={selectGame}
+          onSelectOnlineGame={selectOnlineGame}
+          onOpenOwnProfile={handleOpenOwnProfile}
+          onSignIn={handleGoogleSignIn}
+          onSignOut={handleGoogleSignOut}
+          onMobileMenuOpenChange={setMobileMenuOpen}
+        />
 
-        <nav
-          className={`${styles.modeTabs} ${mobileMenuOpen ? styles.modeTabsOpen : ""}`}
-          aria-label="Section principale"
-          style={mobileMenuOpen ? { transform: "translateX(0px)", transition: "none" } : undefined}
-        >
-          <button className={styles.menuProfile} type="button" onClick={handleOpenOwnProfile}>
-            <span className={styles.menuAvatarFrame}>
-              {currentUserIsLeaderboardLeader ? (
-                <span className={styles.menuRankBadge} aria-label="Premier du classement">
-                  <svg viewBox="0 0 32 22" aria-hidden="true">
-                    <path d="M4 20 L7 7 L13 14 L16 3 L19 14 L25 7 L28 20 Z" />
-                    <path d="M7 20 H25" />
-                  </svg>
-                </span>
-              ) : null}
-              <ProfileAvatar
-                avatarSeed={accountUser?.uid || accountUser?.email || accountUser?.displayName || "joueur"}
-                className={styles.menuAvatar}
-                displayName={accountUser?.displayName || "Joueur"}
-                photoURL={accountUser?.photoURL}
-              />
-              {isAdmin ? (
-                <span className={styles.menuAdminBadge} aria-label="Admin">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M13 4 L20 11" />
-                    <path d="M11 6 L18 13" />
-                    <path d="M5 20 L14 11" />
-                    <path d="M3 18 L6 21" />
-                    <path d="M10 5 L14 1 L23 10 L19 14 Z" />
-                  </svg>
-                </span>
-              ) : null}
-            </span>
-            <div>
-              <strong>{accountUser?.displayName || "Joueur"}</strong>
-              <small>{balance.toLocaleString("fr-FR")} credits</small>
-            </div>
-          </button>
-          <div className={styles.menuAccountActions} aria-label="Compte">
-            {accountUser ? (
-              <button className={styles.menuActionButton} type="button" onClick={handleGoogleSignOut} disabled={accountLoading}>
-                <span>Déconnexion</span>
-              </button>
-            ) : (
-              <button
-                className={styles.menuActionButton}
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={accountLoading || !isFirebaseConfigured()}
-                title="Connecte-toi pour sauvegarder tes scores"
-              >
-                <span>Connexion Google</span>
-              </button>
-            )}
+        {levelUpFlash ? (
+          <div className={`${styles.socialAlert} ${styles.levelUpFlash}`} role="status">
+            {levelUpFlash}
           </div>
-          <button
-            className={activeSection === "home" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("home")}
-          >
-            <MenuIcon name="home" />
-            <span className={styles.tabLabel}>Accueil</span>
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "games" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("games")}
-          >
-            <MenuIcon name="games" />
-            <span className={styles.tabLabel}>Jeux</span>
-            <span className={styles.tabChevron} aria-hidden="true">{activeSection === "games" ? "⌄" : "›"}</span>
-          </button>
-          {activeSection === "games" && (
-            <div className={styles.subTabs} aria-label="Choix du jeu">
-              <button
-                className={activeGame === "slots" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("slots")}
-              >
-                <MenuIcon name="slots" />
-                <span className={styles.tabLabel}>Machine a sous</span>
-              </button>
-              <button
-                className={activeGame === "blackjack" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("blackjack")}
-              >
-                <MenuIcon name="blackjack" />
-                <span className={styles.tabLabel}>Blackjack</span>
-              </button>
-              <button
-                className={activeGame === "plinko" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("plinko")}
-              >
-                <MenuIcon name="plinko" />
-                <span className={styles.tabLabel}>Plinko</span>
-              </button>
-              <button
-                className={activeGame === "roulette" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("roulette")}
-              >
-                <MenuIcon name="roulette" />
-                <span className={styles.tabLabel}>Roulette</span>
-              </button>
-              <button
-                className={activeGame === "rocket" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("rocket")}
-              >
-                <MenuIcon name="rocket" />
-                <span className={styles.tabLabel}>Rocket Games</span>
-              </button>
-              <button
-                className={activeGame === "mines" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("mines")}
-              >
-                <MenuIcon name="mines" />
-                <span className={styles.tabLabel}>Mines</span>
-              </button>
-              <button
-                className={activeGame === "hilo" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("hilo")}
-              >
-                <MenuIcon name="hilo" />
-                <span className={styles.tabLabel}>Hi-Lo</span>
-              </button>
-              <button
-                className={activeGame === "claw" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectGame("claw")}
-              >
-                <MenuIcon name="claw" />
-                <span className={styles.tabLabel}>Machine a pince</span>
-              </button>
-            </div>
-          )}
-          <button
-            className={activeSection === "online" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("online")}
-          >
-            <MenuIcon name="online" />
-            <span className={styles.tabLabel}>Jeux en ligne</span>
-            <span className={styles.tabChevron} aria-hidden="true">{activeSection === "online" ? "⌄" : "›"}</span>
-          </button>
-          {activeSection === "online" && (
-            <div className={styles.subTabs} aria-label="Choix du jeu en ligne">
-              <button
-                className={activeOnlineGame === "duel" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectOnlineGame("duel")}
-              >
-                <MenuIcon name="duel" />
-                <span className={styles.tabLabel}>Duel</span>
-              </button>
-              <button
-                className={activeOnlineGame === "poker" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectOnlineGame("poker")}
-              >
-                <MenuIcon name="poker" />
-                <span className={styles.tabLabel}>Poker</span>
-              </button>
-              <button
-                className={activeOnlineGame === "russian-roulette" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectOnlineGame("russian-roulette")}
-              >
-                <MenuIcon name="roulette" />
-                <span className={styles.tabLabel}>Roulette russe</span>
-              </button>
-              <button
-                className={activeOnlineGame === "crash" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectOnlineGame("crash")}
-              >
-                <MenuIcon name="crash" />
-                <span className={styles.tabLabel}>Crash</span>
-              </button>
-              <button
-                className={activeOnlineGame === "roulette-table" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectOnlineGame("roulette-table")}
-              >
-                <MenuIcon name="rouletteTable" />
-                <span className={styles.tabLabel}>Roulette live</span>
-              </button>
-              <button
-                className={activeOnlineGame === "coinflip" ? styles.activeTab : ""}
-                type="button"
-                onClick={() => selectOnlineGame("coinflip")}
-              >
-                <MenuIcon name="coinflip" />
-                <span className={styles.tabLabel}>Pile ou face</span>
-              </button>
-            </div>
-          )}
-          <button
-            className={activeSection === "missions" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("missions")}
-          >
-            <MenuIcon name="missions" />
-            <span className={styles.tabLabel}>Missions</span>
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "cases" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("cases")}
-          >
-            <MenuIcon name="cases" />
-            <span className={styles.tabLabel}>Cases</span>
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "shop" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("shop")}
-          >
-            <MenuIcon name="shop" />
-            <span className={styles.tabLabel}>Boutique</span>
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "inventory" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("inventory")}
-          >
-            <MenuIcon name="inventory" />
-            <span className={styles.tabLabel}>Inventaire</span>
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "bonus" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("bonus")}
-          >
-            <MenuIcon name="bonus" />
-            <span className={styles.tabLabel}>Bonus</span>
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "friends" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("friends")}
-          >
-            <MenuIcon name="friends" />
-            <span className={styles.tabLabel}>Amis</span>
-            {pendingFriendRequestsCount + pendingGiftsCount > 0 ? (
-              <span className={styles.tabBadge}>{pendingFriendRequestsCount + pendingGiftsCount}</span>
-            ) : null}
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "trades" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("trades")}
-          >
-            <MenuIcon name="trades" />
-            <span className={styles.tabLabel}>Echanges</span>
-            {pendingTradeOffersCount + pendingFriendBetsCount > 0 ? (
-              <span className={styles.tabBadge}>{pendingTradeOffersCount + pendingFriendBetsCount}</span>
-            ) : null}
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "messages" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("messages")}
-          >
-            <MenuIcon name="messages" />
-            <span className={styles.tabLabel}>Messages</span>
-            {unreadMessagesCount > 0 ? (
-              <span className={`${styles.tabBadge} ${styles.messageUnreadBadge}`} aria-label={`${unreadMessagesCount} message${unreadMessagesCount > 1 ? "s" : ""} non lu${unreadMessagesCount > 1 ? "s" : ""}`}>
-                {unreadMessagesCount}
-              </span>
-            ) : null}
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          <button
-            className={activeSection === "activity" ? styles.activeTab : ""}
-            type="button"
-            onClick={() => selectMainSection("activity")}
-          >
-            <MenuIcon name="activity" />
-            <span className={styles.tabLabel}>Activite</span>
-            {activityBadgeCount > 0 ? <span className={styles.tabBadge}>{activityBadgeCount}</span> : null}
-            <span className={styles.tabChevron} aria-hidden="true">›</span>
-          </button>
-          {isAdmin ? (
-            <button
-              className={activeSection === "admin" ? styles.activeTab : ""}
-              type="button"
-              onClick={() => selectMainSection("admin")}
-            >
-              <MenuIcon name="admin" />
-              <span className={styles.tabLabel}>Admin</span>
-              <span className={styles.tabChevron} aria-hidden="true">›</span>
-            </button>
-          ) : null}
-        </nav>
+        ) : null}
 
         {activityBadgeCount > 0 && activeSection !== "activity" ? (
           <div className={styles.socialAlert} role="status">
@@ -5523,10 +5698,44 @@ function App() {
             balance={balance}
             currentUserId={accountUser?.uid ?? null}
             leaderboard={leaderboard}
-            lobbyActivityFeed={lobbyActivityFeed}
+            lobbyActivityFeed={mergedFeedItems.slice(0, 12)}
             lobbyKnownPlayerCount={lobbyKnownPlayerCount}
             leaderboardMessage={leaderboardMessage}
-            remainingAds={Math.max(0, DAILY_REWARDED_AD_LIMIT - normalizeRewardedAds(rewardedAds).watched)}
+            remainingAds={Math.max(0, dailyAdLimit - normalizeRewardedAds(rewardedAds).watched)}
+            seasonKey={currentSeasonKey}
+            hallOfFame={hallOfFameRecords}
+            championUids={championUids}
+            dashboard={{
+              jackpot: slotJackpot,
+              lastGame: lastPlayedGame
+                ? {
+                    label: lastPlayedGame.kind === "solo" ? SOLO_GAME_META[lastPlayedGame.id].label : ONLINE_GAME_META[lastPlayedGame.id].label,
+                    emoji: lastPlayedGame.kind === "solo" ? SOLO_GAME_META[lastPlayedGame.id].emoji : ONLINE_GAME_META[lastPlayedGame.id].emoji,
+                    lastNet: lastNetForGame(lastPlayedGame),
+                  }
+                : null,
+              streak: {
+                streak: dailyStreak.streak,
+                claimedToday: streakStatus.claimedToday,
+                nextStreak: streakStatus.nextStreak,
+                nextReward: streakStatus.nextReward,
+                willReset: streakStatus.willReset,
+              },
+              missions: missionPreviewItems,
+              friendsOnline: onlineFriends,
+              weekly: {
+                label: weekLabel(currentWeekKey),
+                weeklyNet: rolledPeriodNet.weeklyNet,
+                rank: weeklyRank > 0 ? weeklyRank : undefined,
+                leaderName: weeklyLeader?.displayName ?? lastWeekChampionEntry?.displayName,
+                leaderNet: weeklyLeader?.weeklyNet ?? lastWeekChampionEntry?.seasonNet,
+              },
+              soupVisible: balance <= SOUP_THRESHOLD,
+              soupDisabled: !canClaimSoup(balance, soup, now),
+            }}
+            onResumeLastGame={handleResumeLastGame}
+            onClaimStreak={handleClaimDailyStreak}
+            onClaimSoup={handleClaimSoup}
             onGoTo={(section) => setActiveSection(section)}
             onOpenProfile={handleOpenPlayerProfile}
             onSelectGame={selectGame}
@@ -5588,6 +5797,7 @@ function App() {
             reelItems={caseReelItems}
             selectedCase={selectedCase}
             specialInventory={specialInventory}
+            prestigeChestUnlocked={playerPerks.prestigeChestUnlocked}
             onMergeFragments={mergeKeyFragments}
             onOpen={handleOpenCase}
             onOpenSpecialChest={openOwnedSpecialChest}
@@ -5610,6 +5820,7 @@ function App() {
           <>
             <RewardedAdsPanel
               balance={balance}
+              dailyAdLimit={dailyAdLimit}
               message={rewardedAdMessage}
               rewardedAds={normalizeRewardedAds(rewardedAds)}
               watching={rewardedAdWatching}
@@ -5679,7 +5890,7 @@ function App() {
             onSend={handleSendPrivateMessage}
           />
         ) : activeSection === "activity" ? (
-          <ActivityPanel currentUser={accountUser} items={activityItems} />
+          <ActivityPanel currentUser={accountUser} items={activityItems} feedItems={mergedFeedItems} />
         ) : activeSection === "admin" ? (
           <AdminPanel
             currentUser={accountUser}
@@ -5701,6 +5912,7 @@ function App() {
             freeSpins={slotFreeSpins}
             history={slotHistory}
             jackpot={slotJackpot}
+            maxBet={playerPerks.maxBet}
             message={slotMessage}
             paused={paused}
             spinning={slotSpinning}
@@ -5741,6 +5953,7 @@ function App() {
             canLaunch={plinkoBetAvailable}
             history={plinkoHistory}
             launches={activePlinkoLaunches}
+            maxBet={Math.min(PLINKO_MAX_BET, playerPerks.maxBet)}
             message={plinkoMessage}
             paused={paused}
             risk={plinkoRisk}
@@ -5764,6 +5977,7 @@ function App() {
             canSpin={rouletteCanLaunch}
             chosenNumber={rouletteNumber}
             history={rouletteHistory}
+            maxBet={playerPerks.maxBet}
             message={rouletteMessage}
             paused={paused}
             pendingResult={pendingRouletteResult}
@@ -5790,6 +6004,7 @@ function App() {
             flight={rocketFlight}
             history={rocketHistory}
             liveMultiplier={rocketLiveMultiplier}
+            maxBet={playerPerks.maxBet}
             message={rocketMessage}
             mode={rocketMode}
             paused={paused}
@@ -5998,7 +6213,31 @@ function buildActivityItems(
     .slice(0, 40);
 }
 
-function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null; items: ActivityItem[] }) {
+const EMPTY_FEED_REACTIONS: FeedReactionState = { clap: [], laugh: [], fire: [] };
+
+function ActivityPanel({
+  currentUser,
+  items,
+  feedItems,
+}: {
+  currentUser: CasinoUser | null;
+  items: ActivityItem[];
+  feedItems: LobbyActivityFeedItem[];
+}) {
+  const [feedReactions, setFeedReactions] = useState<Record<string, FeedReactionState>>({});
+  const visibleFeed = feedItems.slice(0, 20);
+  const feedIdsKey = visibleFeed.map((item) => item.id).join("|");
+
+  useEffect(() => {
+    if (!currentUser || !feedIdsKey) {
+      setFeedReactions({});
+      return undefined;
+    }
+
+    // feedIdsKey resume les ids visibles : l'abonnement est recree seulement quand la liste change.
+    return subscribeFeedReactions(feedIdsKey.split("|"), setFeedReactions);
+  }, [currentUser?.uid, feedIdsKey]);
+
   if (!currentUser) {
     return (
       <section className={styles.machine}>
@@ -6016,6 +6255,35 @@ function ActivityPanel({ currentUser, items }: { currentUser: CasinoUser | null;
 
   return (
     <section className={styles.machine}>
+      <div className={styles.shopHeader}>
+        <div>
+          <h2>Live du casino</h2>
+          <p>Gros gains, jackpots, niveaux et soupes populaires de tous les joueurs.</p>
+        </div>
+        <strong>{visibleFeed.length} evenement{visibleFeed.length > 1 ? "s" : ""}</strong>
+      </div>
+
+      <div className={styles.activityFeedList}>
+        {visibleFeed.length === 0 ? (
+          <p className={styles.empty}>Aucun evenement public pour le moment.</p>
+        ) : (
+          visibleFeed.map((item) => (
+            <article className={styles.activityFeedItem} data-feed-tone={item.tone} data-event-id={item.id} key={item.id}>
+              <ProfileAvatar
+                avatarSeed={item.uid || item.displayName}
+                className={styles.lobbyRankAvatar}
+                displayName={item.displayName}
+                photoURL={item.photoURL}
+              />
+              <div>
+                <p>{item.message}</p>
+                <ReactionBar user={currentUser} eventId={item.id} reactions={feedReactions[item.id] ?? EMPTY_FEED_REACTIONS} />
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+
       <div className={styles.shopHeader}>
         <div>
           <h2>Journal d'activite</h2>
@@ -6390,6 +6658,18 @@ function MessagesGame({
           </aside>
 
           <div className={styles.messagesConversation}>
+            {selectedFriend ? (
+              <div className={styles.conversationHeader}>
+                <strong>{selectedFriend.displayName}</strong>
+                {selectedFriend.profile && typeof selectedFriend.profile.level === "number" ? (
+                  <LevelChip
+                    compact
+                    level={selectedFriend.profile.level}
+                    soupActive={isSoupTitleActive(selectedFriend.profile.soupAt, Date.now())}
+                  />
+                ) : null}
+              </div>
+            ) : null}
             <div className={styles.messagesThread}>
               {selectedConversation.length === 0 ? (
                 <p className={styles.empty}>Aucun message avec {selectedFriend?.displayName}.</p>
@@ -6457,6 +6737,7 @@ function SlotGame({
   freeSpins,
   history,
   jackpot,
+  maxBet,
   message,
   paused,
   spinning,
@@ -6470,6 +6751,7 @@ function SlotGame({
   freeSpins: SlotFreeSpinsState | null;
   history: SlotHistoryItem[];
   jackpot: JackpotState | null;
+  maxBet: number;
   message: string;
   paused: boolean;
   spinning: boolean;
@@ -6515,6 +6797,7 @@ function SlotGame({
           <label htmlFor="slotBet">Mise virtuelle</label>
           <QuickBetInput
             id="slotBet"
+            max={maxBet}
             value={freeSpinActive ? freeSpins.bet : bet}
             onChange={onBetChange}
             balance={balance}
@@ -7413,6 +7696,7 @@ function OnlineGames({
         <OnlineRoomsPanel
           balance={balance}
           currentUserId={currentUser.uid}
+          levelsByUid={leaderboardById}
           message={message}
           rooms={visibleRooms}
           onJoinRoom={onJoinRoom}
@@ -7481,6 +7765,7 @@ function OnlineGames({
         <OnlineRoomsPanel
           balance={balance}
           currentUserId={currentUser.uid}
+          levelsByUid={leaderboardById}
           message={message}
           rooms={visibleRooms}
           onJoinRoom={onJoinRoom}
@@ -7541,6 +7826,7 @@ function OnlineGames({
         <OnlineRoomsPanel
           balance={balance}
           currentUserId={currentUser.uid}
+          levelsByUid={leaderboardById}
           message={message}
           rooms={visibleRooms.filter((room) => room.id !== activeCrashRoom?.id)}
           onJoinRoom={onJoinRoom}
@@ -7600,6 +7886,7 @@ function OnlineGames({
         <OnlineRoomsPanel
           balance={balance}
           currentUserId={currentUser.uid}
+          levelsByUid={leaderboardById}
           message={message}
           rooms={visibleRooms.filter((room) => room.id !== activeRouletteRoom?.id)}
           onJoinRoom={onJoinRoom}
@@ -7683,6 +7970,7 @@ function OnlineGames({
       <OnlineRoomsPanel
         balance={balance}
         currentUserId={currentUser.uid}
+        levelsByUid={leaderboardById}
         message={message}
         rooms={visibleRooms}
         onJoinRoom={onJoinRoom}
@@ -7725,6 +8013,7 @@ function OnlineRoomsPanel({
   balance,
   currentUser,
   currentUserId,
+  levelsByUid,
   message,
   now,
   rooms,
@@ -7749,6 +8038,7 @@ function OnlineRoomsPanel({
   balance: number;
   currentUser: CasinoUser | null;
   currentUserId: string;
+  levelsByUid: Map<string, LeaderboardEntry>;
   message: string;
   now: number;
   rooms: OnlineRoomEntry[];
@@ -7819,9 +8109,18 @@ function OnlineRoomsPanel({
                   {countdownLabel && <small className={styles.roomCountdown}>{countdownLabel}</small>}
                 </div>
                 <div className={styles.onlineRoomPlayers}>
-                  {room.players.map((player) => (
-                    <span key={player.uid}>{player.displayName}</span>
-                  ))}
+                  {room.players.map((player) => {
+                    const playerEntry = levelsByUid.get(player.uid);
+
+                    return (
+                      <span key={player.uid}>
+                        {player.displayName}
+                        {playerEntry && typeof playerEntry.level === "number" ? (
+                          <LevelChip compact level={playerEntry.level} soupActive={isSoupTitleActive(playerEntry.soupAt, now)} />
+                        ) : null}
+                      </span>
+                    );
+                  })}
                   {Array.from({ length: Math.max(0, room.maxPlayers - room.players.length) }).map((_, index) => (
                     <span key={`open-${room.id}-${index}`}>Place libre</span>
                   ))}
@@ -8471,6 +8770,8 @@ function PlayerProfileModal({
   isLeaderboardLeader,
   isPlayerAdmin,
   player,
+  ownProgression,
+  isChampion,
   onClose,
   onSaveProfile,
   onSendFriendRequest,
@@ -8483,6 +8784,8 @@ function PlayerProfileModal({
   isLeaderboardLeader: boolean;
   isPlayerAdmin: boolean;
   player: LeaderboardEntry;
+  ownProgression: { level: number; current: number; required: number; ratio: number } | null;
+  isChampion: boolean;
   onClose: () => void;
   onSaveProfile: (displayName: string, photoURL: string) => void;
   onSendFriendRequest: () => void;
@@ -8544,13 +8847,37 @@ function PlayerProfileModal({
           </span>
           <div>
             <span>Profil joueur</span>
-            <h2>{player.displayName}</h2>
+            <h2>
+              {player.displayName}
+              {isChampion ? (
+                <span aria-label="Champion du Hall of Fame" title="Champion du Hall of Fame">
+                  {" "}
+                  🏆
+                </span>
+              ) : null}
+            </h2>
             <p>{player.balance.toLocaleString("fr-FR")} credits</p>
+            {!isCurrentUser && typeof player.level === "number" ? (
+              <LevelChip
+                level={player.level}
+                title={player.title}
+                soupActive={isSoupTitleActive(player.soupAt, Date.now())}
+              />
+            ) : null}
           </div>
           <button className={styles.secondaryButton} type="button" onClick={onClose}>
             Fermer
           </button>
         </header>
+
+        {isCurrentUser && ownProgression ? (
+          <XpBar
+            level={ownProgression.level}
+            current={ownProgression.current}
+            required={ownProgression.required}
+            ratio={ownProgression.ratio}
+          />
+        ) : null}
 
         <div className={styles.profileActions}>
           {isCurrentUser ? (
@@ -8595,6 +8922,33 @@ function PlayerProfileModal({
             </>
           )}
         </div>
+
+        {player.publicStats && Object.keys(player.publicStats).length > 0 ? (
+          <section className={styles.profileGameStats}>
+            <h3>Statistiques par jeu</h3>
+            <div className={styles.rulesTable}>
+              {(Object.keys(GAME_STATS_LABELS) as GameStatsKey[]).map((gameKey) => {
+                const stats = player.publicStats?.[gameKey];
+                if (!stats) {
+                  return null;
+                }
+
+                return (
+                  <div className={styles.ruleRow} key={gameKey}>
+                    <span>{GAME_STATS_LABELS[gameKey]}</span>
+                    <strong>
+                      {stats.plays} partie{stats.plays > 1 ? "s" : ""} | {stats.profit >= 0 ? "+" : ""}
+                      {stats.profit.toLocaleString("fr-FR")}
+                    </strong>
+                    <small>
+                      meilleur gain +{stats.bestWin.toLocaleString("fr-FR")} | serie {stats.bestStreak}
+                    </small>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {!isCurrentUser && (
           <>
@@ -8671,230 +9025,6 @@ function PlayerProfileModal({
         )}
       </section>
     </div>
-  );
-}
-
-type MenuIconName =
-  | "home"
-  | "games"
-  | "slots"
-  | "blackjack"
-  | "plinko"
-  | "roulette"
-  | "rocket"
-  | "claw"
-  | "mines"
-  | "hilo"
-  | "online"
-  | "duel"
-  | "poker"
-  | "crash"
-  | "rouletteTable"
-  | "coinflip"
-  | "missions"
-  | "cases"
-  | "shop"
-  | "inventory"
-  | "bonus"
-  | "friends"
-  | "trades"
-  | "messages"
-  | "activity"
-  | "admin";
-
-function MenuIcon({ name }: { name: MenuIconName }) {
-  return (
-    <span className={styles.tabIcon} aria-hidden="true">
-      <svg viewBox="0 0 32 32" focusable="false">
-        {name === "home" && (
-          <>
-            <path d="M6 15.5 16 7l10 8.5" />
-            <path d="M9.5 14.5V25h13V14.5" />
-            <path d="M13.5 25v-7h5v7" />
-            <path d="M21.5 9.5v-3h3v5.5" />
-          </>
-        )}
-        {name === "games" && (
-          <>
-            <rect x="6" y="10" width="11" height="11" rx="2.5" transform="rotate(-12 11.5 15.5)" />
-            <rect x="15" y="12" width="11" height="11" rx="2.5" transform="rotate(10 20.5 17.5)" />
-            <circle cx="10.5" cy="14" r="0.8" />
-            <circle cx="13.5" cy="17" r="0.8" />
-            <circle cx="19" cy="16" r="0.8" />
-            <circle cx="22" cy="19" r="0.8" />
-          </>
-        )}
-        {name === "slots" && (
-          <>
-            <rect x="6" y="9" width="18" height="15" rx="2" />
-            <path d="M10 9V6h10v3M8 24h16M11 13h3M15 13h3M19 13h3" />
-            <path d="M12.5 18h7" />
-            <path d="M25 11h2v7h-2" />
-          </>
-        )}
-        {name === "blackjack" || name === "poker" ? (
-          <>
-            <path d="M16 6c4.8 4.2 8 7.4 8 11.2 0 3-2.3 5.1-5.2 5.1-1.1 0-2.1-.3-2.8-.9.4 2.5 1.6 3.8 3.7 4.6h-7.4c2.1-.8 3.3-2.1 3.7-4.6-.8.6-1.7.9-2.8.9-2.9 0-5.2-2.1-5.2-5.1C8 13.4 11.2 10.2 16 6Z" />
-            <path d="M16 9.5v12" />
-          </>
-        ) : null}
-        {name === "plinko" && (
-          <>
-            <circle cx="16" cy="16" r="10" />
-            <path d="M16 10v12M12 13h6.4a3 3 0 0 1 0 6H12" />
-            <path d="M8.5 9.5 6.8 7.8M23.5 9.5l1.7-1.7M8.5 22.5l-1.7 1.7M23.5 22.5l1.7 1.7" />
-          </>
-        )}
-        {name === "roulette" && (
-          <>
-            <circle cx="16" cy="16" r="10" />
-            <circle cx="16" cy="16" r="4" />
-            <path d="M16 6v20M6 16h20M9 9l14 14M23 9 9 23" />
-            <circle cx="20.8" cy="11.5" r="1.3" />
-          </>
-        )}
-        {name === "rocket" && (
-          <>
-            <path d="M17 5c4.2 3 5.8 8.2 3.8 13.5L14 11.7C15 8.5 16.1 6.2 17 5Z" />
-            <path d="M14 11.7 8 13l4.8 2.6M20.8 18.5 19.5 25l-2.8-4.7" />
-            <circle cx="17.9" cy="11.2" r="1.6" />
-            <path d="M11.5 20.5 7 25M9 18l-3 3M14 23l-3 3" />
-          </>
-        )}
-        {name === "claw" && (
-          <>
-            <rect x="7" y="9" width="12" height="14" rx="2" />
-            <rect x="10" y="13" width="6" height="5" rx="1" />
-            <path d="M21 8v15M19 8h4M21 23l-3 3M21 23l3 3" />
-            <path d="M8 26h10" />
-          </>
-        )}
-        {name === "mines" && (
-          <>
-            <circle cx="14" cy="18" r="7.5" />
-            <path d="M19 13l4-4" />
-            <path d="M23 7.5l1.5-1.5M25 11l2-.5M21.5 6l-.5-2" />
-            <path d="M11 16.5a3.5 3.5 0 0 1 3-2" />
-          </>
-        )}
-        {name === "hilo" && (
-          <>
-            <rect x="8" y="7" width="12" height="17" rx="2" />
-            <path d="M12 7V5.5h12a2 2 0 0 1 2 2V22" />
-            <path d="m14 14 2-3 2 3" />
-            <path d="m14 18 2 3 2-3" />
-          </>
-        )}
-        {name === "online" && (
-          <>
-            <circle cx="16" cy="16" r="10" />
-            <path d="M6 16h20M16 6c3 3.1 4.4 6.5 4.4 10S19 22.9 16 26M16 6c-3 3.1-4.4 6.5-4.4 10S13 22.9 16 26" />
-          </>
-        )}
-        {name === "duel" && (
-          <>
-            <path d="M8 23 23 8M9.5 8.5l14 14" />
-            <path d="M6 20.5 11.5 26 8 26 6 24ZM20.5 6 26 11.5 26 8 24 6Z" />
-            <path d="M6 11.5 11.5 6 8 6 6 8ZM20.5 26 26 20.5 26 24 24 26Z" />
-          </>
-        )}
-        {name === "crash" && (
-          <>
-            <path d="M6 6v20h20" />
-            <path d="M8 22c5-1 9-6 12-13" />
-            <path d="M20 9l3.5-2.5M20 9l1 4" />
-          </>
-        )}
-        {name === "rouletteTable" && (
-          <>
-            <circle cx="13" cy="13" r="7" />
-            <circle cx="13" cy="13" r="2.5" />
-            <path d="M13 6v14M6 13h14" />
-            <circle cx="23" cy="22" r="3" />
-            <circle cx="16.5" cy="24.5" r="3" />
-          </>
-        )}
-        {name === "coinflip" && (
-          <>
-            <circle cx="16" cy="16" r="8" />
-            <path d="M16 11v10M13.5 13h3.5a2 2 0 0 1 0 4h-2a2 2 0 0 0 0 4h3.5" />
-            <path d="M5 10c1-2.5 2.5-4 4.5-5.5M27 22c-1 2.5-2.5 4-4.5 5.5" />
-            <path d="M9.5 4.5 9 7.5 6 7M22.5 27.5l.5-3 3 .5" />
-          </>
-        )}
-        {name === "missions" && (
-          <>
-            <rect x="8" y="6" width="16" height="20" rx="2.5" />
-            <path d="M12 11h8M12 16h8M12 21h5" />
-            <path d="m11 16 1.6 1.6L16 14" />
-            <path d="M13 6h6l-1-2h-4Z" />
-          </>
-        )}
-        {name === "cases" && (
-          <>
-            <path d="M7 12 16 7l9 5-9 5Z" />
-            <path d="M7 12v9l9 5 9-5v-9M16 17v9" />
-            <path d="M11.5 9.5 20.5 14.5" />
-          </>
-        )}
-        {name === "shop" && (
-          <>
-            <path d="M7 9h3l2.2 11h10.3L25 12H11" />
-            <circle cx="14" cy="25" r="1.7" />
-            <circle cx="22" cy="25" r="1.7" />
-            <path d="M16 15h4M18 13v4" />
-          </>
-        )}
-        {name === "inventory" && (
-          <>
-            <rect x="8" y="10" width="16" height="15" rx="3" />
-            <path d="M11 10V8a5 5 0 0 1 10 0v2M8 17h16M12 21h8" />
-            <path d="M10 25v2M22 25v2" />
-          </>
-        )}
-        {name === "bonus" && (
-          <>
-            <rect x="7" y="13" width="18" height="12" rx="2" />
-            <path d="M6 13h20M16 13v12M8.5 10.5c0-2 1.5-3 3-2.5 1.7.6 3.2 3 4.5 5-2.8.1-5.4-.2-7.5-2.5ZM23.5 10.5c0-2-1.5-3-3-2.5-1.7.6-3.2 3-4.5 5 2.8.1 5.4-.2 7.5-2.5Z" />
-          </>
-        )}
-        {name === "friends" && (
-          <>
-            <circle cx="12" cy="12" r="3.5" />
-            <circle cx="21" cy="13" r="3" />
-            <path d="M5.5 25c.8-4.5 4-7 7.2-7s6.2 2.5 7 7" />
-            <path d="M18.5 25c.5-2.7 2.3-4.5 5-4.8 1.4.7 2.5 2.3 3 4.8" />
-          </>
-        )}
-        {name === "trades" && (
-          <>
-            <path d="M8 11h15l-3-3M24 21H9l3 3" />
-            <path d="M23 8v6M9 18v6" />
-            <circle cx="13" cy="16" r="2" />
-          </>
-        )}
-        {name === "messages" && (
-          <>
-            <rect x="6" y="9" width="20" height="15" rx="2.5" />
-            <path d="m7 11 9 7 9-7" />
-            <path d="m7 23 6.5-6M25 23l-6.5-6" />
-          </>
-        )}
-        {name === "activity" && (
-          <>
-            <path d="M16 7v11" />
-            <circle cx="16" cy="23" r="1.5" />
-            <path d="M10 10c1.5-2 3.5-3 6-3s4.5 1 6 3M9 25h14" />
-          </>
-        )}
-        {name === "admin" && (
-          <>
-            <path d="M16 6 25 10v6.5c0 5.1-3.4 8.6-9 10-5.6-1.4-9-4.9-9-10V10Z" />
-            <path d="m16 12 1.4 2.8 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4Z" />
-          </>
-        )}
-      </svg>
-    </span>
   );
 }
 
@@ -9252,6 +9382,7 @@ function PlinkoGame({
   canLaunch,
   history,
   launches,
+  maxBet,
   message,
   paused,
   risk,
@@ -9273,6 +9404,7 @@ function PlinkoGame({
   canLaunch: boolean;
   history: PlinkoHistoryItem[];
   launches: PlinkoLaunch[];
+  maxBet: number;
   message: string;
   paused: boolean;
   risk: PlinkoRisk;
@@ -9337,7 +9469,7 @@ function PlinkoGame({
 
         <div className={styles.controls}>
           <label htmlFor="plinkoBet">Mise virtuelle</label>
-          <QuickBetInput id="plinkoBet" max={PLINKO_MAX_BET} value={bet} onChange={onBetChange} balance={balance} disabled={autoRemaining > 0} />
+          <QuickBetInput id="plinkoBet" max={maxBet} value={bet} onChange={onBetChange} balance={balance} disabled={autoRemaining > 0} />
           <button
             className={styles.primaryButton}
             type="button"
@@ -9820,6 +9952,7 @@ function RouletteGame({
   canSpin,
   chosenNumber,
   history,
+  maxBet,
   message,
   paused,
   pendingResult,
@@ -9845,6 +9978,7 @@ function RouletteGame({
   canSpin: boolean;
   chosenNumber: number;
   history: RouletteHistoryItem[];
+  maxBet: number;
   message: string;
   paused: boolean;
   pendingResult: number | null;
@@ -9977,7 +10111,7 @@ function RouletteGame({
 
         <div className={styles.controls}>
           <label htmlFor="rouletteBet">Mise virtuelle</label>
-          <QuickBetInput id="rouletteBet" value={bet} onChange={onBetChange} balance={balance} disabled={spinning} />
+          <QuickBetInput id="rouletteBet" max={maxBet} value={bet} onChange={onBetChange} balance={balance} disabled={spinning} />
 
           <label htmlFor="rouletteKind">Pari</label>
           <select
@@ -10306,6 +10440,7 @@ function CaseOpeningGame({
   reelItems,
   selectedCase,
   specialInventory,
+  prestigeChestUnlocked,
   onMergeFragments,
   onOpen,
   onOpenSpecialChest,
@@ -10323,6 +10458,7 @@ function CaseOpeningGame({
   reelItems: ShopItem[];
   selectedCase: SkinCategory;
   specialInventory: SpecialInventory;
+  prestigeChestUnlocked: boolean;
   onMergeFragments: (chestId: SpecialChestId) => void;
   onOpen: () => void;
   onOpenSpecialChest: (chestId: SpecialChestId) => void;
@@ -10435,14 +10571,26 @@ function CaseOpeningGame({
             const ownedKeys = specialInventory.keys[chest.id];
             const ownedFragments = specialInventory.fragments[chest.id];
             const canMerge = ownedFragments >= KEY_FRAGMENTS_REQUIRED;
-            const canOpenSpecial = ownedChests > 0 && ownedKeys > 0 && !opening;
+            const isPrestigeChest = chest.id === PRESTIGE_CHEST_ID;
+            const prestigeLocked = isPrestigeChest && !prestigeChestUnlocked;
+            const canOpenSpecial = ownedChests > 0 && ownedKeys > 0 && !opening && !prestigeLocked;
 
             return (
               <article className={styles.shopItem} key={chest.id}>
                 <SpecialChestPreview chest={chest} />
                 <SpecialChestRewards chest={chest} />
                 <div>
-                  <h3>{chest.title}</h3>
+                  <h3>
+                    {chest.title}
+                    {isPrestigeChest ? (
+                      <span
+                        className={styles.prestigeBadge}
+                        title={prestigeLocked ? "Niveau 10 requis" : "Coffre Prestige debloque"}
+                      >
+                        {prestigeLocked ? "🔒" : "✨"} Prestige
+                      </span>
+                    ) : null}
+                  </h3>
                   <p>{chest.subtitle}</p>
                   <small>
                     Coffres : {ownedChests} | Cles : {ownedKeys} | Fragments : {ownedFragments}/
@@ -10453,8 +10601,14 @@ function CaseOpeningGame({
                   <button className={styles.secondaryButton} type="button" onClick={() => onMergeFragments(chest.id)} disabled={!canMerge}>
                     Fusionner
                   </button>
-                  <button className={styles.primaryButton} type="button" onClick={() => onOpenSpecialChest(chest.id)} disabled={!canOpenSpecial}>
-                    Ouvrir
+                  <button
+                    className={styles.primaryButton}
+                    type="button"
+                    onClick={() => onOpenSpecialChest(chest.id)}
+                    disabled={!canOpenSpecial}
+                    title={prestigeLocked ? "Niveau 10 requis" : undefined}
+                  >
+                    {prestigeLocked ? "🔒 Niveau 10" : "Ouvrir"}
                   </button>
                 </div>
               </article>
@@ -10683,6 +10837,17 @@ function SpecialChestRewards({ chest }: { chest: SpecialChestDefinition }) {
   );
 }
 
+type HomeDashboardWidgets = {
+  jackpot: JackpotState | null;
+  lastGame: { label: string; emoji: string; lastNet?: number } | null;
+  streak: { streak: number; claimedToday: boolean; nextStreak: number; nextReward: number; willReset: boolean };
+  missions: MissionPreviewItem[];
+  friendsOnline: Array<{ uid: string; displayName: string; photoURL?: string }>;
+  weekly: { label: string; weeklyNet: number; rank?: number; leaderName?: string; leaderNet?: number };
+  soupVisible: boolean;
+  soupDisabled: boolean;
+};
+
 function HomeDashboard({
   balance,
   currentUserId,
@@ -10691,6 +10856,13 @@ function HomeDashboard({
   lobbyKnownPlayerCount,
   leaderboardMessage,
   remainingAds,
+  seasonKey,
+  hallOfFame,
+  championUids,
+  dashboard,
+  onResumeLastGame,
+  onClaimStreak,
+  onClaimSoup,
   onGoTo,
   onOpenProfile,
   onSelectGame,
@@ -10703,20 +10875,81 @@ function HomeDashboard({
   lobbyKnownPlayerCount: number;
   leaderboardMessage: string;
   remainingAds: number;
+  seasonKey: string;
+  hallOfFame: HallOfFameRecord[];
+  championUids: Set<string>;
+  dashboard: HomeDashboardWidgets;
+  onResumeLastGame: () => void;
+  onClaimStreak: () => void;
+  onClaimSoup: () => void;
   onGoTo: (section: MainSection) => void;
   onOpenProfile: (player: LeaderboardEntry) => void;
   onSelectGame: (game: CasinoGame) => void;
   onSelectOnlineGame: (game: OnlineRoomType) => void;
 }) {
-  const topPlayers = leaderboard.slice(0, 5);
+  const [leaderboardTab, setLeaderboardTab] = useState<"global" | "season">("global");
 
   return (
     <section className={styles.lobby} aria-label="Lobby casino fictif">
+      <div className={styles.dashboardWidgets}>
+        <JackpotSlot>
+          <div className={styles.dashboardJackpot}>
+            <span>Cagnotte progressive</span>
+            <strong>{Math.floor(dashboard.jackpot?.pot ?? 0).toLocaleString("fr-FR")} credits</strong>
+            <small>
+              {dashboard.jackpot?.lastWinnerName
+                ? `Dernier gagnant : ${dashboard.jackpot.lastWinnerName}`
+                : "Encore aucun gagnant"}
+            </small>
+            <button className={styles.primaryButton} type="button" onClick={() => onSelectGame("slots")}>
+              Tenter le jackpot
+            </button>
+          </div>
+        </JackpotSlot>
+        {dashboard.lastGame ? (
+          <ResumeLastGameCard
+            gameLabel={dashboard.lastGame.label}
+            gameEmoji={dashboard.lastGame.emoji}
+            lastNet={dashboard.lastGame.lastNet}
+            onResume={onResumeLastGame}
+          />
+        ) : null}
+        <DailyStreakCard
+          streak={dashboard.streak.streak}
+          nextStreak={dashboard.streak.nextStreak}
+          nextReward={dashboard.streak.nextReward}
+          claimedToday={dashboard.streak.claimedToday}
+          willReset={dashboard.streak.willReset}
+          onClaim={onClaimStreak}
+        />
+        <MissionsPreviewCard missions={dashboard.missions} onOpenMissions={() => onGoTo("missions")} />
+        <FriendsOnlineCard friends={dashboard.friendsOnline} onOpenFriends={() => onGoTo("friends")} />
+        <WeeklyTournamentCard
+          weekLabel={dashboard.weekly.label}
+          weeklyNet={dashboard.weekly.weeklyNet}
+          rank={dashboard.weekly.rank}
+          leaderName={dashboard.weekly.leaderName}
+          leaderNet={dashboard.weekly.leaderNet}
+          onOpenLeaderboard={() => setLeaderboardTab("season")}
+        />
+      </div>
+      {dashboard.soupVisible ? <SoupButton onClaim={onClaimSoup} disabled={dashboard.soupDisabled} /> : null}
+
       <div className={styles.lobbyTop}>
         <LobbyHero onPlay={() => onSelectGame("slots")} onTournaments={() => onGoTo("missions")} />
 
         <aside className={styles.lobbySideColumn} aria-label="Classement et activite">
-          <LobbyLeaderboard currentUserId={currentUserId} entries={topPlayers} message={leaderboardMessage} onOpenProfile={onOpenProfile} />
+          <LobbyLeaderboard
+            currentUserId={currentUserId}
+            entries={leaderboard}
+            message={leaderboardMessage}
+            seasonKey={seasonKey}
+            tab={leaderboardTab}
+            hallOfFame={hallOfFame}
+            championUids={championUids}
+            onTabChange={setLeaderboardTab}
+            onOpenProfile={onOpenProfile}
+          />
           <LobbySocialFeed items={lobbyActivityFeed} playerCount={lobbyKnownPlayerCount} />
         </aside>
       </div>
@@ -11272,32 +11505,89 @@ function LobbyLeaderboard({
   currentUserId,
   entries,
   message,
+  seasonKey,
+  tab,
+  hallOfFame,
+  championUids,
+  onTabChange,
   onOpenProfile,
 }: {
   currentUserId: string | null;
   entries: LeaderboardEntry[];
   message: string;
+  seasonKey: string;
+  tab: "global" | "season";
+  hallOfFame: HallOfFameRecord[];
+  championUids: Set<string>;
+  onTabChange: (tab: "global" | "season") => void;
   onOpenProfile: (entry: LeaderboardEntry) => void;
 }) {
+  const [hallOpen, setHallOpen] = useState(false);
+  const seasonEntries = entries
+    .filter((entry) => entry.seasonKey === seasonKey && typeof entry.seasonNet === "number")
+    .sort((left, right) => (right.seasonNet ?? 0) - (left.seasonNet ?? 0));
+  const visibleEntries = (tab === "global" ? entries : seasonEntries).slice(0, 5);
+
   return (
-    <section className={styles.lobbyLeaderboard} aria-label="Classement global">
+    <section className={styles.lobbyLeaderboard} aria-label="Classement des joueurs">
       <div className={styles.lobbyPanelHeader}>
         <h2>Classement</h2>
-        <span>Semaine</span>
+        <div className={styles.lobbyBoardTabs} role="tablist" aria-label="Periode du classement">
+          <button
+            className={tab === "global" ? styles.lobbyBoardTabActive : ""}
+            type="button"
+            role="tab"
+            aria-selected={tab === "global"}
+            onClick={() => onTabChange("global")}
+          >
+            Global
+          </button>
+          <button
+            className={tab === "season" ? styles.lobbyBoardTabActive : ""}
+            type="button"
+            role="tab"
+            aria-selected={tab === "season"}
+            onClick={() => onTabChange("season")}
+            title={seasonLabel(seasonKey)}
+          >
+            Saison
+          </button>
+        </div>
       </div>
       <ol>
-        {entries.map((entry, index) => (
+        {visibleEntries.map((entry, index) => (
           <li className={entry.uid === currentUserId ? styles.lobbyCurrentPlayer : ""} key={entry.uid}>
             <button type="button" onClick={() => onOpenProfile(entry)}>
               <span className={styles.lobbyRank}>{index + 1}</span>
               <ProfileAvatar avatarSeed={entry.uid} className={styles.lobbyRankAvatar} displayName={entry.displayName} photoURL={entry.photoURL} />
-              <strong>{entry.displayName}</strong>
-              <em>{entry.balance.toLocaleString("fr-FR")}</em>
+              <strong>
+                {entry.displayName}
+                {championUids.has(entry.uid) ? (
+                  <span aria-label="Champion du Hall of Fame" title="Champion du Hall of Fame">
+                    {" "}
+                    🏆
+                  </span>
+                ) : null}
+                {typeof entry.level === "number" ? (
+                  <LevelChip compact level={entry.level} soupActive={isSoupTitleActive(entry.soupAt, Date.now())} />
+                ) : null}
+              </strong>
+              <em>
+                {tab === "global"
+                  ? entry.balance.toLocaleString("fr-FR")
+                  : `${(entry.seasonNet ?? 0) >= 0 ? "+" : ""}${(entry.seasonNet ?? 0).toLocaleString("fr-FR")}`}
+              </em>
             </button>
           </li>
         ))}
       </ol>
-      {entries.length === 0 ? <p className={styles.empty}>{message}</p> : null}
+      {visibleEntries.length === 0 ? (
+        <p className={styles.empty}>{tab === "season" ? "Personne n'a encore joue cette saison." : message}</p>
+      ) : null}
+      <button className={styles.hallOfFameToggle} type="button" onClick={() => setHallOpen((open) => !open)}>
+        {hallOpen ? "Masquer le Hall of Fame" : "Hall of Fame"}
+      </button>
+      {hallOpen ? <HallOfFamePanel records={hallOfFame} /> : null}
     </section>
   );
 }
@@ -11512,18 +11802,20 @@ function MissionsPanel({
 
 function RewardedAdsPanel({
   balance,
+  dailyAdLimit,
   message,
   rewardedAds,
   watching,
   onWatch,
 }: {
   balance: number;
+  dailyAdLimit: number;
   message: string;
   rewardedAds: RewardedAdState;
   watching: boolean;
   onWatch: () => void;
 }) {
-  const remaining = Math.max(0, DAILY_REWARDED_AD_LIMIT - rewardedAds.watched);
+  const remaining = Math.max(0, dailyAdLimit - rewardedAds.watched);
   const canWatch = remaining > 0 && !watching;
 
   return (
@@ -11551,7 +11843,7 @@ function RewardedAdsPanel({
         <div className={styles.ruleRow}>
           <span>Bonus du jour</span>
           <strong>
-            {rewardedAds.watched}/{DAILY_REWARDED_AD_LIMIT}
+            {rewardedAds.watched}/{dailyAdLimit}
           </strong>
           <small>{remaining} restant{remaining > 1 ? "s" : ""}</small>
         </div>
@@ -12078,6 +12370,7 @@ function RocketGame({
   flight,
   history,
   liveMultiplier,
+  maxBet,
   message,
   mode,
   paused,
@@ -12096,6 +12389,7 @@ function RocketGame({
   flight: RocketOutcome | null;
   history: RocketHistoryItem[];
   liveMultiplier: number | null;
+  maxBet: number;
   message: string;
   mode: RocketMode;
   paused: boolean;
@@ -12202,7 +12496,7 @@ function RocketGame({
 
         <div className={styles.controls}>
           <label htmlFor="rocketBet">Mise virtuelle</label>
-          <QuickBetInput id="rocketBet" value={bet} onChange={onBetChange} balance={balance} disabled={animating} />
+          <QuickBetInput id="rocketBet" max={maxBet} value={bet} onChange={onBetChange} balance={balance} disabled={animating} />
           {mode === "target" ? (
             <>
               <label htmlFor="rocketTarget">Cible</label>
