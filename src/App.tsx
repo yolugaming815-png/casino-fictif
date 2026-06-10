@@ -45,14 +45,16 @@ import rouletteSapphireImage from "./assets/roulette/roulette-sapphire.png";
 import rouletteSunImage from "./assets/roulette/roulette-sun.png";
 import rouletteVioletImage from "./assets/roulette/roulette-violet.png";
 import {
+  FREE_SPINS_AWARDED,
   INITIAL_BALANCE,
   MIN_BET,
   SYMBOLS,
   canPlaceBet,
-  createReels,
-  spin,
+  createReelsV2,
+  spinV2,
   type Bet,
-  type SlotSymbol,
+  type ReelsV2,
+  type SlotSymbolV2,
   type SpinOutcome,
 } from "./gameLogic";
 import {
@@ -69,22 +71,32 @@ import {
 } from "./blackjackLogic";
 import { getBlackjackCardFaceModel, type BlackjackCardFaceModel, type DeckArtCell } from "./blackjackDeckThemes";
 import {
+  PLINKO_AUTO_DROP_OPTIONS,
+  PLINKO_ROW_OPTIONS,
   calculatePlinkoPayout,
   generatePlinkoPath,
   getFinalSlot,
-  getPlinkoMultipliers,
-  getPlinkoProbabilities,
   getPlinkoMultiplier,
+  getPlinkoMultiplierV2,
+  getPlinkoMultipliersV2,
+  getPlinkoProbabilitiesV2,
   type PlinkoOutcome,
   type PlinkoLayout,
+  type PlinkoRisk,
   type PlinkoRows,
+  type PlinkoRowsV2,
   type PlinkoStep,
 } from "./plinkoLogic";
 import {
   ROULETTE_NUMBERS,
+  ROULETTE_RECENT_LIMIT,
   ROULETTE_WHEEL_ORDER,
+  getRouletteColdNumbers,
   getRouletteColor,
+  getRouletteHotNumbers,
   playRoulette,
+  playRouletteRound,
+  type PlacedRouletteBet,
   type RouletteBetKind,
   type RouletteOutcome,
 } from "./rouletteLogic";
@@ -124,12 +136,23 @@ import { evaluatePokerHand } from "./pokerLogic";
 import {
   ROCKET_MAX_TARGET,
   ROCKET_MIN_TARGET,
+  evaluateRocketCashOut,
+  generateRocketCrashMultiplier,
+  getRocketMultiplierAtProgress,
+  getRocketProgressForMultiplier,
   getRocketSuccessProbability,
   normalizeRocketTarget,
   playRocketRound,
+  type RocketMode,
   type RocketOutcome,
   type RocketTarget,
 } from "./rocketLogic";
+import { claimJackpot, contributeToJackpot, subscribeJackpot, type JackpotState } from "./jackpot";
+import { canSpinDailyWheel, spinDailyWheel } from "./wheelLogic";
+import { MinesGame, type MinesHistoryItem, type MinesRoundResult } from "./MinesGame";
+import { HiLoGame, type HiLoHistoryItem, type HiLoRoundResult } from "./HiLoGame";
+import { DailyWheel } from "./DailyWheel";
+import { QuickBetInput } from "./QuickBetInput";
 import { buildLobbyActivityFeed, countKnownLobbyPlayers, type LobbyActivityFeedItem } from "./lobbyActivity";
 import {
   advancePokerPhase,
@@ -200,10 +223,19 @@ const HIDDEN_INACTIVE_POKER_STORAGE_KEY = "casino-fictif-hidden-inactive-poker";
 const FORCE_CLOSED_POKER_STORAGE_KEY = "casino-fictif-force-closed-poker";
 const RUSSIAN_ROULETTE_REWARDS_KEY = "casino-fictif-russian-roulette-rewards-v1";
 
-type SlotHistoryItem = SpinOutcome & {
+type SlotHistoryItem = Omit<SpinOutcome, "reels"> & {
   id: number;
   bet: Bet;
   balanceAfter: number;
+  reels: ReelsV2;
+  wildAssisted?: boolean;
+  freeSpinsWon?: number;
+  jackpotWon?: boolean;
+};
+
+type SlotFreeSpinsState = {
+  remaining: number;
+  bet: number;
 };
 
 type BlackjackHistoryItem = BlackjackPayout & {
@@ -223,19 +255,29 @@ type PlinkoHistoryItem = PlinkoOutcome & {
   bet: Bet;
   rows: PlinkoRows;
   balanceAfter: number;
+  risk?: PlinkoRisk;
 };
 
 type PlinkoLaunch = {
   id: number;
   bet: Bet;
-  rows: PlinkoRows;
+  rows: PlinkoRowsV2;
+  risk: PlinkoRisk;
 };
 
-type RouletteHistoryItem = RouletteOutcome & {
+type RouletteHistoryBetLine = {
+  label: string;
+  amount: number;
+  payout: number;
+};
+
+type RouletteHistoryItem = {
   id: number;
-  bet: Bet;
-  betKind: RouletteBetKind;
-  chosenNumber: number;
+  number: number;
+  color: RouletteOutcome["color"];
+  bets: RouletteHistoryBetLine[];
+  totalBet: number;
+  net: number;
   balanceAfter: number;
 };
 
@@ -243,6 +285,13 @@ type RocketHistoryItem = RocketOutcome & {
   id: number;
   bet: Bet;
   balanceAfter: number;
+  mode?: RocketMode;
+  cashOut?: number | null;
+};
+
+type DailyWheelState = {
+  date: string;
+  spun: boolean;
 };
 
 type CaseHistoryItem = {
@@ -298,6 +347,9 @@ type MissionStats = {
   casesOpened: number;
   rewardedAdsWatched: number;
   clawAttempts: number;
+  minesGames: number;
+  hiLoRounds: number;
+  wheelSpins: number;
 };
 
 type HourlyMissionState = {
@@ -322,6 +374,11 @@ type SavedGameState = {
   rewardedAds: RewardedAdState;
   missionCounters: MissionStats;
   missionState: HourlyMissionState | null;
+  minesHistory: MinesHistoryItem[];
+  hiLoHistory: HiLoHistoryItem[];
+  rouletteRecentNumbers: number[];
+  dailyWheel: DailyWheelState | null;
+  slotFreeSpins: SlotFreeSpinsState | null;
 };
 
 type ActivityItem = {
@@ -332,7 +389,7 @@ type ActivityItem = {
   timestamp?: unknown;
 };
 
-type CasinoGame = "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw";
+type CasinoGame = "slots" | "blackjack" | "plinko" | "roulette" | "rocket" | "claw" | "mines" | "hilo";
 
 type MainSection = "home" | "games" | "online" | "missions" | "cases" | "shop" | "inventory" | "bonus" | "friends" | "trades" | "messages" | "activity" | "admin";
 
@@ -435,8 +492,47 @@ const MISSION_METRICS: MissionMetric[] = [
   "casesOpened",
   "rewardedAdsWatched",
   "clawAttempts",
+  "minesGames",
+  "hiLoRounds",
+  "wheelSpins",
 ];
 const MISSION_DEFINITIONS: MissionDefinition[] = [
+  {
+    id: "easy-mines-3",
+    difficulty: "easy",
+    title: "Jouer 3 parties de Mines",
+    detail: "Trois parties de Mines, cash out ou boom.",
+    goal: 3,
+    reward: MISSION_REWARDS.easy,
+    metric: "minesGames",
+  },
+  {
+    id: "easy-wheel-1",
+    difficulty: "easy",
+    title: "Tourner la roue quotidienne",
+    detail: "Un tour gratuit de la roue dans la section Bonus.",
+    goal: 1,
+    reward: MISSION_REWARDS.easy,
+    metric: "wheelSpins",
+  },
+  {
+    id: "medium-hilo-10",
+    difficulty: "medium",
+    title: "Jouer 10 manches Hi-Lo",
+    detail: "Dix manches de Hi-Lo terminees.",
+    goal: 10,
+    reward: MISSION_REWARDS.medium,
+    metric: "hiLoRounds",
+  },
+  {
+    id: "medium-mines-10",
+    difficulty: "medium",
+    title: "Jouer 10 parties de Mines",
+    detail: "Dix parties de Mines terminees.",
+    goal: 10,
+    reward: MISSION_REWARDS.medium,
+    metric: "minesGames",
+  },
   {
     id: "easy-slots-10",
     difficulty: "easy",
@@ -832,6 +928,95 @@ function normalizeRewardedAds(value: unknown): RewardedAdState {
   };
 }
 
+function normalizeDailyWheel(value: unknown): DailyWheelState | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Partial<DailyWheelState>;
+
+  if (typeof raw.date !== "string" || !raw.date) {
+    return null;
+  }
+
+  return { date: raw.date, spun: raw.spun === true };
+}
+
+function normalizeSlotFreeSpins(value: unknown): SlotFreeSpinsState | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Partial<SlotFreeSpinsState>;
+  const remaining = Math.floor(Number(raw.remaining));
+  const bet = Math.floor(Number(raw.bet));
+
+  if (!Number.isFinite(remaining) || remaining <= 0 || !Number.isFinite(bet) || bet < MIN_BET) {
+    return null;
+  }
+
+  return { remaining, bet };
+}
+
+function sanitizeRouletteRecentNumbers(value: unknown): number[] {
+  return readArray<unknown>(value)
+    .map((entry) => Math.floor(Number(entry)))
+    .filter((number) => Number.isFinite(number) && number >= 0 && number <= 36)
+    .slice(0, ROULETTE_RECENT_LIMIT);
+}
+
+type LegacyRouletteHistoryItem = RouletteOutcome & {
+  id: number;
+  bet: Bet;
+  betKind: RouletteBetKind;
+  chosenNumber: number;
+  balanceAfter: number;
+};
+
+function sanitizeRouletteHistory(value: unknown): RouletteHistoryItem[] {
+  return readArray<RouletteHistoryItem | LegacyRouletteHistoryItem>(value)
+    .map((item): RouletteHistoryItem | null => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      if (Array.isArray((item as RouletteHistoryItem).bets)) {
+        const modern = item as RouletteHistoryItem;
+        return {
+          id: modern.id,
+          number: modern.number,
+          color: modern.color,
+          bets: modern.bets.map((line) => ({
+            label: String(line.label ?? ""),
+            amount: Number(line.amount) || 0,
+            payout: Number(line.payout) || 0,
+          })),
+          totalBet: Number(modern.totalBet) || 0,
+          net: Number(modern.net) || 0,
+          balanceAfter: Number(modern.balanceAfter) || 0,
+        };
+      }
+
+      const legacy = item as LegacyRouletteHistoryItem;
+
+      if (typeof legacy.number !== "number") {
+        return null;
+      }
+
+      return {
+        id: legacy.id,
+        number: legacy.number,
+        color: legacy.color,
+        bets: [{ label: legacy.label ?? "Pari", amount: Number(legacy.bet) || 0, payout: Number(legacy.payout) || 0 }],
+        totalBet: Number(legacy.bet) || 0,
+        net: Number(legacy.net) || 0,
+        balanceAfter: Number(legacy.balanceAfter) || 0,
+      };
+    })
+    .filter((item): item is RouletteHistoryItem => item !== null)
+    .slice(0, 10);
+}
+
 function getMissionHourKey(time = Date.now()) {
   const date = new Date(time);
   const year = date.getFullYear();
@@ -888,6 +1073,9 @@ function createMissionBaselines(stats: MissionStats): Record<MissionMetric, numb
     casesOpened: stats.casesOpened,
     rewardedAdsWatched: stats.rewardedAdsWatched,
     clawAttempts: stats.clawAttempts,
+    minesGames: stats.minesGames,
+    hiLoRounds: stats.hiLoRounds,
+    wheelSpins: stats.wheelSpins,
   };
 }
 
@@ -902,6 +1090,9 @@ function emptyMissionStats(): MissionStats {
     casesOpened: 0,
     rewardedAdsWatched: 0,
     clawAttempts: 0,
+    minesGames: 0,
+    hiLoRounds: 0,
+    wheelSpins: 0,
   };
 }
 
@@ -1027,6 +1218,7 @@ const rouletteRules = [
 
 const ROULETTE_SPIN_DURATION_MS = 2600;
 const ROCKET_FLIGHT_DURATION_MS = 2200;
+const ROCKET_MANUAL_FLIGHT_DURATION_MS = ROCKET_FLIGHT_DURATION_MS * 3;
 
 function readArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -1327,7 +1519,7 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     slotHistory: readArray<SlotHistoryItem>(parsed.slotHistory).slice(0, 10),
     blackjackHistory: readArray<BlackjackHistoryItem>(parsed.blackjackHistory).slice(0, 10),
     plinkoHistory: readArray<PlinkoHistoryItem>(parsed.plinkoHistory).slice(0, 10),
-    rouletteHistory: readArray<RouletteHistoryItem>(parsed.rouletteHistory).slice(0, 10),
+    rouletteHistory: sanitizeRouletteHistory(parsed.rouletteHistory),
     rocketHistory: readArray<RocketHistoryItem>(parsed.rocketHistory).slice(0, 10),
     caseHistory: sanitizeCaseHistory(parsed.caseHistory),
     specialInventory: sanitizeSpecialInventory(parsed.specialInventory),
@@ -1335,6 +1527,11 @@ function normalizeSavedGame(parsed: Partial<SavedGameState>): SavedGameState | n
     rewardedAds: normalizeRewardedAds(parsed.rewardedAds),
     missionCounters: normalizeMissionCounters(parsed.missionCounters),
     missionState: normalizeMissionState(parsed.missionState),
+    minesHistory: readArray<MinesHistoryItem>(parsed.minesHistory).slice(0, 10),
+    hiLoHistory: readArray<HiLoHistoryItem>(parsed.hiLoHistory).slice(0, 10),
+    rouletteRecentNumbers: sanitizeRouletteRecentNumbers(parsed.rouletteRecentNumbers),
+    dailyWheel: normalizeDailyWheel(parsed.dailyWheel),
+    slotFreeSpins: normalizeSlotFreeSpins(parsed.slotFreeSpins),
   };
 }
 
@@ -1641,9 +1838,11 @@ function App() {
 
   const [slotBet, setSlotBet] = useState<Bet>(25);
   const [slotHistory, setSlotHistory] = useState<SlotHistoryItem[]>(savedGame?.slotHistory ?? []);
-  const [currentReels, setCurrentReels] = useState(SYMBOLS.slice(0, 3));
+  const [currentReels, setCurrentReels] = useState<readonly SlotSymbolV2[]>(SYMBOLS.slice(0, 3));
   const [slotMessage, setSlotMessage] = useState("Pret a lancer une partie fictive.");
   const [slotSpinning, setSlotSpinning] = useState(false);
+  const [slotFreeSpins, setSlotFreeSpins] = useState<SlotFreeSpinsState | null>(savedGame?.slotFreeSpins ?? null);
+  const [slotJackpot, setSlotJackpot] = useState<JackpotState | null>(null);
 
   const [blackjackBet, setBlackjackBet] = useState<Bet>(25);
   const [activeBlackjackBet, setActiveBlackjackBet] = useState(25);
@@ -1657,7 +1856,9 @@ function App() {
   const [blackjackDealerProfile] = useState(getRandomBlackjackDealerProfile);
 
   const [plinkoBet, setPlinkoBet] = useState<Bet>(25);
-  const [plinkoRows, setPlinkoRows] = useState<PlinkoRows>(10);
+  const [plinkoRisk, setPlinkoRisk] = useState<PlinkoRisk>("medium");
+  const [plinkoRowsV2, setPlinkoRowsV2] = useState<PlinkoRowsV2>(12);
+  const [plinkoAutoRemaining, setPlinkoAutoRemaining] = useState(0);
   const [plinkoHistory, setPlinkoHistory] = useState<PlinkoHistoryItem[]>(savedGame?.plinkoHistory ?? []);
   const [plinkoMessage, setPlinkoMessage] = useState("Choisis une mise virtuelle et lance la bille.");
   const [plinkoBallSlots, setPlinkoBallSlots] = useState<number[]>([]);
@@ -1666,8 +1867,10 @@ function App() {
   const [rouletteBet, setRouletteBet] = useState<Bet>(25);
   const [rouletteBetKind, setRouletteBetKind] = useState<RouletteBetKind>("red");
   const [rouletteNumber, setRouletteNumber] = useState(17);
+  const [rouletteBets, setRouletteBets] = useState<PlacedRouletteBet[]>([]);
+  const [rouletteRecentNumbers, setRouletteRecentNumbers] = useState<number[]>(savedGame?.rouletteRecentNumbers ?? []);
   const [rouletteHistory, setRouletteHistory] = useState<RouletteHistoryItem[]>(savedGame?.rouletteHistory ?? []);
-  const [rouletteMessage, setRouletteMessage] = useState("Choisis une mise virtuelle et un pari.");
+  const [rouletteMessage, setRouletteMessage] = useState("Ajoute une ou plusieurs mises puis lance la roue.");
   const [rouletteResult, setRouletteResult] = useState<number | null>(null);
   const [pendingRouletteResult, setPendingRouletteResult] = useState<number | null>(null);
   const [rouletteSpinning, setRouletteSpinning] = useState(false);
@@ -1692,10 +1895,15 @@ function App() {
   const [missionState, setMissionState] = useState<HourlyMissionState | null>(savedGame?.missionState ?? null);
   const [rocketBet, setRocketBet] = useState<Bet>(25);
   const [rocketTarget, setRocketTarget] = useState<RocketTarget>(2);
+  const [rocketMode, setRocketMode] = useState<RocketMode>("target");
+  const [rocketLiveMultiplier, setRocketLiveMultiplier] = useState<number | null>(null);
   const [rocketMessage, setRocketMessage] = useState("Choisis une cible et lance la fusee.");
   const [rocketHistory, setRocketHistory] = useState<RocketHistoryItem[]>(savedGame?.rocketHistory ?? []);
   const [rocketAnimating, setRocketAnimating] = useState(false);
   const [rocketFlight, setRocketFlight] = useState<RocketOutcome | null>(null);
+  const [minesHistory, setMinesHistory] = useState<MinesHistoryItem[]>(savedGame?.minesHistory ?? []);
+  const [hiLoHistory, setHiLoHistory] = useState<HiLoHistoryItem[]>(savedGame?.hiLoHistory ?? []);
+  const [dailyWheel, setDailyWheel] = useState<DailyWheelState | null>(savedGame?.dailyWheel ?? null);
   const [accountUser, setAccountUser] = useState<CasinoUser | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1753,13 +1961,24 @@ function App() {
   const previousHomeMusicSourceRef = useRef<string | null>(null);
   const caseId = useRef(getNextHistoryId(savedGame?.caseHistory));
   const clawId = useRef(getNextHistoryId(savedGame?.clawHistory));
+  const minesId = useRef(getNextHistoryId(savedGame?.minesHistory));
+  const hiLoId = useRef(getNextHistoryId(savedGame?.hiLoHistory));
+  const rocketManualRoundRef = useRef<{ bet: number; crash: number; balanceAfterDebit: number } | null>(null);
+  const rocketManualFrameRef = useRef<number | null>(null);
+  const rocketLiveMultiplierRef = useRef(1);
 
   function addMissionProgress(metric: MissionMetric, amount = 1) {
     setMissionCounters((current) => ({
       ...current,
       [metric]: current[metric] + amount,
       soloGames:
-        metric === "slotSpins" || metric === "blackjackHands" || metric === "plinkoDrops" || metric === "rouletteSpins" || metric === "rocketLaunches"
+        metric === "slotSpins" ||
+        metric === "blackjackHands" ||
+        metric === "plinkoDrops" ||
+        metric === "rouletteSpins" ||
+        metric === "rocketLaunches" ||
+        metric === "minesGames" ||
+        metric === "hiLoRounds"
           ? current.soloGames + amount
           : current.soloGames,
     }));
@@ -1828,11 +2047,14 @@ function App() {
     localStorage.setItem(FORCE_CLOSED_POKER_STORAGE_KEY, JSON.stringify(recentKeys));
   }
 
-  const slotBetAvailable = canPlaceBet(balance, slotBet);
+  const slotFreeSpinActive = slotFreeSpins !== null && slotFreeSpins.remaining > 0;
+  const slotBetAvailable = slotFreeSpinActive || canPlaceBet(balance, slotBet);
   const blackjackBetAvailable = canPlaceBet(balance, blackjackBet);
   const plinkoBetAvailable = canPlaceBet(balance, plinkoBet) && plinkoBet <= PLINKO_MAX_BET;
   const plinkoAnimating = activePlinkoLaunches.length > 0;
   const rouletteBetAvailable = canPlaceBet(balance, rouletteBet);
+  const rouletteTotalStake = rouletteBets.reduce((sum, placed) => sum + placed.amount, 0);
+  const rouletteCanLaunch = rouletteBets.length > 0 && balance >= rouletteTotalStake;
   const rocketBetAvailable = canPlaceBet(balance, rocketBet);
   const canDouble = blackjackPhase === "player" && !hasPlayerAction && balance >= activeBlackjackBet * 2;
   const pendingFriendRequestsCount = accountUser
@@ -1874,7 +2096,7 @@ function App() {
       ...slotHistory.map((item) => ({ id: item.id, game: "Machine a sous", net: item.net, bet: item.bet })),
       ...blackjackHistory.map((item) => ({ id: item.id, game: "Blackjack", net: item.net, bet: item.bet })),
       ...plinkoHistory.map((item) => ({ id: item.id, game: "Plinko", net: item.net, bet: item.bet })),
-      ...rouletteHistory.map((item) => ({ id: item.id, game: "Roulette", net: item.net, bet: item.bet })),
+      ...rouletteHistory.map((item) => ({ id: item.id, game: "Roulette", net: item.net, bet: item.totalBet })),
       ...rocketHistory.map((item) => ({ id: item.id, game: "Rocket", net: item.net, bet: item.bet })),
     ],
     [slotHistory, blackjackHistory, plinkoHistory, rouletteHistory, rocketHistory],
@@ -2072,6 +2294,11 @@ function App() {
       rewardedAds,
       missionCounters,
       missionState: activeMissionState,
+      minesHistory,
+      hiLoHistory,
+      rouletteRecentNumbers,
+      dailyWheel,
+      slotFreeSpins,
     });
   }, [
     balance,
@@ -2088,6 +2315,11 @@ function App() {
     rewardedAds,
     missionCounters,
     activeMissionState,
+    minesHistory,
+    hiLoHistory,
+    rouletteRecentNumbers,
+    dailyWheel,
+    slotFreeSpins,
   ]);
 
   useEffect(() => {
@@ -2202,11 +2434,18 @@ function App() {
     rewardedAds,
     missionCounters,
     activeMissionState,
+    minesHistory,
+    hiLoHistory,
+    rouletteRecentNumbers,
+    dailyWheel,
+    slotFreeSpins,
   ]);
 
   useEffect(() => {
     refreshLeaderboard();
   }, []);
+
+  useEffect(() => subscribeJackpot(setSlotJackpot), []);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
@@ -3358,6 +3597,11 @@ function App() {
       rewardedAds,
       missionCounters,
       missionState: activeMissionState,
+      minesHistory,
+      hiLoHistory,
+      rouletteRecentNumbers,
+      dailyWheel,
+      slotFreeSpins,
     };
   }
 
@@ -3377,9 +3621,22 @@ function App() {
     setMissionCounters(importedSave.missionCounters);
     setMissionState(importedSave.missionState);
     setLastCaseDrop(importedSave.caseHistory[0] ?? null);
+    setMinesHistory(importedSave.minesHistory);
+    setHiLoHistory(importedSave.hiLoHistory);
+    setRouletteRecentNumbers(importedSave.rouletteRecentNumbers);
+    setDailyWheel(importedSave.dailyWheel);
+    setSlotFreeSpins(importedSave.slotFreeSpins);
     setActivePlinkoLaunches([]);
+    setPlinkoAutoRemaining(0);
+    setRouletteBets([]);
+    if (rocketManualFrameRef.current !== null) {
+      window.cancelAnimationFrame(rocketManualFrameRef.current);
+      rocketManualFrameRef.current = null;
+    }
+    rocketManualRoundRef.current = null;
     setRocketAnimating(false);
     setRocketFlight(null);
+    setRocketLiveMultiplier(null);
     setCaseOpening(false);
     spinId.current = getNextHistoryId(importedSave.slotHistory);
     handId.current = getNextHistoryId(importedSave.blackjackHistory);
@@ -3388,6 +3645,8 @@ function App() {
     rocketId.current = getNextHistoryId(importedSave.rocketHistory);
     caseId.current = getNextHistoryId(importedSave.caseHistory);
     clawId.current = getNextHistoryId(importedSave.clawHistory);
+    minesId.current = getNextHistoryId(importedSave.minesHistory);
+    hiLoId.current = getNextHistoryId(importedSave.hiLoHistory);
   }
 
   async function handleGoogleSignIn() {
@@ -3423,7 +3682,10 @@ function App() {
       return;
     }
 
-    if (!slotBetAvailable) {
+    const freeSpin = slotFreeSpinActive ? slotFreeSpins : null;
+    const bet = freeSpin ? freeSpin.bet : slotBet;
+
+    if (!freeSpin && !canPlaceBet(balance, bet)) {
       setSlotMessage("Solde virtuel insuffisant pour cette mise.");
       return;
     }
@@ -3432,14 +3694,24 @@ function App() {
       return;
     }
 
-    const outcome = spin(slotBet);
-    const nextBalance = balance - slotBet + outcome.payout;
+    const outcome = spinV2(bet);
+    const nextBalance = freeSpin ? balance + outcome.payout : balance - bet + outcome.payout;
+    const displayedNet = freeSpin ? outcome.payout : outcome.net;
+    const remainingFreeSpins = (freeSpin ? freeSpin.remaining - 1 : 0) + outcome.freeSpinsWon;
+    const nextFreeSpins: SlotFreeSpinsState | null = remainingFreeSpins > 0 ? { remaining: remainingFreeSpins, bet } : null;
+
+    if (!freeSpin) {
+      void contributeToJackpot(bet).catch(() => {
+        // Contribution de cagnotte indisponible hors ligne : le spin continue normalement.
+      });
+    }
+
     slotIntervalId.current = window.setInterval(() => {
-      setCurrentReels([...createReels()]);
+      setCurrentReels([...createReelsV2()]);
     }, 90);
 
     setSlotSpinning(true);
-    setSlotMessage("Les rouleaux tournent...");
+    setSlotMessage(freeSpin ? `Spin gratuit (${freeSpin.remaining} restant${freeSpin.remaining > 1 ? "s" : ""})...` : "Les rouleaux tournent...");
 
     slotTimeoutId.current = window.setTimeout(() => {
       if (slotIntervalId.current !== null) {
@@ -3448,16 +3720,27 @@ function App() {
       }
       setBalance(nextBalance);
       setCurrentReels([...outcome.reels]);
-      setSlotMessage(
-        outcome.net >= 0
-          ? `${outcome.label} : +${outcome.net} credits virtuels.`
-          : "Perte de la mise virtuelle.",
-      );
+      setSlotFreeSpins(nextFreeSpins);
+
+      const messageParts: string[] = [];
+      if (displayedNet >= 0 && outcome.multiplier > 0) {
+        messageParts.push(`${outcome.label} : +${displayedNet} credits virtuels.`);
+      } else if (freeSpin) {
+        messageParts.push("Spin gratuit sans gain.");
+      } else {
+        messageParts.push("Perte de la mise virtuelle.");
+      }
+      if (outcome.freeSpinsWon > 0) {
+        messageParts.push(`${FREE_SPINS_AWARDED} spins gratuits gagnes !`);
+      }
+      setSlotMessage(messageParts.join(" "));
+
       setSlotHistory((items) => [
         {
           ...outcome,
+          net: displayedNet,
           id: spinId.current++,
-          bet: slotBet,
+          bet,
           balanceAfter: nextBalance,
         },
         ...items,
@@ -3465,6 +3748,23 @@ function App() {
       addMissionProgress("slotSpins");
       setSlotSpinning(false);
       slotTimeoutId.current = null;
+
+      if (outcome.jackpotWon) {
+        if (accountUser) {
+          void claimJackpot(accountUser)
+            .then((amount) => {
+              if (amount > 0) {
+                setBalance((current) => current + amount);
+                setSlotMessage(`JACKPOT +${amount.toLocaleString("fr-FR")} credits virtuels !`);
+              }
+            })
+            .catch(() => {
+              // Cagnotte indisponible : le triple diamant a deja paye son multiplicateur normal.
+            });
+        } else {
+          setSlotMessage("Triple diamant ! Connecte-toi avec Google pour empocher la cagnotte commune.");
+        }
+      }
     }, 1350);
   }
 
@@ -3599,6 +3899,23 @@ function App() {
     addMissionProgress("blackjackHands");
   }
 
+  function startPlinkoLaunch() {
+    const launch: PlinkoLaunch = {
+      id: plinkoId.current++,
+      bet: plinkoBet,
+      rows: plinkoRowsV2,
+      risk: plinkoRisk,
+    };
+
+    setBalance((current) => current - plinkoBet);
+    setActivePlinkoLaunches((items) => [...items, launch]);
+    setPlinkoMessage(
+      activePlinkoLaunches.length === 0
+        ? "La premiere bille descend dans la grille..."
+        : `${activePlinkoLaunches.length + 1} billes sont en mouvement.`,
+    );
+  }
+
   function launchPlinko() {
     if (paused) {
       setPlinkoMessage("La pause responsable est active.");
@@ -3615,23 +3932,29 @@ function App() {
       return;
     }
 
-    const launch: PlinkoLaunch = {
-      id: plinkoId.current++,
-      bet: plinkoBet,
-      rows: plinkoRows,
-    };
+    startPlinkoLaunch();
+  }
 
-    setBalance((current) => current - plinkoBet);
-    setActivePlinkoLaunches((items) => [...items, launch]);
-    setPlinkoMessage(
-      activePlinkoLaunches.length === 0
-        ? "La premiere bille descend dans la grille..."
-        : `${activePlinkoLaunches.length + 1} billes sont en mouvement.`,
-    );
+  function startPlinkoAutoDrop(count: number) {
+    if (paused || plinkoAutoRemaining > 0) {
+      return;
+    }
+
+    if (!plinkoBetAvailable) {
+      setPlinkoMessage("Solde virtuel insuffisant pour lancer l'auto-drop.");
+      return;
+    }
+
+    setPlinkoAutoRemaining(count);
+    setPlinkoMessage(`Auto-drop : ${count} billes programmees.`);
+  }
+
+  function stopPlinkoAutoDrop() {
+    setPlinkoAutoRemaining(0);
   }
 
   function finishPlinko(launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) {
-    const multiplier = getPlinkoMultiplier(slot, launch.rows, plinkoLayout);
+    const multiplier = getPlinkoMultiplierV2(slot, launch.rows, launch.risk);
     const payout = calculatePlinkoPayout(launch.bet, multiplier);
     const nextBalance = balance + payout.payout;
     const outcome: PlinkoOutcome = {
@@ -3654,6 +3977,7 @@ function App() {
         id: launch.id,
         bet: launch.bet,
         rows: launch.rows,
+        risk: launch.risk,
         balanceAfter: nextBalance,
       },
       ...items,
@@ -3662,14 +3986,86 @@ function App() {
     setActivePlinkoLaunches((items) => items.filter((item) => item.id !== launch.id));
   }
 
+  useEffect(() => {
+    if (plinkoAutoRemaining <= 0) {
+      return undefined;
+    }
+
+    if (paused || activeSection !== "games" || activeGame !== "plinko") {
+      setPlinkoAutoRemaining(0);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!canPlaceBet(balance, plinkoBet) || plinkoBet > PLINKO_MAX_BET) {
+        setPlinkoAutoRemaining(0);
+        setPlinkoMessage("Auto-drop arrete : solde virtuel insuffisant.");
+        return;
+      }
+
+      startPlinkoLaunch();
+      setPlinkoAutoRemaining((current) => Math.max(0, current - 1));
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plinkoAutoRemaining, paused, activeSection, activeGame, balance, plinkoBet]);
+
+  function addRouletteBet() {
+    if (rouletteSpinning) {
+      return;
+    }
+
+    if (!Number.isFinite(rouletteBet) || rouletteBet < MIN_BET) {
+      setRouletteMessage(`La mise minimale est de ${MIN_BET} credits virtuels.`);
+      return;
+    }
+
+    if (rouletteTotalStake + rouletteBet > balance) {
+      setRouletteMessage("Solde virtuel insuffisant pour ajouter cette mise.");
+      return;
+    }
+
+    const placed: PlacedRouletteBet = {
+      kind: rouletteBetKind,
+      number: rouletteBetKind === "straight" ? rouletteNumber : undefined,
+      amount: rouletteBet,
+    };
+
+    setRouletteBets((items) => [...items, placed]);
+    setRouletteMessage(`Mise ajoutee (${rouletteBet} credits). Total mise : ${rouletteTotalStake + rouletteBet}.`);
+  }
+
+  function removeRouletteBet(index: number) {
+    if (rouletteSpinning) {
+      return;
+    }
+
+    setRouletteBets((items) => items.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function clearRouletteBets() {
+    if (rouletteSpinning) {
+      return;
+    }
+
+    setRouletteBets([]);
+    setRouletteMessage("Tapis efface. Ajoute de nouvelles mises.");
+  }
+
   function spinRoulette() {
     if (paused) {
       setRouletteMessage("La pause responsable est active.");
       return;
     }
 
-    if (!rouletteBetAvailable) {
-      setRouletteMessage("Solde virtuel insuffisant pour cette mise.");
+    if (rouletteBets.length === 0) {
+      setRouletteMessage("Ajoute au moins une mise avant de lancer la roue.");
+      return;
+    }
+
+    if (balance < rouletteTotalStake) {
+      setRouletteMessage("Solde virtuel insuffisant pour couvrir toutes les mises.");
       return;
     }
 
@@ -3677,38 +4073,43 @@ function App() {
       return;
     }
 
-    const outcome = playRoulette(
-      { kind: rouletteBetKind, number: rouletteBetKind === "straight" ? rouletteNumber : undefined },
-      rouletteBet,
-    );
+    const stake = rouletteTotalStake;
+    const outcome = playRouletteRound(rouletteBets);
 
+    setBalance((current) => current - stake);
     setPendingRouletteResult(outcome.number);
     setRouletteSpinning(true);
     setRouletteRunId((value) => value + 1);
     setRouletteMessage("La roue tourne...");
 
     window.setTimeout(() => {
-      const nextBalance = balance + outcome.net;
+      const nextBalance = balance - stake + outcome.totalPayout;
 
-      setBalance(nextBalance);
+      setBalance((current) => current + outcome.totalPayout);
       setRouletteResult(outcome.number);
       setPendingRouletteResult(null);
       setRouletteMessage(
-        outcome.isWin
-          ? `${outcome.number} ${formatRouletteColor(outcome.color)} : ${outcome.label}, +${outcome.net} credits virtuels.`
-          : `${outcome.number} ${formatRouletteColor(outcome.color)} : perte de la mise virtuelle.`,
+        outcome.net >= 0
+          ? `${outcome.number} ${formatRouletteColor(outcome.color)} : +${outcome.net} credits virtuels sur ${outcome.results.filter((result) => result.isWin).length} mise${outcome.results.filter((result) => result.isWin).length > 1 ? "s" : ""} gagnante${outcome.results.filter((result) => result.isWin).length > 1 ? "s" : ""}.`
+          : `${outcome.number} ${formatRouletteColor(outcome.color)} : ${outcome.net} credits virtuels.`,
       );
       setRouletteHistory((items) => [
         {
-          ...outcome,
           id: rouletteId.current++,
-          bet: rouletteBet,
-          betKind: rouletteBetKind,
-          chosenNumber: rouletteNumber,
+          number: outcome.number,
+          color: outcome.color,
+          bets: outcome.results.map((result) => ({
+            label: result.label,
+            amount: result.bet.amount,
+            payout: result.payout,
+          })),
+          totalBet: stake,
+          net: outcome.net,
           balanceAfter: nextBalance,
         },
         ...items,
       ].slice(0, 10));
+      setRouletteRecentNumbers((numbers) => [outcome.number, ...numbers].slice(0, ROULETTE_RECENT_LIMIT));
       addMissionProgress("rouletteSpins");
       setRouletteSpinning(false);
     }, ROULETTE_SPIN_DURATION_MS);
@@ -4029,6 +4430,99 @@ function App() {
     setBalance((current) => current + mission.reward);
   }
 
+  function finishManualRocketFlight(outcome: ReturnType<typeof evaluateRocketCashOut>, bet: number, balanceAfterDebit: number) {
+    if (rocketManualFrameRef.current !== null) {
+      window.cancelAnimationFrame(rocketManualFrameRef.current);
+      rocketManualFrameRef.current = null;
+    }
+
+    rocketManualRoundRef.current = null;
+
+    const nextBalance = balanceAfterDebit + outcome.payout;
+
+    setBalance((current) => current + outcome.payout);
+    setRocketFlight({
+      target: outcome.cashOutMultiplier ?? outcome.crashMultiplier,
+      crashMultiplier: outcome.crashMultiplier,
+      success: outcome.success,
+      payout: outcome.payout,
+      net: outcome.net,
+    });
+    setRocketLiveMultiplier(outcome.success ? outcome.cashOutMultiplier : outcome.crashMultiplier);
+    setRocketMessage(
+      outcome.success && outcome.cashOutMultiplier !== null
+        ? `CASH OUT a ${formatMultiplier(outcome.cashOutMultiplier)} avant le crash ${formatMultiplier(outcome.crashMultiplier)} : +${formatCredits(outcome.net)} credits virtuels.`
+        : `Crash a ${formatMultiplier(outcome.crashMultiplier)} avant le cash out : perte de la mise virtuelle.`,
+    );
+    setRocketHistory((items) => [
+      {
+        target: outcome.cashOutMultiplier ?? outcome.crashMultiplier,
+        crashMultiplier: outcome.crashMultiplier,
+        success: outcome.success,
+        payout: outcome.payout,
+        net: outcome.net,
+        id: rocketId.current++,
+        bet,
+        balanceAfter: nextBalance,
+        mode: "manual" as const,
+        cashOut: outcome.cashOutMultiplier,
+      },
+      ...items,
+    ].slice(0, 10));
+    addMissionProgress("rocketLaunches");
+    setRocketAnimating(false);
+  }
+
+  function launchRocketManual() {
+    const bet = rocketBet;
+    const crash = generateRocketCrashMultiplier();
+
+    rocketManualRoundRef.current = { bet, crash, balanceAfterDebit: balance - bet };
+    rocketLiveMultiplierRef.current = 1;
+
+    setBalance((current) => current - bet);
+    setRocketFlight(null);
+    setRocketLiveMultiplier(1);
+    setRocketAnimating(true);
+    setRocketMessage("La fusee monte... CASH OUT avant le crash !");
+
+    const flightDuration = getRocketProgressForMultiplier(crash) * ROCKET_MANUAL_FLIGHT_DURATION_MS;
+    const start = performance.now();
+
+    const animate = (time: number) => {
+      const round = rocketManualRoundRef.current;
+
+      if (!round) {
+        return;
+      }
+
+      const elapsed = time - start;
+
+      if (elapsed >= flightDuration) {
+        finishManualRocketFlight(evaluateRocketCashOut(round.bet, null, round.crash), round.bet, round.balanceAfterDebit);
+        return;
+      }
+
+      const multiplier = getRocketMultiplierAtProgress(elapsed / ROCKET_MANUAL_FLIGHT_DURATION_MS);
+      rocketLiveMultiplierRef.current = multiplier;
+      setRocketLiveMultiplier(multiplier);
+      rocketManualFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    rocketManualFrameRef.current = window.requestAnimationFrame(animate);
+  }
+
+  function handleRocketCashOut() {
+    const round = rocketManualRoundRef.current;
+
+    if (!round || !rocketAnimating) {
+      return;
+    }
+
+    const outcome = evaluateRocketCashOut(round.bet, rocketLiveMultiplierRef.current, round.crash);
+    finishManualRocketFlight(outcome, round.bet, round.balanceAfterDebit);
+  }
+
   function launchRocket() {
     if (paused) {
       setRocketMessage("La pause responsable est active.");
@@ -4044,11 +4538,17 @@ function App() {
       return;
     }
 
+    if (rocketMode === "manual") {
+      launchRocketManual();
+      return;
+    }
+
     const target = normalizeRocketTarget(rocketTarget);
     setRocketTarget(target);
 
     const outcome = playRocketRound(rocketBet, target);
     setRocketFlight(outcome);
+    setRocketLiveMultiplier(null);
     setRocketAnimating(true);
     setRocketMessage("La fusee monte...");
 
@@ -4073,6 +4573,95 @@ function App() {
       addMissionProgress("rocketLaunches");
       setRocketAnimating(false);
     }, ROCKET_FLIGHT_DURATION_MS);
+  }
+
+  function handleMinesRoundStart(bet: number): boolean {
+    if (paused || !canPlaceBet(balance, bet)) {
+      return false;
+    }
+
+    setBalance((current) => current - bet);
+    addMissionProgress("minesGames");
+    return true;
+  }
+
+  function handleMinesRoundEnd(result: MinesRoundResult) {
+    const nextBalance = balance + result.payout;
+
+    setBalance((current) => current + result.payout);
+    setMinesHistory((items) => [
+      {
+        id: minesId.current++,
+        bet: result.bet,
+        mines: result.mines,
+        revealed: result.revealed,
+        multiplier: result.multiplier,
+        payout: result.payout,
+        net: result.net,
+        outcome: result.outcome,
+        balanceAfter: nextBalance,
+      },
+      ...items,
+    ].slice(0, 10));
+  }
+
+  function handleHiLoRoundStart(bet: number): boolean {
+    if (paused || !canPlaceBet(balance, bet)) {
+      return false;
+    }
+
+    setBalance((current) => current - bet);
+    addMissionProgress("hiLoRounds");
+    return true;
+  }
+
+  function handleHiLoRoundEnd(result: HiLoRoundResult) {
+    const nextBalance = balance + result.payout;
+
+    setBalance((current) => current + result.payout);
+    setHiLoHistory((items) => [
+      {
+        id: hiLoId.current++,
+        bet: result.bet,
+        steps: result.steps,
+        finalMultiplier: result.finalMultiplier,
+        payout: result.payout,
+        net: result.net,
+        outcome: result.outcome,
+        balanceAfter: nextBalance,
+      },
+      ...items,
+    ].slice(0, 10));
+  }
+
+  function handleDailyWheelSpin() {
+    const today = todayRewardDateKey();
+
+    if (paused || !canSpinDailyWheel(dailyWheel, today)) {
+      return null;
+    }
+
+    const outcome = spinDailyWheel();
+    const prize = outcome.prize;
+
+    if (prize.kind === "credits") {
+      setBalance((current) => current + prize.amount);
+    } else {
+      const chest = SPECIAL_CHESTS[Math.floor(Math.random() * SPECIAL_CHESTS.length)] ?? SPECIAL_CHESTS[0]!;
+      const bucket = prize.kind === "key" ? "keys" : "fragments";
+
+      setSpecialInventory((current) => ({
+        ...current,
+        [bucket]: {
+          ...current[bucket],
+          [chest.id]: (current[bucket][chest.id] ?? 0) + prize.amount,
+        },
+      }));
+    }
+
+    setDailyWheel({ date: today, spun: true });
+    addMissionProgress("wheelSpins");
+    return outcome;
   }
 
   function selectMainSection(section: MainSection) {
@@ -4376,6 +4965,22 @@ function App() {
                 <span className={styles.tabLabel}>Rocket Games</span>
               </button>
               <button
+                className={activeGame === "mines" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => selectGame("mines")}
+              >
+                <MenuIcon name="mines" />
+                <span className={styles.tabLabel}>Mines</span>
+              </button>
+              <button
+                className={activeGame === "hilo" ? styles.activeTab : ""}
+                type="button"
+                onClick={() => selectGame("hilo")}
+              >
+                <MenuIcon name="hilo" />
+                <span className={styles.tabLabel}>Hi-Lo</span>
+              </button>
+              <button
                 className={activeGame === "claw" ? styles.activeTab : ""}
                 type="button"
                 onClick={() => selectGame("claw")}
@@ -4621,13 +5226,20 @@ function App() {
         ) : activeSection === "inventory" ? (
           <InventoryGame equippedSkins={equippedSkins} ownedSkinIds={ownedSkinIds} specialInventory={specialInventory} onEquip={handleEquipSkin} />
         ) : activeSection === "bonus" ? (
-          <RewardedAdsPanel
-            balance={balance}
-            message={rewardedAdMessage}
-            rewardedAds={normalizeRewardedAds(rewardedAds)}
-            watching={rewardedAdWatching}
-            onWatch={handleRewardedAd}
-          />
+          <>
+            <RewardedAdsPanel
+              balance={balance}
+              message={rewardedAdMessage}
+              rewardedAds={normalizeRewardedAds(rewardedAds)}
+              watching={rewardedAdWatching}
+              onWatch={handleRewardedAd}
+            />
+            <DailyWheel
+              canSpin={!paused && canSpinDailyWheel(dailyWheel, todayRewardDateKey())}
+              lastPrizeLabel={null}
+              onSpin={handleDailyWheelSpin}
+            />
+          </>
         ) : activeSection === "friends" ? (
           <FriendsGame
             currentUser={accountUser}
@@ -4678,9 +5290,12 @@ function App() {
           />
         ) : activeGame === "slots" ? (
           <SlotGame
+            balance={balance}
             bet={slotBet}
             currentReels={currentReels}
+            freeSpins={slotFreeSpins}
             history={slotHistory}
+            jackpot={slotJackpot}
             message={slotMessage}
             paused={paused}
             spinning={slotSpinning}
@@ -4714,6 +5329,8 @@ function App() {
         ) : activeGame === "plinko" ? (
           <PlinkoGame
             animating={plinkoAnimating}
+            autoRemaining={plinkoAutoRemaining}
+            balance={balance}
             ballSlots={plinkoBallSlots}
             bet={plinkoBet}
             canLaunch={plinkoBetAvailable}
@@ -4721,46 +5338,79 @@ function App() {
             launches={activePlinkoLaunches}
             message={plinkoMessage}
             paused={paused}
-            rows={plinkoRows}
+            risk={plinkoRisk}
+            rows={plinkoRowsV2}
             ballSkin={equippedItems.plinkoBall}
-            layout={plinkoLayout}
+            onAutoDrop={startPlinkoAutoDrop}
+            onAutoStop={stopPlinkoAutoDrop}
             onBetChange={setPlinkoBet}
             onLaunch={launchPlinko}
             onResolve={finishPlinko}
+            onRiskChange={setPlinkoRisk}
+            onRowsChange={setPlinkoRowsV2}
           />
         ) : activeGame === "roulette" ? (
           <RouletteGame
+            balance={balance}
             bet={rouletteBet}
             betKind={rouletteBetKind}
-            canSpin={rouletteBetAvailable}
+            bets={rouletteBets}
+            canAddBet={rouletteBetAvailable}
+            canSpin={rouletteCanLaunch}
             chosenNumber={rouletteNumber}
             history={rouletteHistory}
             message={rouletteMessage}
             paused={paused}
             pendingResult={pendingRouletteResult}
+            recentNumbers={rouletteRecentNumbers}
             result={rouletteResult}
             runId={rouletteRunId}
             ballSkin={equippedItems.rouletteBall}
             spinning={rouletteSpinning}
+            totalStake={rouletteTotalStake}
+            onAddBet={addRouletteBet}
             onBetChange={setRouletteBet}
             onBetKindChange={setRouletteBetKind}
+            onClearBets={clearRouletteBets}
             onNumberChange={setRouletteNumber}
+            onRemoveBet={removeRouletteBet}
             onSpin={spinRoulette}
           />
         ) : activeGame === "rocket" ? (
           <RocketGame
             animating={rocketAnimating}
+            balance={balance}
             bet={rocketBet}
             canLaunch={rocketBetAvailable}
             flight={rocketFlight}
             history={rocketHistory}
+            liveMultiplier={rocketLiveMultiplier}
             message={rocketMessage}
+            mode={rocketMode}
             paused={paused}
             shipSkin={equippedItems.rocketShip}
             target={rocketTarget}
             onBetChange={setRocketBet}
+            onCashOut={handleRocketCashOut}
             onLaunch={launchRocket}
+            onModeChange={setRocketMode}
             onTargetChange={setRocketTarget}
+          />
+        ) : activeGame === "mines" ? (
+          <MinesGame
+            balance={balance}
+            paused={paused}
+            history={minesHistory}
+            onRoundStart={handleMinesRoundStart}
+            onRoundEnd={handleMinesRoundEnd}
+          />
+        ) : activeGame === "hilo" ? (
+          <HiLoGame
+            balance={balance}
+            paused={paused}
+            history={hiLoHistory}
+            onRoundStart={handleHiLoRoundStart}
+            onRoundEnd={handleHiLoRoundEnd}
           />
         ) : (
           <ClawGame
@@ -5376,7 +6026,7 @@ function MessagesGame({
   );
 }
 
-function SlotSymbolArt({ symbol, className = "" }: { symbol: SlotSymbol; className?: string }) {
+function SlotSymbolArt({ symbol, className = "" }: { symbol: SlotSymbolV2; className?: string }) {
   const asset = SLOT_SYMBOL_ASSETS[symbol];
 
   return (
@@ -5396,9 +6046,12 @@ function SlotResultArt({ assetId }: { assetId: SlotResultAssetId }) {
 }
 
 function SlotGame({
+  balance,
   bet,
   currentReels,
+  freeSpins,
   history,
+  jackpot,
   message,
   paused,
   spinning,
@@ -5406,9 +6059,12 @@ function SlotGame({
   onBetChange,
   onSpin,
 }: {
+  balance: number;
   bet: Bet;
-  currentReels: readonly SlotSymbol[];
+  currentReels: readonly SlotSymbolV2[];
+  freeSpins: SlotFreeSpinsState | null;
   history: SlotHistoryItem[];
+  jackpot: JackpotState | null;
   message: string;
   paused: boolean;
   spinning: boolean;
@@ -5416,9 +6072,25 @@ function SlotGame({
   onBetChange: (bet: Bet) => void;
   onSpin: () => void;
 }) {
+  const freeSpinActive = freeSpins !== null && freeSpins.remaining > 0;
+
   return (
     <>
       <section className={styles.machine}>
+        {jackpot ? (
+          <div className={styles.slotJackpotBanner} role="status">
+            <span className={styles.slotJackpotLabel}>Cagnotte progressive</span>
+            <strong className={styles.slotJackpotAmount}>{Math.floor(jackpot.pot).toLocaleString("fr-FR")} credits</strong>
+            {jackpot.lastWinnerName ? <small>Dernier gagnant : {jackpot.lastWinnerName}</small> : <small>Encore aucun gagnant</small>}
+          </div>
+        ) : null}
+
+        {freeSpinActive ? (
+          <div className={styles.slotFreeSpinsBadge} role="status">
+            {freeSpins.remaining} spin{freeSpins.remaining > 1 ? "s" : ""} gratuit{freeSpins.remaining > 1 ? "s" : ""} restant{freeSpins.remaining > 1 ? "s" : ""} (mise verrouillee : {freeSpins.bet})
+          </div>
+        ) : null}
+
         <div className={styles.reels} aria-live="polite">
           {currentReels.map((symbol, index) => (
             <div
@@ -5436,9 +6108,15 @@ function SlotGame({
 
         <div className={styles.controls}>
           <label htmlFor="slotBet">Mise virtuelle</label>
-          <BetAmountInput id="slotBet" value={bet} onChange={onBetChange} />
+          <QuickBetInput
+            id="slotBet"
+            value={freeSpinActive ? freeSpins.bet : bet}
+            onChange={onBetChange}
+            balance={balance}
+            disabled={spinning || freeSpinActive}
+          />
           <button className={styles.primaryButton} type="button" onClick={onSpin} disabled={paused || !canSpin || spinning}>
-            Lancer
+            {freeSpinActive ? `Spin gratuit (${freeSpins.remaining})` : "Lancer"}
           </button>
         </div>
 
@@ -5453,7 +6131,7 @@ function SlotGame({
         <article className={styles.panel}>
           <h2>Regles</h2>
           <p>
-            Chaque rouleau utilise les 8 symboles avec la meme probabilite. Les resultats sont
+            Chaque rouleau pioche parmi les 8 symboles plus le joker (plus rare). Les resultats sont
             independants et ne promettent aucun gain reel.
           </p>
           <div className={styles.rulesTable}>
@@ -5468,6 +6146,11 @@ function SlotGame({
               </div>
             ))}
           </div>
+          <ul className={styles.slotV2Rules}>
+            <li>Joker 🃏 : complete un triple et paie la moitie du triple (deux jokers comptent aussi). 3 jokers = x20.</li>
+            <li>Free spins : 2 etoiles naturelles ou plus = {FREE_SPINS_AWARDED} spins gratuits a la meme mise (cumulables).</li>
+            <li>Jackpot : 3 💎 (jokers inclus) remporte la cagnotte progressive commune en plus du triple.</li>
+          </ul>
         </article>
 
         <HistoryPanel title="Historique" empty="Aucun tour pour le moment.">
@@ -7406,6 +8089,8 @@ type MenuIconName =
   | "roulette"
   | "rocket"
   | "claw"
+  | "mines"
+  | "hilo"
   | "online"
   | "duel"
   | "poker"
@@ -7485,6 +8170,22 @@ function MenuIcon({ name }: { name: MenuIconName }) {
             <rect x="10" y="13" width="6" height="5" rx="1" />
             <path d="M21 8v15M19 8h4M21 23l-3 3M21 23l3 3" />
             <path d="M8 26h10" />
+          </>
+        )}
+        {name === "mines" && (
+          <>
+            <circle cx="14" cy="18" r="7.5" />
+            <path d="M19 13l4-4" />
+            <path d="M23 7.5l1.5-1.5M25 11l2-.5M21.5 6l-.5-2" />
+            <path d="M11 16.5a3.5 3.5 0 0 1 3-2" />
+          </>
+        )}
+        {name === "hilo" && (
+          <>
+            <rect x="8" y="7" width="12" height="17" rx="2" />
+            <path d="M12 7V5.5h12a2 2 0 0 1 2 2V22" />
+            <path d="m14 14 2-3 2 3" />
+            <path d="m14 18 2 3 2-3" />
           </>
         )}
         {name === "online" && (
@@ -7909,39 +8610,64 @@ function blackjackArtCellStyle(cell: DeckArtCell): CSSProperties {
   } as CSSProperties;
 }
 
+function plinkoRiskLabel(risk: PlinkoRisk): string {
+  if (risk === "low") {
+    return "Risque faible";
+  }
+
+  if (risk === "high") {
+    return "Risque eleve";
+  }
+
+  return "Risque moyen";
+}
+
 function PlinkoGame({
   animating,
+  autoRemaining,
+  balance,
   ballSlots,
   bet,
   canLaunch,
   history,
   launches,
-  layout,
   message,
   paused,
+  risk,
   rows,
   ballSkin,
+  onAutoDrop,
+  onAutoStop,
   onBetChange,
   onLaunch,
   onResolve,
+  onRiskChange,
+  onRowsChange,
 }: {
   animating: boolean;
+  autoRemaining: number;
+  balance: number;
   ballSlots: number[];
   bet: Bet;
   canLaunch: boolean;
   history: PlinkoHistoryItem[];
   launches: PlinkoLaunch[];
-  layout: PlinkoLayout;
   message: string;
   paused: boolean;
-  rows: PlinkoRows;
+  risk: PlinkoRisk;
+  rows: PlinkoRowsV2;
   ballSkin: ShopItem;
+  onAutoDrop: (count: number) => void;
+  onAutoStop: () => void;
   onBetChange: (bet: Bet) => void;
   onLaunch: () => void;
   onResolve: (launch: PlinkoLaunch, slot: number, path: PlinkoStep[]) => void;
+  onRiskChange: (risk: PlinkoRisk) => void;
+  onRowsChange: (rows: PlinkoRowsV2) => void;
 }) {
-  const probabilities = getPlinkoProbabilities(rows, layout);
-  const slots = getPlinkoMultipliers(rows, layout);
+  const probabilities = getPlinkoProbabilitiesV2(rows, risk);
+  const slots = getPlinkoMultipliersV2(rows, risk);
+  const settingsLocked = animating || autoRemaining > 0;
 
   return (
     <>
@@ -7959,19 +8685,66 @@ function PlinkoGame({
 
         <p className={styles.message}>{message}</p>
 
+        <div className={styles.plinkoOptionGroups}>
+          <div className={styles.plinkoOptionRow} role="group" aria-label="Profil de risque">
+            {(["low", "medium", "high"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={option === risk ? `${styles.plinkoOptionButton} ${styles.plinkoOptionButtonActive}` : styles.plinkoOptionButton}
+                onClick={() => onRiskChange(option)}
+                disabled={settingsLocked}
+              >
+                {plinkoRiskLabel(option)}
+              </button>
+            ))}
+          </div>
+          <div className={styles.plinkoOptionRow} role="group" aria-label="Nombre de rangees">
+            {PLINKO_ROW_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={option === rows ? `${styles.plinkoOptionButton} ${styles.plinkoOptionButtonActive}` : styles.plinkoOptionButton}
+                onClick={() => onRowsChange(option)}
+                disabled={settingsLocked}
+              >
+                {option} rangees
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={styles.controls}>
           <label htmlFor="plinkoBet">Mise virtuelle</label>
-          <BetAmountInput id="plinkoBet" max={PLINKO_MAX_BET} value={bet} onChange={onBetChange} />
-          <label htmlFor="plinkoRows">Rangees</label>
-          <input id="plinkoRows" type="text" value={`${rows} rangees`} readOnly disabled={animating} />
+          <QuickBetInput id="plinkoBet" max={PLINKO_MAX_BET} value={bet} onChange={onBetChange} balance={balance} disabled={autoRemaining > 0} />
           <button
             className={styles.primaryButton}
             type="button"
             onClick={onLaunch}
-            disabled={paused || !canLaunch}
+            disabled={paused || !canLaunch || autoRemaining > 0}
           >
             Lancer une bille
           </button>
+        </div>
+
+        <div className={styles.plinkoOptionRow} role="group" aria-label="Auto-drop">
+          {autoRemaining > 0 ? (
+            <button className={styles.secondaryButton} type="button" onClick={onAutoStop}>
+              Stop auto ({autoRemaining} restantes)
+            </button>
+          ) : (
+            PLINKO_AUTO_DROP_OPTIONS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                className={styles.plinkoOptionButton}
+                onClick={() => onAutoDrop(count)}
+                disabled={paused || !canLaunch}
+              >
+                Auto x{count}
+              </button>
+            ))
+          )}
         </div>
         <small className={styles.betNote}>Mise Plinko maximum : {PLINKO_MAX_BET.toLocaleString("fr-FR")} credits virtuels.</small>
 
@@ -7987,13 +8760,9 @@ function PlinkoGame({
           <h2>Regles du Plinko</h2>
           <p>
             A chaque rangee, la bille part a gauche ou a droite avec une probabilite theorique de
-            50 %. La case finale depend du nombre de pas a droite.
+            50 %. La case finale depend du nombre de pas a droite. Profil actif : {plinkoRiskLabel(risk).toLowerCase()},
+            {" "}{rows} rangees.
           </p>
-          {layout === "mobile" && (
-            <p>
-              Sur telephone, les multiplicateurs sont reorganises pour eviter que les bords soient trop faciles.
-            </p>
-          )}
           <div className={styles.rulesTable}>
             {probabilities.map((item) => (
               <div className={styles.ruleRow} key={item.slot}>
@@ -8015,7 +8784,7 @@ function PlinkoGame({
           {history.map((item) => (
             <li key={item.id}>
               <span>
-                {item.rows} rangees | case {item.slot} | x{item.multiplier}
+                {item.risk ? plinkoRiskLabel(item.risk).toLowerCase() : "classique"} | {item.rows} rangees | case {item.slot} | x{item.multiplier}
               </span>
               <small>
                 mise {item.bet} | {item.net >= 0 ? "+" : ""}
@@ -8422,41 +9191,61 @@ function normalizePath(path: PlinkoStep[], rows: PlinkoRows, slot: number): Plin
 }
 
 function RouletteGame({
+  balance,
   bet,
   betKind,
+  bets,
+  canAddBet,
   canSpin,
   chosenNumber,
   history,
   message,
   paused,
   pendingResult,
+  recentNumbers,
   result,
   runId,
   ballSkin,
   spinning,
+  totalStake,
+  onAddBet,
   onBetChange,
   onBetKindChange,
+  onClearBets,
   onNumberChange,
+  onRemoveBet,
   onSpin,
 }: {
+  balance: number;
   bet: Bet;
   betKind: RouletteBetKind;
+  bets: PlacedRouletteBet[];
+  canAddBet: boolean;
   canSpin: boolean;
   chosenNumber: number;
   history: RouletteHistoryItem[];
   message: string;
   paused: boolean;
   pendingResult: number | null;
+  recentNumbers: number[];
   result: number | null;
   runId: number;
   ballSkin: ShopItem;
   spinning: boolean;
+  totalStake: number;
+  onAddBet: () => void;
   onBetChange: (bet: Bet) => void;
   onBetKindChange: (kind: RouletteBetKind) => void;
+  onClearBets: () => void;
   onNumberChange: (number: number) => void;
+  onRemoveBet: (index: number) => void;
   onSpin: () => void;
 }) {
   const wheelRotation = useRouletteWheelRotation(spinning, runId);
+  const hotNumbers = getRouletteHotNumbers(recentNumbers);
+  const coldNumbers = getRouletteColdNumbers(recentNumbers);
+  const betKindLabel = (kind: RouletteBetKind, number?: number) =>
+    kind === "straight" ? `Numero ${number ?? 0}` : rouletteBetOptions.find((option) => option.value === kind)?.label ?? kind;
   const isSelectedCell = (number: number) => {
     if (betKind === "straight") {
       return number === chosenNumber;
@@ -8555,9 +9344,19 @@ function RouletteGame({
 
         <p className={styles.message}>{message}</p>
 
+        {recentNumbers.length > 0 ? (
+          <div className={styles.rouletteRecentStrip} aria-label="Douze derniers numeros">
+            {recentNumbers.map((number, index) => (
+              <span className={styles.rouletteRecentDot} data-color={getRouletteColor(number)} key={`${number}-${index}`}>
+                {number}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         <div className={styles.controls}>
           <label htmlFor="rouletteBet">Mise virtuelle</label>
-          <BetAmountInput id="rouletteBet" value={bet} onChange={onBetChange} />
+          <QuickBetInput id="rouletteBet" value={bet} onChange={onBetChange} balance={balance} disabled={spinning} />
 
           <label htmlFor="rouletteKind">Pari</label>
           <select
@@ -8591,9 +9390,44 @@ function RouletteGame({
             </>
           )}
 
+          <button className={styles.secondaryButton} type="button" onClick={onAddBet} disabled={paused || spinning || !canAddBet}>
+            Ajouter la mise
+          </button>
           <button className={styles.primaryButton} type="button" onClick={onSpin} disabled={paused || !canSpin || spinning}>
             Lancer
           </button>
+        </div>
+
+        <div className={styles.rouletteBetsBoard} aria-label="Mises posees">
+          {bets.length === 0 ? (
+            <p className={styles.empty}>Aucune mise posee. Ajoute une mise pour jouer.</p>
+          ) : (
+            <>
+              <ul className={styles.rouletteBetsList}>
+                {bets.map((placed, index) => (
+                  <li className={styles.rouletteBetRow} key={`${placed.kind}-${placed.number ?? ""}-${index}`}>
+                    <span>{betKindLabel(placed.kind, placed.number)}</span>
+                    <strong>{placed.amount} credits</strong>
+                    <button
+                      className={styles.rouletteBetRemove}
+                      type="button"
+                      onClick={() => onRemoveBet(index)}
+                      disabled={spinning}
+                      aria-label={`Retirer la mise ${betKindLabel(placed.kind, placed.number)}`}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className={styles.rouletteBetsFooter}>
+                <strong>Total mise : {totalStake.toLocaleString("fr-FR")} credits</strong>
+                <button className={styles.secondaryButton} type="button" onClick={onClearBets} disabled={spinning}>
+                  Tout effacer
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {paused && (
@@ -8619,16 +9453,26 @@ function RouletteGame({
               </div>
             ))}
           </div>
+          {recentNumbers.length > 0 ? (
+            <div className={styles.rouletteTrendsRow}>
+              <span>
+                Chauds :{" "}
+                {hotNumbers.length > 0 ? hotNumbers.map((entry) => `${entry.number} (${entry.count}x)`).join(", ") : "aucun"}
+              </span>
+              <span>Froids : {coldNumbers.length > 0 ? coldNumbers.join(", ") : "aucun"}</span>
+            </div>
+          ) : null}
         </article>
 
         <HistoryPanel title="10 derniers tours" empty="Aucun tour pour le moment.">
           {history.map((item) => (
             <li key={item.id}>
               <span>
-                {item.number} {formatRouletteColor(item.color)} | {item.label}
+                {item.number} {formatRouletteColor(item.color)} | {item.bets.length} mise{item.bets.length > 1 ? "s" : ""} :{" "}
+                {item.bets.map((line) => `${line.label} (${line.amount})`).join(", ")}
               </span>
               <small>
-                mise {item.bet} | {item.net >= 0 ? "+" : ""}
+                total {item.totalBet} | {item.net >= 0 ? "+" : ""}
                 {item.net} | solde {item.balanceAfter}
               </small>
             </li>
@@ -10607,29 +11451,39 @@ function ClawGame({
 
 function RocketGame({
   animating,
+  balance,
   bet,
   canLaunch,
   flight,
   history,
+  liveMultiplier,
   message,
+  mode,
   paused,
   shipSkin,
   target,
   onBetChange,
+  onCashOut,
   onLaunch,
+  onModeChange,
   onTargetChange,
 }: {
   animating: boolean;
+  balance: number;
   bet: Bet;
   canLaunch: boolean;
   flight: RocketOutcome | null;
   history: RocketHistoryItem[];
+  liveMultiplier: number | null;
   message: string;
+  mode: RocketMode;
   paused: boolean;
   shipSkin: ShopItem;
   target: RocketTarget;
   onBetChange: (bet: Bet) => void;
+  onCashOut: () => void;
   onLaunch: () => void;
+  onModeChange: (mode: RocketMode) => void;
   onTargetChange: (target: RocketTarget) => void;
 }) {
   const targetProbability = getRocketSuccessProbability(target);
@@ -10679,37 +11533,82 @@ function RocketGame({
               className={animating ? `${styles.rocketCraft} ${styles.rocketCraftFlying}` : styles.rocketCraft}
               style={{ "--rocket-accent": shipSkin.preview } as CSSProperties}
             />
+            {mode === "manual" && liveMultiplier !== null ? (
+              <div className={styles.rocketLiveMultiplier} aria-live="polite">
+                x{liveMultiplier.toFixed(2)}
+              </div>
+            ) : null}
           </div>
           <div className={styles.rocketMetrics}>
-            <span>Cible</span>
-            <strong>{formatMultiplier(target)}</strong>
-            <span>Retombee simulée</span>
-            <strong>{formatMultiplier(displayedMultiplier)}</strong>
+            {mode === "manual" ? (
+              <>
+                <span>Multiplicateur</span>
+                <strong>{liveMultiplier !== null ? `x${liveMultiplier.toFixed(2)}` : "x1.00"}</strong>
+                <span>Cash out potentiel</span>
+                <strong>{liveMultiplier !== null ? Math.round(bet * liveMultiplier).toLocaleString("fr-FR") : bet.toLocaleString("fr-FR")}</strong>
+              </>
+            ) : (
+              <>
+                <span>Cible</span>
+                <strong>{formatMultiplier(target)}</strong>
+                <span>Retombee simulée</span>
+                <strong>{formatMultiplier(displayedMultiplier)}</strong>
+              </>
+            )}
           </div>
         </div>
 
         <p className={styles.message}>{message}</p>
 
+        <div className={styles.rocketModeRow} role="group" aria-label="Mode de jeu Rocket">
+          <button
+            type="button"
+            className={mode === "target" ? `${styles.rocketModeButton} ${styles.rocketModeButtonActive}` : styles.rocketModeButton}
+            onClick={() => onModeChange("target")}
+            disabled={animating}
+          >
+            Cible auto
+          </button>
+          <button
+            type="button"
+            className={mode === "manual" ? `${styles.rocketModeButton} ${styles.rocketModeButtonActive}` : styles.rocketModeButton}
+            onClick={() => onModeChange("manual")}
+            disabled={animating}
+          >
+            Cash-out manuel
+          </button>
+        </div>
+
         <div className={styles.controls}>
           <label htmlFor="rocketBet">Mise virtuelle</label>
-          <BetAmountInput id="rocketBet" value={bet} onChange={onBetChange} />
-          <label htmlFor="rocketTarget">Cible</label>
-          <input
-            id="rocketTarget"
-            type="number"
-            value={target}
-            min={ROCKET_MIN_TARGET}
-            max={ROCKET_MAX_TARGET}
-            step="0.1"
-            onChange={(event) =>
-              onTargetChange((event.target.value === "" ? ROCKET_MIN_TARGET : Number(event.target.value)) as RocketTarget)
-            }
-            onBlur={() => onTargetChange(normalizeRocketTarget(target))}
-            disabled={animating}
-          />
-          <button className={styles.primaryButton} type="button" onClick={onLaunch} disabled={paused || !canLaunch || animating}>
-            Lancer
-          </button>
+          <QuickBetInput id="rocketBet" value={bet} onChange={onBetChange} balance={balance} disabled={animating} />
+          {mode === "target" ? (
+            <>
+              <label htmlFor="rocketTarget">Cible</label>
+              <input
+                id="rocketTarget"
+                type="number"
+                value={target}
+                min={ROCKET_MIN_TARGET}
+                max={ROCKET_MAX_TARGET}
+                step="0.1"
+                onChange={(event) =>
+                  onTargetChange((event.target.value === "" ? ROCKET_MIN_TARGET : Number(event.target.value)) as RocketTarget)
+                }
+                onBlur={() => onTargetChange(normalizeRocketTarget(target))}
+                disabled={animating}
+              />
+            </>
+          ) : null}
+          {mode === "manual" && animating ? (
+            <button className={`${styles.primaryButton} ${styles.rocketCashOutButton}`} type="button" onClick={onCashOut}>
+              CASH OUT {liveMultiplier !== null ? `x${liveMultiplier.toFixed(2)}` : ""}
+            </button>
+          ) : (
+            <button className={styles.primaryButton} type="button" onClick={onLaunch} disabled={paused || !canLaunch || animating}>
+              Lancer
+            </button>
+          )}
         </div>
 
         {paused && (
@@ -10730,13 +11629,21 @@ function RocketGame({
             Pour la cible active {formatMultiplier(target)}, la probabilite theorique de succes est de
             {" "}{(targetProbability * 100).toFixed(0)} %. Aucun gain reel n'est possible.
           </p>
+          <p>
+            En mode cash-out manuel, le multiplicateur monte en direct : encaisse avant le crash pour gagner
+            mise × multiplicateur. Trop tard = mise perdue.
+          </p>
         </article>
 
         <HistoryPanel title="10 derniers vols" empty="Aucun lancement pour le moment.">
           {history.map((item) => (
             <li key={item.id}>
               <span>
-                cible {formatMultiplier(item.target)} | retombee {formatMultiplier(item.crashMultiplier)}
+                {item.mode === "manual"
+                  ? item.cashOut !== null && item.cashOut !== undefined
+                    ? `cash out x${item.cashOut.toFixed(2)} | crash ${formatMultiplier(item.crashMultiplier)}`
+                    : `crash ${formatMultiplier(item.crashMultiplier)} sans cash out`
+                  : `cible ${formatMultiplier(item.target)} | retombee ${formatMultiplier(item.crashMultiplier)}`}
               </span>
               <small>
                 mise {item.bet} | {item.net >= 0 ? "+" : ""}
