@@ -1,9 +1,12 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   GoogleAuthProvider,
+  connectAuthEmulator,
+  createUserWithEmailAndPassword,
   getAuth,
   getRedirectResult,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   signOut,
@@ -13,6 +16,7 @@ import {
 import {
   addDoc,
   collection,
+  connectFirestoreEmulator,
   deleteDoc,
   doc,
   getDoc,
@@ -264,6 +268,10 @@ function hasFirebaseConfig() {
 
 let firebaseApp: FirebaseApp | null = null;
 
+// Mode emulateur local (debug uniquement) : lance vite avec VITE_FB_EMU=1 pour
+// brancher Auth (9099) et Firestore (8080) sur les emulateurs Firebase locaux.
+const useLocalEmulators = import.meta.env.VITE_FB_EMU === "1";
+
 function getFirebaseApp() {
   if (!hasFirebaseConfig()) {
     return null;
@@ -271,9 +279,35 @@ function getFirebaseApp() {
 
   if (!firebaseApp) {
     firebaseApp = initializeApp(firebaseConfig);
+
+    if (useLocalEmulators) {
+      connectAuthEmulator(getAuth(firebaseApp), "http://127.0.0.1:9099", { disableWarnings: true });
+      connectFirestoreEmulator(getFirestore(firebaseApp), "127.0.0.1", 8080);
+    }
   }
 
   return firebaseApp;
+}
+
+if (useLocalEmulators && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__casinoDevSignIn = async (name: string) => {
+    const app = getFirebaseApp();
+    if (!app) {
+      throw new Error("Firebase n'est pas configure.");
+    }
+
+    const auth = getAuth(app);
+    const email = `${name}@test.dev`;
+
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, "test1234");
+      await updateProfile(credential.user, { displayName: name });
+      return credential.user.uid;
+    } catch {
+      const credential = await signInWithEmailAndPassword(auth, email, "test1234");
+      return credential.user.uid;
+    }
+  };
 }
 
 export function getCasinoApp(): FirebaseApp | null {

@@ -199,82 +199,28 @@ service cloud.firestore {
         && request.resource.data.russianShots is list
         && request.resource.data.russianTurnUid is string
         && request.resource.data.russianTurnName is string;
+      // ATTENTION : Firestore limite chaque evaluation de regle a 1000 expressions.
+      // L'ancienne version validait le type de ~55 champs un par un (hasAny + is + == null)
+      // et depassait cette limite sur les documents room complets : TOUTES les updates
+      // etaient refusees ("maximum of 1000 expressions") et aucun jeu multijoueur ne
+      // fonctionnait. On garde donc uniquement les invariants de securite essentiels ;
+      // ne pas reintroduire de validation champ par champ ici.
       allow update: if request.auth != null
         && (
           isAdmin()
           || (
-        request.resource.data.type == resource.data.type
-        && request.resource.data.hostUid == resource.data.hostUid
-        && (
-          request.auth.uid == resource.data.hostUid
-          || request.auth.uid in resource.data.playerIds
-          || request.auth.uid in request.resource.data.playerIds
-        )
-        && request.resource.data.status in ["waiting", "playing", "finished"]
-        && request.resource.data.players is list
-        && request.resource.data.playerIds is list
-        && request.resource.data.maxPlayers is number
-        && request.resource.data.players.size() <= request.resource.data.maxPlayers
-        && request.resource.data.duelScores is map
-        && (!request.resource.data.keys().hasAny(["pokerHands"]) || request.resource.data.pokerHands is map)
-        && (!request.resource.data.keys().hasAny(["communityCards"]) || request.resource.data.communityCards is list)
-        && (!request.resource.data.keys().hasAny(["foldedPlayerIds"]) || request.resource.data.foldedPlayerIds is list)
-        && (!request.resource.data.keys().hasAny(["pokerActions"]) || request.resource.data.pokerActions is map)
-        && (!request.resource.data.keys().hasAny(["pokerPot"]) || request.resource.data.pokerPot is number)
-        && (!request.resource.data.keys().hasAny(["pokerCurrentBet"]) || request.resource.data.pokerCurrentBet is number)
-        && (!request.resource.data.keys().hasAny(["pokerContributions"]) || request.resource.data.pokerContributions is map)
-        && (!request.resource.data.keys().hasAny(["pokerPaidByPlayer"]) || request.resource.data.pokerPaidByPlayer is map)
-        && (!request.resource.data.keys().hasAny(["pokerHandId"]) || request.resource.data.pokerHandId is number)
-        && (!request.resource.data.keys().hasAny(["pokerWinnerUids"]) || request.resource.data.pokerWinnerUids is list)
-        && (!request.resource.data.keys().hasAny(["pokerWinnerNames"]) || request.resource.data.pokerWinnerNames is list)
-        && (!request.resource.data.keys().hasAny(["pokerWinnerHandLabel"]) || request.resource.data.pokerWinnerHandLabel is string)
-        && (!request.resource.data.keys().hasAny(["pokerWinnerHandCards"]) || request.resource.data.pokerWinnerHandCards is list)
-        && (!request.resource.data.keys().hasAny(["pokerShowdownResults"]) || request.resource.data.pokerShowdownResults is list)
-        && (!request.resource.data.keys().hasAny(["russianBet"]) || request.resource.data.russianBet is number)
-        && (!request.resource.data.keys().hasAny(["russianPot"]) || request.resource.data.russianPot is number)
-        && (!request.resource.data.keys().hasAny(["russianRound"]) || request.resource.data.russianRound is number)
-        && (!request.resource.data.keys().hasAny(["russianAliveUids"]) || request.resource.data.russianAliveUids is list)
-        && (!request.resource.data.keys().hasAny(["russianEliminatedUids"]) || request.resource.data.russianEliminatedUids is list)
-        && (!request.resource.data.keys().hasAny(["russianPaidRound"]) || request.resource.data.russianPaidRound is map)
-        && (!request.resource.data.keys().hasAny(["russianShots"]) || request.resource.data.russianShots is list)
-        && (!request.resource.data.keys().hasAny(["russianTurnUid"]) || request.resource.data.russianTurnUid is string)
-        && (!request.resource.data.keys().hasAny(["russianTurnName"]) || request.resource.data.russianTurnName is string)
-        && (!request.resource.data.keys().hasAny(["russianSideBets"]) || request.resource.data.russianSideBets == null || request.resource.data.russianSideBets is map)
-        && (!request.resource.data.keys().hasAny(["crashPhase"]) || request.resource.data.crashPhase == null || request.resource.data.crashPhase is string)
-        && (!request.resource.data.keys().hasAny(["crashRoundId"]) || request.resource.data.crashRoundId == null || request.resource.data.crashRoundId is number)
-        && (!request.resource.data.keys().hasAny(["crashBets"]) || request.resource.data.crashBets == null || request.resource.data.crashBets is map)
-        && (!request.resource.data.keys().hasAny(["crashHash"]) || request.resource.data.crashHash == null || request.resource.data.crashHash is string)
-        && (!request.resource.data.keys().hasAny(["crashPoint"]) || request.resource.data.crashPoint == null || request.resource.data.crashPoint is number)
-        && (!request.resource.data.keys().hasAny(["crashSalt"]) || request.resource.data.crashSalt == null || request.resource.data.crashSalt is string)
-        && (!request.resource.data.keys().hasAny(["crashVoided"]) || request.resource.data.crashVoided == null || request.resource.data.crashVoided is bool)
-        && (!request.resource.data.keys().hasAny(["crashResolverUid"]) || request.resource.data.crashResolverUid == null || request.resource.data.crashResolverUid is string)
-        && (!request.resource.data.keys().hasAny(["crashHistory"]) || request.resource.data.crashHistory == null || request.resource.data.crashHistory is list)
-        && (!request.resource.data.keys().hasAny(["crashLastResults"]) || request.resource.data.crashLastResults == null || request.resource.data.crashLastResults is map)
-        && (!request.resource.data.keys().hasAny(["crashStartAt"]) || request.resource.data.crashStartAt == null || request.resource.data.crashStartAt is timestamp)
-        && (!request.resource.data.keys().hasAny(["crashBettingStartedAt"]) || request.resource.data.crashBettingStartedAt == null || request.resource.data.crashBettingStartedAt is timestamp)
-        && (!request.resource.data.keys().hasAny(["crashHostHeartbeatAt"]) || request.resource.data.crashHostHeartbeatAt == null || request.resource.data.crashHostHeartbeatAt is timestamp)
-        && (!request.resource.data.keys().hasAny(["rtPhase"]) || request.resource.data.rtPhase == null || request.resource.data.rtPhase is string)
-        && (!request.resource.data.keys().hasAny(["rtRoundId"]) || request.resource.data.rtRoundId == null || request.resource.data.rtRoundId is number)
-        && (!request.resource.data.keys().hasAny(["rtBets"]) || request.resource.data.rtBets == null || request.resource.data.rtBets is map)
-        && (!request.resource.data.keys().hasAny(["rtResultNumber"]) || request.resource.data.rtResultNumber == null || request.resource.data.rtResultNumber is number)
-        && (!request.resource.data.keys().hasAny(["rtSpunByUid"]) || request.resource.data.rtSpunByUid == null || request.resource.data.rtSpunByUid is string)
-        && (!request.resource.data.keys().hasAny(["rtHistory"]) || request.resource.data.rtHistory == null || request.resource.data.rtHistory is list)
-        && (!request.resource.data.keys().hasAny(["rtLastResults"]) || request.resource.data.rtLastResults == null || request.resource.data.rtLastResults is map)
-        && (!request.resource.data.keys().hasAny(["rtBettingStartedAt"]) || request.resource.data.rtBettingStartedAt == null || request.resource.data.rtBettingStartedAt is timestamp)
-        && (!request.resource.data.keys().hasAny(["coinflipBet"]) || request.resource.data.coinflipBet == null || request.resource.data.coinflipBet is number)
-        && (!request.resource.data.keys().hasAny(["coinflipResult"]) || request.resource.data.coinflipResult == null || request.resource.data.coinflipResult is string)
-        && (!request.resource.data.keys().hasAny(["pokerMode"]) || request.resource.data.pokerMode == null || request.resource.data.pokerMode is string)
-        && (!request.resource.data.keys().hasAny(["pokerBuyIn"]) || request.resource.data.pokerBuyIn == null || request.resource.data.pokerBuyIn is number)
-        && (!request.resource.data.keys().hasAny(["pokerStacks"]) || request.resource.data.pokerStacks == null || request.resource.data.pokerStacks is map)
-        && (!request.resource.data.keys().hasAny(["pokerSmallBlind"]) || request.resource.data.pokerSmallBlind == null || request.resource.data.pokerSmallBlind is number)
-        && (!request.resource.data.keys().hasAny(["pokerBigBlind"]) || request.resource.data.pokerBigBlind == null || request.resource.data.pokerBigBlind is number)
-        && (!request.resource.data.keys().hasAny(["pokerDealerIndex"]) || request.resource.data.pokerDealerIndex == null || request.resource.data.pokerDealerIndex is number)
-        && (!request.resource.data.keys().hasAny(["pokerMinRaise"]) || request.resource.data.pokerMinRaise == null || request.resource.data.pokerMinRaise is number)
-        && (!request.resource.data.keys().hasAny(["pokerBlindLevel"]) || request.resource.data.pokerBlindLevel == null || request.resource.data.pokerBlindLevel is number)
-        && (!request.resource.data.keys().hasAny(["pokerHandsPerLevel"]) || request.resource.data.pokerHandsPerLevel == null || request.resource.data.pokerHandsPerLevel is number)
-        && (!request.resource.data.keys().hasAny(["pokerEliminatedUids"]) || request.resource.data.pokerEliminatedUids == null || request.resource.data.pokerEliminatedUids is list)
-        && (!request.resource.data.keys().hasAny(["duelSeed"]) || request.resource.data.duelSeed == null || request.resource.data.duelSeed is number)
-        && (!request.resource.data.keys().hasAny(["duelStake"]) || request.resource.data.duelStake == null || request.resource.data.duelStake is number)
+            request.resource.data.type == resource.data.type
+            && request.resource.data.hostUid == resource.data.hostUid
+            && (
+              request.auth.uid == resource.data.hostUid
+              || request.auth.uid in resource.data.playerIds
+              || request.auth.uid in request.resource.data.playerIds
+            )
+            && request.resource.data.status in ["waiting", "playing", "finished"]
+            && request.resource.data.players is list
+            && request.resource.data.playerIds is list
+            && request.resource.data.maxPlayers is number
+            && request.resource.data.players.size() <= request.resource.data.maxPlayers
           )
           || (
             (resource.data.type == "russian-roulette" || resource.data.onlineMode == "russian-roulette")
